@@ -19,6 +19,7 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 - **Graphics**: Embed images via `^GF` command
 - **Templates**: Variable substitution with `{{variable}}` syntax
 - **Serial numbers**: Auto-incrementing fields with `^SN`
+- **Printer commands**: Network config, calibration, reset, cancel job
 - **Automatic unit conversion** (inches, mm, dots)
 - **Full Swift 6 concurrency support** (`Sendable` types)
 
@@ -249,6 +250,29 @@ print("Elements: \(parsed.elements.count)")
 ```
 
 The renderer handles all ZPL commands that ZPLKit generates, including text, barcodes, shapes, and graphics.
+
+## Printer Commands
+
+Send one-way commands to Zebra printers over the network:
+
+```swift
+import ZPLKit
+
+// Get the command string
+let command = PrinterCommand.printNetworkConfig.zpl  // "~WL"
+
+// Send via TCP port 9100 (your app handles the connection)
+connection.send(command.data(using: .utf8)!)
+```
+
+Available commands:
+
+| Command | Description |
+|---------|-------------|
+| `.printNetworkConfig` | Print network settings on a label (`~WL`) |
+| `.calibrate` | Run media calibration (`~JC`) |
+| `.reset` | Power-on reset (`~JR`) |
+| `.cancelJob` | Cancel current print job (`~JA`) |
 
 ## Supported DPI
 
