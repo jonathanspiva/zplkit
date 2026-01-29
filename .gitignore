@@ -24,7 +24,8 @@ DerivedData/
 # Visual Test Harness
 Tests/VisualTestHarness/node_modules/
 Tests/VisualTestHarness/output/
-Tests/VisualTestHarness/fixtures/*.zpl
+# Generated fixtures are kept - they're our test cases
+# Tests/VisualTestHarness/fixtures/*.zpl
 
 # Keep baselines (golden images)
 !Tests/VisualTestHarness/baselines/
