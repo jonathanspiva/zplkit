@@ -330,21 +330,21 @@ public struct ZPLBuilder {
 Enables:
 ```swift
 ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-    Text("Header", at: .position(50, 20))
+    Text("Header", at: .dots(50, 20))
 
     if showBarcode {
-        Barcode128(sku, at: .position(50, 60))  // nil if invalid, silently omitted
+        Barcode128(sku, at: .dots(50, 60))  // nil if invalid, silently omitted
     }
 
     for (index, item) in items.enumerated() {
-        Text(item, at: .position(50, 100 + index * 30))
+        Text(item, at: .dots(50, 100 + index * 30))
     }
 
     // Explicit handling of failable barcode with fallback
-    if let barcode = Code39(userInput, at: .position(50, 200)) {
+    if let barcode = Code39(userInput, at: .dots(50, 200)) {
         barcode.height(80)
     } else {
-        Text("Invalid barcode data", at: .position(50, 200))
+        Text("Invalid barcode data", at: .dots(50, 200))
     }
 }
 ```
@@ -388,14 +388,14 @@ The library should be hard to misuse. `render()` is **non-throwing** to keep the
 ```swift
 // Values outside valid ranges are clamped
 // Logged via os_log in DEBUG builds, silent in release
-Barcode128("test", at: .position(50, 50))?
+Barcode128("test", at: .dots(50, 50))?
     .moduleWidth(15)  // Clamped to 10, logs warning in DEBUG
 
 // Invalid barcode data returns nil at creation time
-let barcode = Code39("invalid@chars!", at: .position(0, 0))  // nil
+let barcode = Code39("invalid@chars!", at: .dots(0, 0))  // nil
 
 // Special characters are auto-escaped using ^FH + _XX hex encoding
-Text("Price: $5.00 (~10% off)", at: .position(0, 0))
+Text("Price: $5.00 (~10% off)", at: .dots(0, 0))
 // Renders: ^FH^FDPrice: $5.00 (_7e10_25 off)^FS
 ```
 
