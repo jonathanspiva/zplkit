@@ -104,8 +104,13 @@ public enum CoreGraphicsRenderer {
         let x = CGFloat(text.x)
         let y = CGFloat(text.y)
 
+        // Move to text position
         context.translateBy(x: x, y: y)
 
+        // Get text bounds for proper positioning
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+
+        // Apply ZPL rotation
         switch text.rotation {
         case "R":
             context.rotate(by: -.pi / 2)
@@ -117,14 +122,18 @@ public enum CoreGraphicsRenderer {
             break
         }
 
+        // Un-flip for text rendering (context is flipped, but CoreText expects unflipped)
+        // This makes text render right-side up
+        context.scaleBy(x: 1, y: -1)
+
         // If reversed, draw background box
         if text.isReversed {
-            let bounds = CTLineGetBoundsWithOptions(line, [])
             context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
-            context.fill(CGRect(x: 0, y: bounds.minY, width: bounds.width, height: bounds.height))
+            context.fill(CGRect(x: 0, y: -bounds.height, width: bounds.width, height: bounds.height))
         }
 
-        context.textPosition = .zero
+        // Position text at baseline (after flip, y is inverted)
+        context.textPosition = CGPoint(x: 0, y: -bounds.height - bounds.minY)
         CTLineDraw(line, context)
 
         context.restoreGState()
@@ -167,13 +176,23 @@ public enum CoreGraphicsRenderer {
         let attributedString = NSAttributedString(string: textBlock.text, attributes: attributes)
 
         let frameSetter = CTFramesetterCreateWithAttributedString(attributedString)
-        let path = CGPath(rect: CGRect(x: CGFloat(textBlock.x), y: CGFloat(textBlock.y),
+        let frameHeight = CGFloat(textBlock.maxLines * textBlock.fontHeight * 2)
+
+        context.saveGState()
+
+        // Move to text block position
+        context.translateBy(x: CGFloat(textBlock.x), y: CGFloat(textBlock.y))
+
+        // Un-flip for CoreText (which expects bottom-left origin)
+        context.scaleBy(x: 1, y: -1)
+
+        // Create path in local coordinates
+        let path = CGPath(rect: CGRect(x: 0, y: -frameHeight,
                                         width: CGFloat(textBlock.blockWidth),
-                                        height: CGFloat(textBlock.maxLines * textBlock.fontHeight * 2)),
+                                        height: frameHeight),
                          transform: nil)
         let frame = CTFramesetterCreateFrame(frameSetter, CFRange(location: 0, length: 0), path, nil)
 
-        context.saveGState()
         CTFrameDraw(frame, context)
         context.restoreGState()
     }
@@ -517,9 +536,13 @@ public enum CoreGraphicsRenderer {
 
         let attributedString = NSAttributedString(string: text, attributes: attributes)
         let line = CTLineCreateWithAttributedString(attributedString)
+        let bounds = CTLineGetBoundsWithOptions(line, [])
 
         context.saveGState()
-        context.textPosition = point
+        context.translateBy(x: point.x, y: point.y)
+        // Un-flip for CoreText
+        context.scaleBy(x: 1, y: -1)
+        context.textPosition = CGPoint(x: 0, y: -bounds.height - bounds.minY)
         CTLineDraw(line, context)
         context.restoreGState()
     }

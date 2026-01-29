@@ -37,5 +37,10 @@ let package = Package(
             name: "ZPLKitRendererTests",
             dependencies: ["ZPLKitRenderer"]
         ),
+        .executableTarget(
+            name: "RenderFixtures",
+            dependencies: ["ZPLKitRenderer"],
+            path: "Tools/RenderFixtures"
+        ),
     ]
 )

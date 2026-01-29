@@ -27,6 +27,9 @@ public enum ZPLParser {
         var textBlockLineSpacing = 0
         var textBlockHangingIndent = 0
 
+        // Pending barcode (barcode commands come before ^FD with the data)
+        var pendingBarcode: ParsedBarcode? = nil
+
         // Split into commands - ZPL commands start with ^ or ~
         let pattern = #"(\^[A-Z][A-Z0-9]?[^^\~]*|\~[A-Z][A-Z0-9]?[^^\~]*)"#
         let regex = try NSRegularExpression(pattern: pattern, options: [])
@@ -120,11 +123,27 @@ public enum ZPLParser {
                 let parts = params.split(separator: ",")
                 moduleWidth = Int(parts.first ?? "2") ?? 2
 
-            // Field data (text content)
+            // Field data (text content or barcode data)
             case "^FD":
                 let text = decodeFieldData(params)
 
-                if textBlockWidth > 0 {
+                // Check if this data is for a pending barcode
+                if var barcode = pendingBarcode {
+                    barcode = ParsedBarcode(
+                        type: barcode.type,
+                        data: text,
+                        x: barcode.x,
+                        y: barcode.y,
+                        height: barcode.height,
+                        moduleWidth: barcode.moduleWidth,
+                        rotation: barcode.rotation,
+                        showText: barcode.showText,
+                        textAbove: barcode.textAbove,
+                        magnification: barcode.magnification
+                    )
+                    elements.append(.barcode(barcode))
+                    pendingBarcode = nil
+                } else if textBlockWidth > 0 {
                     elements.append(.textBlock(ParsedTextBlock(
                         text: text,
                         x: currentX,
@@ -176,66 +195,42 @@ public enum ZPLParser {
                     elements.append(.diagonalLine(diagonal))
                 }
 
-            // Barcodes
+            // Barcodes - set as pending, data comes in ^FD
             case "^BC":
-                if let barcode = parseBarcode(.code128, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseBarcode(.code128, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
 
             case "^B3":
-                if let barcode = parseBarcode(.code39, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseBarcode(.code39, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
 
             case "^BQ":
-                if let barcode = parseQRCode(params, x: currentX, y: currentY, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseQRCode(params, x: currentX, y: currentY, rotation: currentRotation)
 
             case "^BX":
-                if let barcode = parseDataMatrix(params, x: currentX, y: currentY, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseDataMatrix(params, x: currentX, y: currentY, rotation: currentRotation)
 
             case "^B7":
-                if let barcode = parsePDF417(params, x: currentX, y: currentY, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parsePDF417(params, x: currentX, y: currentY, rotation: currentRotation)
 
             case "^B2":
-                if let barcode = parseBarcode(.interleaved2of5, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseBarcode(.interleaved2of5, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
 
             case "^BE":
-                if let barcode = parseBarcode(.ean13, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseBarcode(.ean13, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
 
             case "^B8":
-                if let barcode = parseBarcode(.ean8, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseBarcode(.ean8, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
 
             case "^BU":
-                if let barcode = parseBarcode(.upcA, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseBarcode(.upcA, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
 
             case "^B9":
-                if let barcode = parseBarcode(.upcE, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseBarcode(.upcE, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
 
             case "^B0":
-                if let barcode = parseAztec(params, x: currentX, y: currentY, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseAztec(params, x: currentX, y: currentY, rotation: currentRotation)
 
             case "^BZ":
-                if let barcode = parseBarcode(.intelligentMail, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation) {
-                    elements.append(.barcode(barcode))
-                }
+                pendingBarcode = parseBarcode(.intelligentMail, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
 
             default:
                 break  // Ignore unknown commands
