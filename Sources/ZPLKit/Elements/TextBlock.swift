@@ -19,6 +19,8 @@ public struct TextBlock: ZPLElement {
     private var alignment: TextAlignment = .left
     private var hangingIndent: Dimension = .dots(0)
     private var useBaselinePosition: Bool = false
+    private var rotation: Rotation = .normal
+    private var isReversed: Bool = false
 
     /// Creates a text block at the given position with the specified width.
     /// - Parameters:
@@ -75,6 +77,20 @@ public struct TextBlock: ZPLElement {
         return copy
     }
 
+    /// Rotates the text block.
+    public func rotated(_ rotation: Rotation) -> TextBlock {
+        var copy = self
+        copy.rotation = rotation
+        return copy
+    }
+
+    /// Enables reverse print (white text on black background).
+    public func reversed() -> TextBlock {
+        var copy = self
+        copy.isReversed = true
+        return copy
+    }
+
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
         let width = blockWidth.resolve(dpi: context.dpi)
@@ -83,11 +99,19 @@ public struct TextBlock: ZPLElement {
         let spacing = lineSpacing.resolve(dpi: context.dpi)
         let indent = hangingIndent.resolve(dpi: context.dpi)
 
-        let (needsHex, escapedText) = escapeZPLFieldData(text)
+        // Convert newlines to ZPL line break sequence
+        let textWithLineBreaks = text.replacingOccurrences(of: "\n", with: "\\&")
+        let (needsHex, escapedText) = escapeZPLFieldData(textWithLineBreaks)
 
         let positionCommand = useBaselinePosition ? "^FT" : "^FO"
         var result = "\(positionCommand)\(pos.x),\(pos.y)"
-        result += "^A\(font.rawValue)N,\(height),\(fontW)"
+
+        // Add reverse field command if needed
+        if isReversed {
+            result += "^FR"
+        }
+
+        result += "^A\(font.rawValue)\(rotation.rawValue),\(height),\(fontW)"
 
         // ^FB command: width, max lines, line spacing, alignment, hanging indent
         result += "^FB\(width),\(maxLines),\(spacing),\(alignment.rawValue),\(indent)"

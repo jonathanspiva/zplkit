@@ -459,6 +459,54 @@ final class ZPLKitTests: XCTestCase {
         XCTAssertFalse(zpl.contains("^FO"))
     }
 
+    func testTextBlockRotated() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            TextBlock("Rotated", at: .inches(0.25, 0.5), width: .inches(2.0))
+                .rotated(.rotated90)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^A0R,"))  // R = rotated 90
+    }
+
+    func testTextBlockReversed() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            TextBlock("Reversed", at: .inches(0.25, 0.5), width: .inches(2.0))
+                .reversed()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FR"))  // Reverse field
+    }
+
+    func testTextBlockWithNewlines() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            TextBlock("Line 1\nLine 2\nLine 3", at: .inches(0.25, 0.25), width: .inches(2.0))
+                .maxLines(3)
+        }
+
+        let zpl = label.render()
+        // \n should be converted to ZPL's \& line break
+        XCTAssertTrue(zpl.contains("Line 1\\&Line 2\\&Line 3"))
+    }
+
+    func testTextBlockCombinedOptions() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            TextBlock("Important\nMessage", at: .inches(0.25, 0.25), width: .inches(2.0))
+                .font(.default, height: .dots(40))
+                .alignment(.center)
+                .lineSpacing(.dots(5))
+                .reversed()
+                .maxLines(2)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FR"))
+        XCTAssertTrue(zpl.contains("^FB"))
+        XCTAssertTrue(zpl.contains(",C,"))  // Center alignment
+        XCTAssertTrue(zpl.contains("\\&"))  // Line break
+    }
+
     // MARK: - EAN-8 Tests
 
     func testEAN8Valid() {

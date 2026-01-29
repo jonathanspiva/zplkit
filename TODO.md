@@ -46,3 +46,4 @@
   - [x] Barcode rendering (CoreImage: QR, Code128, Aztec, PDF417, DataMatrix; 1D math: Code39, EAN-13, EAN-8, UPC-A, UPC-E, I2of5)
   - [x] Performance instrumentation: benchmark parse/render times
 - [x] Label templates with variable substitution (`{{variable}}` syntax)
+- [x] TextBlock enhancements (rotation, reverse print, newline support)
