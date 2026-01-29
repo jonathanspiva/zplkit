@@ -738,6 +738,369 @@ final class ZPLKitRendererTests: XCTestCase {
         XCTAssertEqual(box.height, 200)  // length
     }
 
+    // MARK: - Parser Error Handling Tests
+
+    func testParserEmptyInput() throws {
+        let zpl = ""
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Should return defaults with no elements
+        XCTAssertEqual(parsed.elements.count, 0)
+        XCTAssertEqual(parsed.width, 812)  // Default
+        XCTAssertEqual(parsed.height, 1218)  // Default
+    }
+
+    func testParserNoStartCommand() throws {
+        // Missing ^XA
+        let zpl = "^PW600^LL400^FO50,50^FDTest^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Should still parse commands
+        XCTAssertEqual(parsed.width, 600)
+        XCTAssertEqual(parsed.height, 400)
+    }
+
+    func testParserNoEndCommand() throws {
+        // Missing ^XZ
+        let zpl = "^XA^PW600^LL400^FO50,50^FDTest^FS"
+        let parsed = try ZPLParser.parse(zpl)
+
+        XCTAssertEqual(parsed.elements.count, 1)
+    }
+
+    func testParserMissingParameters() throws {
+        // ^FO without coordinates
+        let zpl = "^XA^PW600^LL400^FO^FDTest^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Should handle gracefully (use defaults or skip)
+        XCTAssertGreaterThanOrEqual(parsed.elements.count, 0)
+    }
+
+    func testParserPartialParameters() throws {
+        // ^FO with only one coordinate
+        let zpl = "^XA^PW600^LL400^FO100^FDTest^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Should handle gracefully
+        XCTAssertGreaterThanOrEqual(parsed.elements.count, 0)
+    }
+
+    func testParserInvalidCommand() throws {
+        // Unknown command ^ZZ
+        let zpl = "^XA^PW600^LL400^ZZ^FO50,50^FDTest^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Should skip unknown command and continue
+        guard case .text(let text) = parsed.elements.first else {
+            XCTFail("Expected text element")
+            return
+        }
+        XCTAssertEqual(text.text, "Test")
+    }
+
+    func testParserGarbageData() throws {
+        // Random garbage mixed with valid commands
+        let zpl = "^XA^PW600garbage^LL400more garbage^FO50,50^FDTest^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Garbage attached to numbers may prevent parsing
+        // The important thing is no crash and text element is parsed
+        guard case .text(let text) = parsed.elements.first else {
+            XCTFail("Expected text element")
+            return
+        }
+        XCTAssertEqual(text.text, "Test")
+    }
+
+    func testParserWhitespaceHandling() throws {
+        let zpl = """
+        ^XA
+            ^PW600
+            ^LL400
+            ^FO50,50
+            ^FDTest^FS
+        ^XZ
+        """
+        let parsed = try ZPLParser.parse(zpl)
+
+        XCTAssertEqual(parsed.width, 600)
+        XCTAssertEqual(parsed.elements.count, 1)
+    }
+
+    func testParserBoxMissingDimensions() throws {
+        // ^GB without proper dimensions
+        let zpl = "^XA^PW600^LL400^FO50,50^GB^FS^XZ"
+        _ = try ZPLParser.parse(zpl)
+
+        // Should handle gracefully (no crash = success)
+        XCTAssertTrue(true)
+    }
+
+    func testParserBarcodeMissingData() throws {
+        // Barcode command without ^FD
+        let zpl = "^XA^PW600^LL400^FO50,50^BCN,100,Y^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Barcode without data should not be added
+        let barcodeCount = parsed.elements.filter {
+            if case .barcode = $0 { return true }
+            return false
+        }.count
+        XCTAssertEqual(barcodeCount, 0)
+    }
+
+    func testParserNegativeValues() throws {
+        // Negative coordinates
+        let zpl = "^XA^PW600^LL400^FO-50,-100^FDTest^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Should handle (may clamp or use as-is)
+        XCTAssertEqual(parsed.elements.count, 1)
+    }
+
+    func testParserVeryLargeValues() throws {
+        // Extremely large values
+        let zpl = "^XA^PW999999^LL999999^FO50,50^FDTest^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        XCTAssertEqual(parsed.width, 999999)
+        XCTAssertEqual(parsed.height, 999999)
+    }
+
+    func testParserFieldDataWithSpecialChars() throws {
+        // Field data containing command-like characters
+        let zpl = "^XA^PW600^LL400^FO50,50^FH^FDTest_5Ewith_7Especial^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        guard case .text(let text) = parsed.elements.first else {
+            XCTFail("Expected text element")
+            return
+        }
+        XCTAssertEqual(text.text, "Test^with~special")
+    }
+
+    func testParserMultipleFieldsNoSeparator() throws {
+        // Multiple ^FD without ^FS between them (malformed)
+        let zpl = "^XA^PW600^LL400^FO50,50^FDFirst^FDSecond^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Should handle somehow (implementation-dependent)
+        XCTAssertGreaterThan(parsed.elements.count, 0)
+    }
+
+    func testParserOnlyStartEnd() throws {
+        let zpl = "^XA^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        XCTAssertEqual(parsed.elements.count, 0)
+        // Should use defaults
+        XCTAssertEqual(parsed.width, 812)
+        XCTAssertEqual(parsed.height, 1218)
+    }
+
+    func testParserRepeatedCommands() throws {
+        // Same command multiple times
+        let zpl = "^XA^PW600^PW800^PW400^LL200^LL300^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Last value should win
+        XCTAssertEqual(parsed.width, 400)
+        XCTAssertEqual(parsed.height, 300)
+    }
+
+    func testParserCaseSensitivity() throws {
+        // Lowercase commands (ZPL is case-sensitive, lowercase should fail)
+        let zpl = "^XA^pw600^ll400^fo50,50^fdTest^fs^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // Lowercase commands should be ignored
+        XCTAssertEqual(parsed.width, 812)  // Default, not 600
+    }
+
+    // MARK: - Snapshot Tests
+
+    func testSnapshotSimpleText() throws {
+        let zpl = """
+        ^XA
+        ^PW200
+        ^LL100
+        ^FO10,10^A0N,30,30^FDHello^FS
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+        let (pngData, _) = try renderer.renderToPNG(zpl, dpi: .dpi203)
+
+        // Verify we got valid PNG data
+        XCTAssertGreaterThan(pngData.count, 0)
+
+        // Verify PNG magic bytes
+        let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47]
+        let dataBytes = [UInt8](pngData.prefix(4))
+        XCTAssertEqual(dataBytes, pngMagic)
+    }
+
+    func testSnapshotBox() throws {
+        let zpl = """
+        ^XA
+        ^PW200
+        ^LL200
+        ^FO50,50^GB100,100,3^FS
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+        let result = try renderer.render(zpl, dpi: .dpi203)
+
+        XCTAssertEqual(result.image.width, 200)
+        XCTAssertEqual(result.image.height, 200)
+    }
+
+    func testSnapshotCircle() throws {
+        let zpl = """
+        ^XA
+        ^PW200
+        ^LL200
+        ^FO50,50^GC100,3,B^FS
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+        let result = try renderer.render(zpl, dpi: .dpi203)
+
+        XCTAssertEqual(result.image.width, 200)
+        XCTAssertEqual(result.image.height, 200)
+    }
+
+    func testSnapshotBarcode() throws {
+        let zpl = """
+        ^XA
+        ^PW400
+        ^LL200
+        ^FO50,50^BCN,80,Y,N,N^FD12345^FS
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+        let result = try renderer.render(zpl, dpi: .dpi203)
+
+        XCTAssertEqual(result.image.width, 400)
+        XCTAssertGreaterThan(result.metrics.renderTimeSeconds, 0)
+    }
+
+    func testSnapshotQRCode() throws {
+        let zpl = """
+        ^XA
+        ^PW300
+        ^LL300
+        ^FO50,50^BQN,2,5^FDMA,https://example.com^FS
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+        let result = try renderer.render(zpl, dpi: .dpi203)
+
+        XCTAssertEqual(result.image.width, 300)
+        XCTAssertEqual(result.image.height, 300)
+    }
+
+    func testSnapshotComplexLabel() throws {
+        let zpl = """
+        ^XA
+        ^PW812
+        ^LL406
+        ^FO50,30^A0N,40,40^FDShipping Label^FS
+        ^FO50,80^GB712,2,2^FS
+        ^FO50,100^A0N,25,25^FDJohn Doe^FS
+        ^FO50,130^A0N,25,25^FD123 Main St^FS
+        ^FO50,160^A0N,25,25^FDAnytown, ST 12345^FS
+        ^FO50,220^BCN,80,Y,N,N^FD1Z999AA1^FS
+        ^FO550,100^BQN,2,4^FDMA,TRACK123^FS
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+        let result = try renderer.render(zpl, dpi: .dpi203)
+
+        XCTAssertEqual(result.image.width, 812)
+        XCTAssertEqual(result.image.height, 406)
+    }
+
+    func testSnapshotRenderMetricsPopulated() throws {
+        let zpl = """
+        ^XA
+        ^PW400
+        ^LL200
+        ^FO50,50^FDTest^FS
+        ^FO50,100^GB100,50,2^FS
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+        let result = try renderer.render(zpl, dpi: .dpi203)
+
+        XCTAssertGreaterThan(result.metrics.parseTimeSeconds, 0)
+        XCTAssertGreaterThan(result.metrics.renderTimeSeconds, 0)
+        XCTAssertGreaterThan(result.metrics.totalTimeSeconds, 0)
+        XCTAssertEqual(result.metrics.imageWidth, 400)
+        XCTAssertEqual(result.metrics.imageHeight, 200)
+    }
+
+    func testSnapshotDifferentDPIs() throws {
+        let zpl = """
+        ^XA
+        ^PW200
+        ^LL100
+        ^FO10,10^FDTest^FS
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+
+        // Should render at different DPIs without error
+        let result203 = try renderer.render(zpl, dpi: .dpi203)
+        let result300 = try renderer.render(zpl, dpi: .dpi300)
+
+        XCTAssertEqual(result203.image.width, 200)
+        XCTAssertEqual(result300.image.width, 200)
+    }
+
+    func testSnapshotConsistentOutput() throws {
+        let zpl = """
+        ^XA
+        ^PW200
+        ^LL100
+        ^FO10,10^FDConsistent^FS
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+
+        // Render twice and compare
+        let (png1, _) = try renderer.renderToPNG(zpl, dpi: .dpi203)
+        let (png2, _) = try renderer.renderToPNG(zpl, dpi: .dpi203)
+
+        // Output should be identical for same input
+        XCTAssertEqual(png1, png2)
+    }
+
+    func testSnapshotEmptyLabel() throws {
+        let zpl = """
+        ^XA
+        ^PW100
+        ^LL100
+        ^XZ
+        """
+
+        let renderer = ZPLRenderer()
+        let result = try renderer.render(zpl, dpi: .dpi203)
+
+        // Should render a blank white label
+        XCTAssertEqual(result.image.width, 100)
+        XCTAssertEqual(result.image.height, 100)
+    }
+
     // MARK: - Original Tests
 
     func testBasicParsing() throws {

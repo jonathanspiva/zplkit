@@ -1540,6 +1540,317 @@ final class ZPLKitTests: XCTestCase {
         XCTAssertTrue(zpl.contains(",W,"))
     }
 
+    // MARK: - DPI Variation Tests
+
+    func testDPI152Conversion() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi152) {
+            Text("Test", at: .inches(1.0, 1.0))
+        }
+
+        let zpl = label.render()
+        // 4 inches * 152 DPI = 608 dots
+        XCTAssertTrue(zpl.contains("^PW608"))
+        // 2 inches * 152 DPI = 304 dots
+        XCTAssertTrue(zpl.contains("^LL304"))
+        // Position: 1 inch * 152 = 152 dots
+        XCTAssertTrue(zpl.contains("^FO152,152"))
+    }
+
+    func testDPI203Conversion() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(1.0, 1.0))
+        }
+
+        let zpl = label.render()
+        // 4 inches * 203 DPI = 812 dots
+        XCTAssertTrue(zpl.contains("^PW812"))
+        // 2 inches * 203 DPI = 406 dots
+        XCTAssertTrue(zpl.contains("^LL406"))
+        // Position: 1 inch * 203 = 203 dots
+        XCTAssertTrue(zpl.contains("^FO203,203"))
+    }
+
+    func testDPI300Conversion() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi300) {
+            Text("Test", at: .inches(1.0, 1.0))
+        }
+
+        let zpl = label.render()
+        // 4 inches * 300 DPI = 1200 dots
+        XCTAssertTrue(zpl.contains("^PW1200"))
+        // 2 inches * 300 DPI = 600 dots
+        XCTAssertTrue(zpl.contains("^LL600"))
+        // Position: 1 inch * 300 = 300 dots
+        XCTAssertTrue(zpl.contains("^FO300,300"))
+    }
+
+    func testDPI600Conversion() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi600) {
+            Text("Test", at: .inches(1.0, 1.0))
+        }
+
+        let zpl = label.render()
+        // 4 inches * 600 DPI = 2400 dots
+        XCTAssertTrue(zpl.contains("^PW2400"))
+        // 2 inches * 600 DPI = 1200 dots
+        XCTAssertTrue(zpl.contains("^LL1200"))
+        // Position: 1 inch * 600 = 600 dots
+        XCTAssertTrue(zpl.contains("^FO600,600"))
+    }
+
+    func testDPIMillimeterConversion() {
+        // 25.4mm = 1 inch
+        let label152 = ZPLLabel(width: 4, height: 2, dpi: .dpi152) {
+            Box(at: .mm(25.4, 25.4), width: .mm(25.4), height: .mm(25.4))
+        }
+        let label300 = ZPLLabel(width: 4, height: 2, dpi: .dpi300) {
+            Box(at: .mm(25.4, 25.4), width: .mm(25.4), height: .mm(25.4))
+        }
+
+        // 152 DPI: 1 inch = 152 dots
+        XCTAssertTrue(label152.render().contains("^FO152,152"))
+        XCTAssertTrue(label152.render().contains("^GB152,152,"))
+
+        // 300 DPI: 1 inch = 300 dots
+        XCTAssertTrue(label300.render().contains("^FO300,300"))
+        XCTAssertTrue(label300.render().contains("^GB300,300,"))
+    }
+
+    func testDPIDotsUnaffected() {
+        // Dots should be the same regardless of DPI
+        let label152 = ZPLLabel(width: 4, height: 2, dpi: .dpi152) {
+            Box(at: .dots(100, 100), width: .dots(200), height: .dots(150))
+        }
+        let label600 = ZPLLabel(width: 4, height: 2, dpi: .dpi600) {
+            Box(at: .dots(100, 100), width: .dots(200), height: .dots(150))
+        }
+
+        // Both should have same position and dimensions in dots
+        XCTAssertTrue(label152.render().contains("^FO100,100"))
+        XCTAssertTrue(label152.render().contains("^GB200,150,"))
+        XCTAssertTrue(label600.render().contains("^FO100,100"))
+        XCTAssertTrue(label600.render().contains("^GB200,150,"))
+    }
+
+    func testDPIAllBarcodeTypes() {
+        // Test that barcodes render at different DPIs
+        for dpi in [DPI.dpi152, .dpi203, .dpi300, .dpi600] {
+            let label = ZPLLabel(width: 4, height: 4, dpi: dpi) {
+                Barcode128("TEST", at: .inches(0.5, 0.5))
+                QRCode("TEST", at: .inches(0.5, 1.5))
+            }
+            let zpl = label.render()
+            XCTAssertTrue(zpl.contains("^BC"))
+            XCTAssertTrue(zpl.contains("^BQ"))
+        }
+    }
+
+    func testDPIShapesAtAllResolutions() {
+        for dpi in [DPI.dpi152, .dpi203, .dpi300, .dpi600] {
+            let label = ZPLLabel(width: 4, height: 4, dpi: dpi) {
+                Box(at: .inches(0.25, 0.25), width: .inches(0.5), height: .inches(0.5))
+                Circle(at: .inches(1.0, 0.25), diameter: .inches(0.5))
+                Ellipse(at: .inches(1.75, 0.25), width: .inches(0.75), height: .inches(0.5))
+            }
+            let zpl = label.render()
+            XCTAssertTrue(zpl.contains("^GB"))
+            XCTAssertTrue(zpl.contains("^GC"))
+            XCTAssertTrue(zpl.contains("^GE"))
+        }
+    }
+
+    // MARK: - Complex Layout Tests
+
+    func testMultipleOverlappingElements() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            // Background box
+            Box(at: .dots(50, 50), width: .dots(300), height: .dots(200))
+                .filled()
+            // Overlapping text (white on black)
+            Text("OVERLAPPING", at: .dots(100, 100))
+                .font(.default, height: .dots(40))
+                .reversed()
+            // Another shape on top
+            Circle(at: .dots(200, 100), diameter: .dots(80))
+                .white()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GB300,200,"))  // Filled box
+        XCTAssertTrue(zpl.contains("^FR"))  // Reversed text
+        XCTAssertTrue(zpl.contains("^GC80,"))  // Circle
+    }
+
+    func testManyElementsLabel() {
+        let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
+            // Header
+            Text("SHIPPING LABEL", at: .dots(50, 30))
+                .font(.default, height: .dots(40))
+            HorizontalLine(at: .dots(50, 80), length: .dots(700), thickness: .dots(3))
+
+            // Address block
+            TextBlock("John Doe\n123 Main Street\nAnytown, ST 12345", at: .dots(50, 100), width: .dots(400))
+                .maxLines(4)
+
+            // Barcode section
+            Barcode128("1Z999AA10123456784", at: .dots(50, 300))?
+                .height(.dots(100))
+                .moduleWidth(2)
+
+            // QR code
+            QRCode("https://track.example.com/1Z999AA10123456784", at: .dots(500, 100))
+                .magnification(4)
+
+            // Footer
+            HorizontalLine(at: .dots(50, 500), length: .dots(700), thickness: .dots(2))
+            Text("Thank you for your order!", at: .dots(50, 520))
+        }
+
+        let zpl = label.render()
+        // Verify all elements are present
+        XCTAssertTrue(zpl.contains("^FDSHIPPING LABEL"))
+        XCTAssertTrue(zpl.contains("^FB"))  // TextBlock
+        XCTAssertTrue(zpl.contains("^BC"))  // Barcode128
+        XCTAssertTrue(zpl.contains("^BQ"))  // QRCode
+        XCTAssertTrue(zpl.contains("Thank you"))
+    }
+
+    func testConditionalBuilderLogic() {
+        let showBarcode = true
+        let showQR = false
+
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Product", at: .dots(50, 50))
+
+            if showBarcode {
+                Barcode128("ABC123", at: .dots(50, 100))
+            }
+
+            if showQR {
+                QRCode("https://example.com", at: .dots(300, 50))
+            }
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BC"))  // Barcode should be present
+        XCTAssertFalse(zpl.contains("^BQ"))  // QR should not be present
+    }
+
+    func testLoopBuilderLogic() {
+        let items = ["Apple", "Banana", "Cherry"]
+
+        let label = ZPLLabel(width: 4, height: 3, dpi: .dpi203) {
+            for (index, item) in items.enumerated() {
+                Text(item, at: .dots(50, 50 + index * 60))
+            }
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FDApple"))
+        XCTAssertTrue(zpl.contains("^FDBanana"))
+        XCTAssertTrue(zpl.contains("^FDCherry"))
+    }
+
+    func testOptionalElementsInBuilder() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Always present", at: .dots(50, 50))
+
+            // Failable barcode that succeeds
+            Barcode128("VALID123", at: .dots(50, 100))
+
+            // Failable barcode that fails (non-ASCII)
+            Barcode128("INVALID\u{0080}", at: .dots(50, 200))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FDVALID123"))
+        XCTAssertFalse(zpl.contains("INVALID"))  // Invalid barcode should not appear
+    }
+
+    func testMixedElementTypesLabel() {
+        let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
+            // Text elements
+            Text("Title", at: .dots(50, 30))
+            TextBlock("Description here", at: .dots(50, 70), width: .dots(300))
+
+            // Shapes
+            Box(at: .dots(400, 30), width: .dots(100), height: .dots(80))
+            Circle(at: .dots(550, 50), diameter: .dots(60))
+            Ellipse(at: .dots(650, 30), width: .dots(100), height: .dots(60))
+            HorizontalLine(at: .dots(50, 150), length: .dots(700))
+            VerticalLine(at: .dots(400, 200), length: .dots(300))
+            DiagonalLine(at: .dots(450, 200), width: .dots(100), height: .dots(100))
+
+            // 1D Barcodes
+            Barcode128("BC128", at: .dots(50, 200))
+            Code39("CODE39", at: .dots(50, 350))
+
+            // 2D Barcodes
+            QRCode("QR", at: .dots(50, 500))
+            DataMatrix("DM", at: .dots(200, 500))
+
+            // Comment (non-printing)
+            Comment("End of label")
+        }
+
+        let zpl = label.render()
+
+        // Verify all element types present
+        XCTAssertTrue(zpl.contains("^FDTitle"))
+        XCTAssertTrue(zpl.contains("^FB"))
+        XCTAssertTrue(zpl.contains("^GB"))  // Box and lines
+        XCTAssertTrue(zpl.contains("^GC"))  // Circle
+        XCTAssertTrue(zpl.contains("^GE"))  // Ellipse
+        XCTAssertTrue(zpl.contains("^GD"))  // Diagonal
+        XCTAssertTrue(zpl.contains("^BC"))  // Code128
+        XCTAssertTrue(zpl.contains("^B3"))  // Code39
+        XCTAssertTrue(zpl.contains("^BQ"))  // QR
+        XCTAssertTrue(zpl.contains("^BX"))  // DataMatrix
+        XCTAssertTrue(zpl.contains("^FX"))  // Comment
+    }
+
+    func testLargeNumberOfElements() {
+        // Test with 50 text elements
+        let label = ZPLLabel(width: 10, height: 10, dpi: .dpi203) {
+            for i in 0..<50 {
+                Text("Item \(i)", at: .dots(50, 20 + i * 40))
+            }
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FDItem 0"))
+        XCTAssertTrue(zpl.contains("^FDItem 49"))
+
+        // Count field separators to verify all elements rendered
+        let fsCount = zpl.components(separatedBy: "^FS").count - 1
+        XCTAssertEqual(fsCount, 50)
+    }
+
+    func testNestedBoxLayout() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            // Outer border
+            Box(at: .dots(20, 20), width: .dots(760), height: .dots(760))
+                .thickness(.dots(4))
+
+            // Inner border
+            Box(at: .dots(40, 40), width: .dots(720), height: .dots(720))
+                .thickness(.dots(2))
+
+            // Content area
+            Box(at: .dots(60, 60), width: .dots(680), height: .dots(680))
+                .thickness(.dots(1))
+
+            // Center content
+            Text("CENTERED", at: .dots(300, 380))
+        }
+
+        let zpl = label.render()
+        // Should have 3 boxes with different thicknesses
+        XCTAssertTrue(zpl.contains("^GB760,760,4"))
+        XCTAssertTrue(zpl.contains("^GB720,720,2"))
+        XCTAssertTrue(zpl.contains("^GB680,680,1"))
+    }
+
     #if canImport(CoreGraphics)
     func testGraphicBasic() {
         // Create a simple 8x8 test pattern (checkerboard)
