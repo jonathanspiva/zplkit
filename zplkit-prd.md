@@ -446,6 +446,17 @@ swift test && cd Tests/VisualTestHarness && npm test
 - Swift 6.2+
 - Node.js 22+ (for visual test harness)
 
+### 6.0.1 AI-Assisted Development Workflow
+
+During development with Claude Code, the following feedback loop is available:
+
+1. Claude generates ZPL using the library
+2. Claude runs zpl-renderer-js to render PNG
+3. Claude reads the PNG and visually verifies the output
+4. Claude iterates if the rendering doesn't match expectations
+
+This enables rapid prototyping and validation without requiring manual inspection at every step. Claude can verify that labels render correctly, catch visual regressions, and suggest fixes based on what the rendered output actually looks like.
+
 ### 6.1 Unit Tests (Swift Testing)
 
 Using Swift Testing framework (`@Test`, `#expect`):
