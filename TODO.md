@@ -4,11 +4,6 @@
 - [ ] Nothing active
 
 ## Later
-- [ ] **Open source prep**
-  - [ ] Tag v1.0.0 release
-  - [ ] Make repo public
-  - [ ] Submit to Swift Package Index
-  - [ ] Add badges to README (Swift version, platforms, CI status)
 - [ ] **Documentation**
   - [ ] DocC documentation
   - [ ] CHANGELOG.md
@@ -18,6 +13,11 @@
   - [ ] Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
 
 ## Someday
+- [ ] **Open source release**
+  - [ ] Tag v1.0.0 release
+  - [ ] Make repo public
+  - [ ] Submit to Swift Package Index
+  - [ ] Add badges to README (Swift version, platforms, CI status)
 - [ ] Barcode decode verification (scan rendered barcodes to verify encoded data)
 - [ ] Icon support via LiveUI/Awesome (FontAwesome 6, native CGImage, 1,500+ icons)
 
