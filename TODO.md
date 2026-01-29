@@ -7,6 +7,8 @@
 - [ ] Nothing planned
 
 ## Someday
+- [ ] Data Matrix renderer (CoreImage doesn't support it, needs mathematical implementation)
+- [ ] Intelligent Mail renderer (also uses placeholder currently)
 - [ ] **Open source release**
   - [ ] CHANGELOG.md
   - [ ] Tag v1.0.0 release

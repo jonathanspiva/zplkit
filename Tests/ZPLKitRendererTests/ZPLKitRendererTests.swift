@@ -1309,7 +1309,8 @@ final class ZPLKitRendererTests: XCTestCase {
     }
 
     /// Data Matrix decode verification
-    /// Note: Currently skipped - Vision may not reliably decode our Data Matrix rendering
+    /// Note: Skipped - CoreImage doesn't have a Data Matrix generator (CIDataMatrixCodeGenerator doesn't exist)
+    /// ZPLKitRenderer uses a placeholder for Data Matrix until we implement it mathematically
     func SKIPtestBarcodeVerificationDataMatrix() throws {
         let testData = "DM123"
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
