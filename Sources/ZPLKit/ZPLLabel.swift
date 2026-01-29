@@ -72,6 +72,35 @@ public struct ZPLLabel: Sendable {
         return copy
     }
 
+    /// Renders the label to a ZPL string with variable substitution.
+    ///
+    /// Variables in the label content use the `{{variableName}}` syntax.
+    /// Pass a dictionary to substitute these placeholders with actual values.
+    ///
+    /// Example:
+    /// ```swift
+    /// let label = ZPLLabel(width: 4, height: 2) {
+    ///     Text("Order: {{orderNumber}}", at: .init(x: 50, y: 50))
+    ///     Barcode128("{{trackingNumber}}", at: .init(x: 50, y: 100))
+    /// }
+    /// let zpl = label.render(substituting: [
+    ///     "orderNumber": "12345",
+    ///     "trackingNumber": "1Z999AA10123456784"
+    /// ])
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - substitutions: A dictionary of variable names to values. Keys should not include the `{{}}` delimiters.
+    ///   - prettyPrint: If true, adds newlines between commands for readability.
+    /// - Returns: The ZPL string with all variables substituted.
+    public func render(substituting substitutions: [String: String], prettyPrint: Bool = false) -> String {
+        var zpl = render(prettyPrint: prettyPrint)
+        for (key, value) in substitutions {
+            zpl = zpl.replacingOccurrences(of: "{{\(key)}}", with: value)
+        }
+        return zpl
+    }
+
     /// Renders the label to a ZPL string.
     /// - Parameter prettyPrint: If true, adds newlines between commands for readability.
     /// - Returns: The ZPL string representation of this label.

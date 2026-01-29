@@ -617,4 +617,57 @@ final class ZPLKitTests: XCTestCase {
         let zpl = label.render()
         XCTAssertTrue(zpl.contains("^BZR,"))  // R = rotated 90
     }
+
+    // MARK: - Template Substitution Tests
+
+    func testTemplateSubstitution() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Order: {{orderNumber}}", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render(substituting: ["orderNumber": "12345"])
+        XCTAssertTrue(zpl.contains("^FDOrder: 12345^FS"))
+        XCTAssertFalse(zpl.contains("{{orderNumber}}"))
+    }
+
+    func testTemplateSubstitutionMultiple() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("{{name}}", at: .inches(0.25, 0.25))
+            Text("{{address}}", at: .inches(0.25, 0.5))
+            Barcode128("{{tracking}}", at: .inches(0.25, 1))?
+                .height(.dots(80))
+        }
+
+        let zpl = label.render(substituting: [
+            "name": "John Smith",
+            "address": "123 Main St",
+            "tracking": "1Z999AA1"
+        ])
+
+        XCTAssertTrue(zpl.contains("^FDJohn Smith^FS"))
+        XCTAssertTrue(zpl.contains("^FD123 Main St^FS"))
+        XCTAssertTrue(zpl.contains("^FD1Z999AA1^FS"))
+    }
+
+    func testTemplateSubstitutionWithQRCode() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("{{url}}", at: .inches(0.5, 0.5))
+                .magnification(5)
+        }
+
+        let zpl = label.render(substituting: ["url": "https://example.com/order/12345"])
+        // QR codes prepend error correction + "A," prefix
+        XCTAssertTrue(zpl.contains("MA,https://example.com/order/12345^FS"))
+        XCTAssertFalse(zpl.contains("{{url}}"))
+    }
+
+    func testTemplateUnsubstitutedVariablesRemain() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("{{name}} - {{missing}}", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render(substituting: ["name": "Test"])
+        XCTAssertTrue(zpl.contains("Test"))
+        XCTAssertTrue(zpl.contains("{{missing}}"))  // Unsubstituted variable remains
+    }
 }

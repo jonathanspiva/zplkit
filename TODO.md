@@ -5,7 +5,7 @@
 
 ## Later
 - [ ] **Open source prep**
-  - [ ] Add LICENSE file (MIT)
+  - [x] Add LICENSE file (MIT)
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
@@ -13,7 +13,6 @@
 - [ ] GitHub Actions workflow for Labelary comparison (validates both ZPL output and renderer)
 - [ ] ZPLKitRenderer: Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
 - [ ] ZPLKitRenderer: Swift-native test harness (replaces npm for local testing)
-- [ ] Label templates with variable substitution
 - [ ] Stored formats (`^DF`, `^XF`)
 - [ ] DocC documentation
 - [ ] CHANGELOG.md
@@ -46,3 +45,4 @@
   - [x] Font handling: configurable mapping, defaults to system fonts (Helvetica for Font 0)
   - [x] Barcode rendering (CoreImage: QR, Code128, Aztec, PDF417, DataMatrix; 1D math: Code39, EAN-13, EAN-8, UPC-A, UPC-E, I2of5)
   - [x] Performance instrumentation: benchmark parse/render times
+- [x] Label templates with variable substitution (`{{variable}}` syntax)
