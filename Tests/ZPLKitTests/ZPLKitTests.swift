@@ -824,6 +824,722 @@ final class ZPLKitTests: XCTestCase {
 
     // MARK: - Graphic Tests
 
+    // MARK: - VerticalLine Tests
+
+    func testVerticalLineRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .inches(0.5, 0.25), length: .inches(1.0))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GB"))
+        // Vertical line: width = thickness, height = length
+        // Default thickness is 2 dots
+    }
+
+    func testVerticalLineWithCustomThickness() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .dots(50, 50), length: .dots(200), thickness: .dots(5))
+        }
+
+        let zpl = label.render()
+        // Vertical line: ^GB[thickness],[length],[thickness]
+        XCTAssertTrue(zpl.contains("^GB5,200,5"))
+    }
+
+    func testVerticalLineInDots() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .dots(100, 100), length: .dots(150))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FO100,100"))
+        XCTAssertTrue(zpl.contains("^GB2,150,2"))  // Default thickness = 2
+    }
+
+    func testVerticalLineInInches() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .inches(0.5, 0.5), length: .inches(1.0), thickness: .inches(0.05))
+        }
+
+        let zpl = label.render()
+        // 0.5 inches * 203 DPI = 101.5, rounded = 102 dots
+        // 1.0 inches * 203 DPI = 203 dots
+        // 0.05 inches * 203 DPI = 10.15, rounded = 10 dots
+        XCTAssertTrue(zpl.contains("^FO102,102"))
+    }
+
+    func testVerticalLineInMillimeters() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .mm(10, 10), length: .mm(25.4))  // 25.4mm = 1 inch
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GB"))
+        // Just verify it renders without error
+    }
+
+    func testVerticalLineZeroLength() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .dots(50, 50), length: .dots(0))
+        }
+
+        let zpl = label.render()
+        // Should still render (degenerate case)
+        XCTAssertTrue(zpl.contains("^GB2,0,2"))
+    }
+
+    // MARK: - HorizontalLine Edge Cases
+
+    func testHorizontalLineWithCustomThickness() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .dots(50, 50), length: .dots(200), thickness: .dots(5))
+        }
+
+        let zpl = label.render()
+        // Horizontal line: ^GB[length],[thickness],[thickness]
+        XCTAssertTrue(zpl.contains("^GB200,5,5"))
+    }
+
+    func testHorizontalLineInInches() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .inches(0.25, 0.25), length: .inches(2.0), thickness: .inches(0.02))
+        }
+
+        let zpl = label.render()
+        // 0.25 * 203 = 50.75, rounded = 51
+        XCTAssertTrue(zpl.contains("^FO51,51"))
+        // 2.0 * 203 = 406, 0.02 * 203 = 4.06, rounded = 4
+        XCTAssertTrue(zpl.contains("^GB406,4,4"))
+    }
+
+    func testHorizontalLineInMillimeters() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .mm(5, 5), length: .mm(50))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GB"))
+    }
+
+    func testHorizontalLineZeroLength() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .dots(50, 50), length: .dots(0))
+        }
+
+        let zpl = label.render()
+        // Should still render (degenerate case)
+        XCTAssertTrue(zpl.contains("^GB0,2,2"))
+    }
+
+    func testHorizontalLineDefaultThickness() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .dots(0, 0), length: .dots(100))
+        }
+
+        let zpl = label.render()
+        // Default thickness is 2 dots
+        XCTAssertTrue(zpl.contains("^GB100,2,2"))
+    }
+
+    func testVerticalLineDefaultThickness() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .dots(0, 0), length: .dots(100))
+        }
+
+        let zpl = label.render()
+        // Default thickness is 2 dots
+        XCTAssertTrue(zpl.contains("^GB2,100,2"))
+    }
+
+    // MARK: - Label Configuration Tests
+
+    func testDefaultFont() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.defaultFont(.default, height: 40)
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^CF0,40"))
+    }
+
+    func testDefaultFontWithDifferentFonts() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.defaultFont(.a, height: 50)
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^CFA,50"))
+    }
+
+    func testLabelHome() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.labelHome(100, 50)
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^LH100,50"))
+    }
+
+    func testLabelHomeAtOrigin() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.labelHome(0, 0)
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^LH0,0"))
+    }
+
+    func testPrintDarkness() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printDarkness(15)
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^MD15"))
+    }
+
+    func testPrintDarknessClampedToMax() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printDarkness(50)  // Over max of 30
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^MD30"))  // Clamped to 30
+        XCTAssertFalse(zpl.contains("^MD50"))
+    }
+
+    func testPrintDarknessClampedToMin() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printDarkness(-10)  // Under min of 0
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^MD0"))  // Clamped to 0
+    }
+
+    func testPrintDarknessAtBoundaries() {
+        let labelMin = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printDarkness(0)
+
+        let labelMax = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printDarkness(30)
+
+        XCTAssertTrue(labelMin.render().contains("^MD0"))
+        XCTAssertTrue(labelMax.render().contains("^MD30"))
+    }
+
+    func testCombinedLabelConfig() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }
+        .labelHome(50, 25)
+        .defaultFont(.default, height: 35)
+        .printDarkness(20)
+        .reversePrint()
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^LH50,25"))
+        XCTAssertTrue(zpl.contains("^CF0,35"))
+        XCTAssertTrue(zpl.contains("^MD20"))
+        XCTAssertTrue(zpl.contains("^LRY"))
+    }
+
+    func testLabelConfigOrder() {
+        // Config commands should appear in consistent order after ^XA
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }
+        .labelHome(10, 20)
+        .printDarkness(15)
+
+        let zpl = label.render()
+
+        // ^LH should come before ^PW
+        let lhIndex = zpl.range(of: "^LH")!.lowerBound
+        let pwIndex = zpl.range(of: "^PW")!.lowerBound
+        XCTAssertTrue(lhIndex < pwIndex)
+    }
+
+    func testDefaultFontNotPresentByDefault() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^CF"))
+    }
+
+    func testLabelHomeNotPresentByDefault() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^LH"))
+    }
+
+    func testPrintDarknessNotPresentByDefault() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^MD"))
+    }
+
+    // MARK: - String Escaping Tests
+
+    func testEmptyStringText() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FD^FS"))
+    }
+
+    func testCaretEscaping() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("A^B", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))  // Hex mode enabled
+        XCTAssertTrue(zpl.contains("_5E"))  // ^ escaped
+    }
+
+    func testTildeEscaping() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("A~B", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("_7E"))  // ~ escaped
+    }
+
+    func testUnderscoreEscaping() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("A_B", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("_5F"))  // _ escaped
+    }
+
+    func testMultipleSpecialCharsEscaping() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("^~_", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("_5E"))  // ^
+        XCTAssertTrue(zpl.contains("_7E"))  // ~
+        XCTAssertTrue(zpl.contains("_5F"))  // _
+    }
+
+    func testNoSpecialCharsNoHexMode() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Hello World 123", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^FH"))  // No hex mode needed
+        XCTAssertTrue(zpl.contains("^FDHello World 123^FS"))
+    }
+
+    func testNonASCIICharacterEscaping() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Café", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))  // Hex mode for non-ASCII
+    }
+
+    func testUTF8MultibyteEscaping() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("日本語", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))  // Hex mode for multibyte
+        // Each Japanese character is 3 bytes in UTF-8
+    }
+
+    func testMixedASCIIAndSpecialChars() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Item^1: $10.00", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("Item"))
+        XCTAssertTrue(zpl.contains("_5E"))
+        XCTAssertTrue(zpl.contains(": $10.00"))
+    }
+
+    func testEmojiEscaping() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Hello 👋", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))  // Hex mode for emoji (4-byte UTF-8)
+    }
+
+    // MARK: - Barcode Validation Edge Cases
+
+    func testBarcode128EmptyString() {
+        let barcode = Barcode128("", at: .inches(0.5, 0.5))
+        // Empty string is valid ASCII
+        XCTAssertNotNil(barcode)
+    }
+
+    func testBarcode128ModuleWidthClampedToMin() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("TEST", at: .inches(0.25, 0.25))?
+                .moduleWidth(0)  // Below min of 1
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BY1"))  // Clamped to 1
+    }
+
+    func testBarcode128ModuleWidthClampedToMax() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("TEST", at: .inches(0.25, 0.25))?
+                .moduleWidth(20)  // Above max of 10
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BY10"))  // Clamped to 10
+    }
+
+    func testBarcode128ModuleWidthBoundaries() {
+        let label1 = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("TEST", at: .inches(0.25, 0.25))?
+                .moduleWidth(1)
+        }
+        let label10 = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("TEST", at: .inches(0.25, 0.25))?
+                .moduleWidth(10)
+        }
+
+        XCTAssertTrue(label1.render().contains("^BY1"))
+        XCTAssertTrue(label10.render().contains("^BY10"))
+    }
+
+    func testCode39EmptyString() {
+        let barcode = Code39("", at: .inches(0.5, 0.5))
+        // Empty string technically has no invalid chars
+        XCTAssertNotNil(barcode)
+    }
+
+    func testCode39LowercaseConverted() {
+        // Code39 should convert to uppercase
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Code39("hello", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FDHELLO^FS"))
+    }
+
+    func testCode39SpecialCharsValid() {
+        // Code39 allows: A-Z, 0-9, -.$/+% and space
+        let barcode = Code39("HELLO-123 $50.00", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testCode39AtSymbolInvalid() {
+        let barcode = Code39("TEST@EMAIL", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testInterleaved2of5EmptyString() {
+        let barcode = Interleaved2of5("", at: .inches(0.5, 0.5))
+        // Empty is technically valid (no non-numeric chars)
+        XCTAssertNotNil(barcode)
+    }
+
+    func testInterleaved2of5WithSpacesInvalid() {
+        let barcode = Interleaved2of5("123 456", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)  // Spaces not allowed
+    }
+
+    func testEAN13TooShort() {
+        let barcode = EAN13("12345", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)  // Must be 12 or 13 digits
+    }
+
+    func testEAN13TooLong() {
+        let barcode = EAN13("12345678901234", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)  // 14 digits, too long
+    }
+
+    func testEAN13Exactly12Digits() {
+        let barcode = EAN13("123456789012", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)  // 12 digits valid
+    }
+
+    func testEAN13Exactly13Digits() {
+        let barcode = EAN13("1234567890123", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)  // 13 digits valid (includes check)
+    }
+
+    func testEAN13WithLeadingZeros() {
+        let barcode = EAN13("000000000000", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testEAN8TooShort() {
+        let barcode = EAN8("12345", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)  // Must be 7 or 8 digits
+    }
+
+    func testEAN8Exactly7Digits() {
+        let barcode = EAN8("1234567", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testUPCATooShort() {
+        let barcode = UPCA("1234567890", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)  // 10 digits, needs 11 or 12
+    }
+
+    func testUPCAExactly11Digits() {
+        let barcode = UPCA("12345678901", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testUPCETooShort() {
+        let barcode = UPCE("12345", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)  // 5 digits, needs 6-8
+    }
+
+    func testUPCEExactly6Digits() {
+        let barcode = UPCE("123456", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testUPCEExactly7Digits() {
+        let barcode = UPCE("1234567", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testIntelligentMailInvalidLengths() {
+        // Valid lengths: 20, 25, 29, 31
+        XCTAssertNil(IntelligentMail("1234567890123456789", at: .inches(0.5, 0.5)))  // 19
+        XCTAssertNil(IntelligentMail("123456789012345678901", at: .inches(0.5, 0.5)))  // 21
+        XCTAssertNil(IntelligentMail("12345678901234567890123", at: .inches(0.5, 0.5)))  // 23
+        XCTAssertNil(IntelligentMail("1234567890123456789012345678901234", at: .inches(0.5, 0.5)))  // 34
+    }
+
+    func testQRCodeMagnificationClampedToMin() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("TEST", at: .inches(0.5, 0.5))
+                .magnification(0)  // Below min of 1
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BQN,2,1"))  // Clamped to 1
+    }
+
+    func testQRCodeMagnificationClampedToMax() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("TEST", at: .inches(0.5, 0.5))
+                .magnification(20)  // Above max of 10
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BQN,2,10"))  // Clamped to 10
+    }
+
+    func testDataMatrixSizeClampedToMin() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DataMatrix("TEST", at: .inches(0.5, 0.5))
+                .size(0)  // Below min of 1
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BXN,1"))  // Clamped to 1
+    }
+
+    func testDataMatrixSizeClampedToMax() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DataMatrix("TEST", at: .inches(0.5, 0.5))
+                .size(20)  // Above max of 10
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BXN,10"))  // Clamped to 10
+    }
+
+    func testAztecMagnificationClampedToMin() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Aztec("TEST", at: .inches(0.5, 0.5))
+                .magnification(0)  // Below min of 1
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B0N,1"))  // Clamped to 1
+    }
+
+    func testAztecMagnificationClampedToMax() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Aztec("TEST", at: .inches(0.5, 0.5))
+                .magnification(20)  // Above max of 10
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B0N,10"))  // Clamped to 10
+    }
+
+    // MARK: - Shape Edge Cases
+
+    func testBoxZeroWidth() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(0), height: .dots(100))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GB0,100,"))  // Degenerate box
+    }
+
+    func testBoxZeroHeight() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(100), height: .dots(0))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GB100,0,"))  // Degenerate box
+    }
+
+    func testBoxZeroDimensions() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(0), height: .dots(0))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GB0,0,"))
+    }
+
+    func testBoxCornerRadiusClampedToMin() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .cornerRadius(-5)  // Below min of 0
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains(",0^FS"))  // Clamped to 0
+    }
+
+    func testBoxCornerRadiusClampedToMax() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .cornerRadius(15)  // Above max of 8
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains(",8^FS"))  // Clamped to 8
+    }
+
+    func testBoxCornerRadiusBoundaries() {
+        let label0 = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .cornerRadius(0)
+        }
+        let label8 = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .cornerRadius(8)
+        }
+
+        XCTAssertTrue(label0.render().contains(",0^FS"))
+        XCTAssertTrue(label8.render().contains(",8^FS"))
+    }
+
+    func testBoxWhiteColor() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .white()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains(",W,"))  // White color
+    }
+
+    func testCircleZeroDiameter() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Circle(at: .dots(50, 50), diameter: .dots(0))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GC0,"))  // Degenerate circle
+    }
+
+    func testCircleWhiteColor() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Circle(at: .dots(50, 50), diameter: .dots(100))
+                .white()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains(",W^FS"))
+    }
+
+    func testEllipseZeroWidth() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Ellipse(at: .dots(50, 50), width: .dots(0), height: .dots(100))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GE0,100,"))
+    }
+
+    func testEllipseZeroHeight() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Ellipse(at: .dots(50, 50), width: .dots(100), height: .dots(0))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GE100,0,"))
+    }
+
+    func testEllipseWhiteColor() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Ellipse(at: .dots(50, 50), width: .dots(200), height: .dots(100))
+                .white()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains(",W^FS"))
+    }
+
+    func testDiagonalLineZeroDimensions() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DiagonalLine(at: .dots(50, 50), width: .dots(0), height: .dots(0))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GD0,0,"))
+    }
+
+    func testDiagonalLineWhiteColor() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DiagonalLine(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .white()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains(",W,"))
+    }
+
     #if canImport(CoreGraphics)
     func testGraphicBasic() {
         // Create a simple 8x8 test pattern (checkerboard)

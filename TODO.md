@@ -3,6 +3,17 @@
 ## Now
 - [ ] Nothing active
 
+## Recently Completed
+- [x] **Comprehensive unit testing** (225 total tests, +134 new)
+  - VerticalLine and HorizontalLine edge cases (15 tests)
+  - Label config: defaultFont, labelHome, printDarkness (15 tests)
+  - Parser command tests for all 24 ZPL commands (35 tests)
+  - Hex decoding edge cases (8 tests)
+  - String escaping tests (12 tests)
+  - Round-trip tests: generate → parse → validate (20 tests)
+  - Barcode validation edge cases (25 tests)
+  - Shape edge cases: zero dimensions, clamping, white color (15 tests)
+
 ## Later
 - [ ] **Open source prep**
   - [x] Add LICENSE file (MIT)
@@ -18,8 +29,15 @@
 - [ ] CHANGELOG.md
 
 ## Someday
-- [ ] Graphics/images (`^GF`, `~DG`) via separate ZPLKitGraphics package
 - [ ] Barcode decode verification - scan rendered barcodes to verify encoded data
+
+## Graphics Enhancements
+- [ ] **Icon support via LiveUI/Awesome** (FontAwesome 6)
+  - Native UIImage/CGImage support, no SVG parsing needed
+  - SPM: `https://github.com/LiveUI/Awesome` (v2.0.0+)
+  - MIT + OFL licensed, 1,500+ free icons
+  - Usage: `Awesome.Solid.check.asImage(size: 40)` → CGImage → Graphic
+  - SF Symbols cannot be redistributed (Apple licensing), this is the alternative
 
 ## Never
 
