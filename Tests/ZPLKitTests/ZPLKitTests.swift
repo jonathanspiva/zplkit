@@ -1922,4 +1922,23 @@ final class ZPLKitTests: XCTestCase {
         XCTAssertNotEqual(zplNormal, zplInverted)
     }
     #endif
+
+    // MARK: - Printer Commands
+
+    func testPrinterCommandPrintNetworkConfig() {
+        XCTAssertEqual(PrinterCommand.printNetworkConfig.zpl, "~WL")
+        XCTAssertEqual(PrinterCommand.printNetworkConfig.rawValue, "~WL")
+    }
+
+    func testPrinterCommandCalibrate() {
+        XCTAssertEqual(PrinterCommand.calibrate.zpl, "~JC")
+    }
+
+    func testPrinterCommandReset() {
+        XCTAssertEqual(PrinterCommand.reset.zpl, "~JR")
+    }
+
+    func testPrinterCommandCancelJob() {
+        XCTAssertEqual(PrinterCommand.cancelJob.zpl, "~JA")
+    }
 }

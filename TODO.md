@@ -12,11 +12,6 @@
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
-- [ ] **Printer commands (one-way, fire and forget)**
-  - [ ] Print network config (`~WL`)
-  - [ ] Calibrate media (`~JC`)
-  - [ ] Reset printer (`~JR`)
-  - [ ] Cancel current job (`~JA`)
 - [ ] Barcode decode verification (scan rendered barcodes to verify encoded data)
 - [ ] Icon support via LiveUI/Awesome (FontAwesome 6, native CGImage, 1,500+ icons)
 
@@ -31,6 +26,7 @@
 - [x] Curated reference images (ZPLKitRenderer for ^FR cases where Labelary is wrong)
 - [x] Renderer validation (scoring, diff images, reference comparison)
 - [x] ZPL test fixtures documented in README as reusable resource
+- [x] Printer commands: PrinterCommand enum (~WL, ~JC, ~JR, ~JA)
 - [x] DocC documentation (ZPLLabel, types, core elements)
 - [x] README badges (Swift version, platforms, CI status)
 - [x] Examples/ directory (BasicLabel, ShippingLabel, InventoryTag, PartsBinLabel, ProductLabel)
