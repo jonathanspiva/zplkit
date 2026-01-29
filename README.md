@@ -21,7 +21,7 @@ A Swift library for generating ZPL (Zebra Programming Language) code with a decl
 - **Zero external dependencies** for ZPLKit core
 - **Full Swift 6 concurrency support** (`Sendable` types)
 
-### ZPLKitRenderer (Apple platforms)
+### ZPLKitRenderer
 
 - Parse ZPL strings into element trees
 - Render labels to PNG images for previews
@@ -43,7 +43,7 @@ Then add the product to your target:
 ```swift
 .target(name: "YourTarget", dependencies: ["ZPLKit"])
 
-// For rendering support (Apple platforms only):
+// For rendering support:
 .target(name: "YourTarget", dependencies: ["ZPLKit", "ZPLKitRenderer"])
 ```
 
@@ -144,7 +144,7 @@ DiagonalLine(at: .inches(0.5, 1.0), width: .inches(1.0), height: .inches(1.0))
 ### Graphics
 
 ```swift
-// From CGImage (Apple platforms)
+// From CGImage
 if let cgImage = loadImage() {
     Graphic(cgImage, at: .inches(0.5, 0.5))
 }
@@ -225,7 +225,7 @@ let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
 
 ## Rendering Previews
 
-On Apple platforms, use ZPLKitRenderer to generate preview images:
+Use ZPLKitRenderer to generate preview images:
 
 ```swift
 import ZPLKitRenderer
