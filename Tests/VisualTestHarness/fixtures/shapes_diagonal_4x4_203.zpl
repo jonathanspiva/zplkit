@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Diagonal line examples on 4x4 label using ^GD command.
+^FX Lines at various angles, lengths, and thicknesses.
 ^PW812
 ^LL812
 ^FO30,30^A0N,30,30^FDDiagonal Lines^FS

@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Tiny asset tag on 1x1 label. Asset number and minimal
+^FX barcode for small equipment tracking.
 ^PW203
 ^LL203
 ^FO10,10^GB183,183,2^FS

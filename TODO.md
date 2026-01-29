@@ -7,9 +7,6 @@
 - [ ] **Renderer validation**
   - [ ] Automated diff detection (flag visual regressions in CI)
   - [ ] Baseline management (approve/reject render changes)
-  - [ ] Add ^FX DESCRIPTION comments to all fixtures
-  - [ ] Display descriptions in HTML comparison
-  - [ ] Curate reference images (use ZPLKitRenderer when it's more correct than Labelary)
 - [ ] **ZPL test suite as standalone resource**
   - [ ] Package fixtures with descriptions as reusable test suite
   - [ ] Could be valuable to other ZPL tools/renderers
@@ -34,6 +31,10 @@
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
 
 ## Done
+- [x] Fixture metadata JSON with descriptions, categories, features, size, DPI
+- [x] ^FX DESCRIPTION comments in all 114 ZPL fixtures
+- [x] HTML comparison with filtering (category chips, size/DPI dropdowns, text search)
+- [x] Curated reference images (ZPLKitRenderer for ^FR cases where Labelary is wrong)
 - [x] DocC documentation (ZPLLabel, types, core elements)
 - [x] README badges (Swift version, platforms, CI status)
 - [x] Examples/ directory (BasicLabel, ShippingLabel, InventoryTag, PartsBinLabel, ProductLabel)

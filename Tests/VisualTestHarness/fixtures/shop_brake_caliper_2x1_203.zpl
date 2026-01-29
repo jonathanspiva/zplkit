@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Shop parts bin label for brake caliper. Part name, number,
+^FX vehicle fitment, quantity, and small barcode on 2x1 label.
 ^PW406
 ^LL203
 ^FO20,20^A0N,28,28^FDDucati 1299^FS

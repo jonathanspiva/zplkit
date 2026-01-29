@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Data Matrix 2D barcode on 4x4 label at 300 DPI.
+^FX High-density square barcode for small items, pharmaceutical tracking,
+^FX or electronics marking.
 ^PW1200
 ^LL1200
 ^FO45,45^GB1110,1110,4^FS

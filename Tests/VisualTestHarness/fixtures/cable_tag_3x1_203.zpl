@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Cable identification tag on 3x1 label. Cable ID, source
+^FX and destination endpoints, cable type, install date. Designed to wrap
+^FX around cables.
 ^PW609
 ^LL203
 ^FO10,10^GB589,183,2^FS

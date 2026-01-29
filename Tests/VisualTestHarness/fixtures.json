@@ -1,0 +1,804 @@
+{
+  "barcode_aztec_4x4_203": {
+    "description": "Aztec barcode showcase on 4x4 label. Multiple Aztec codes at different magnifications (3-6), including rotated 90 degrees. Shows ECI mode, error correction, and URL encoding. Labels beneath each barcode.",
+    "category": "barcode",
+    "features": ["^B0", "rotation"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "barcode_ean13_4x2_203": {
+    "description": "EAN-13 barcode examples on 4x2 label. Three barcodes showing standard configuration, text above variation, and no-text version. Human-readable digits below each barcode.",
+    "category": "barcode",
+    "features": ["^BE"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "barcode_ean8_4x2_203": {
+    "description": "EAN-8 barcode on 4x2 label with border box. Title at top, horizontal divider, centered barcode with human-readable text. Description text explaining compact retail use.",
+    "category": "barcode",
+    "features": ["^B8", "^GB"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "barcode_i2of5_4x2_203": {
+    "description": "Interleaved 2 of 5 barcode examples on 4x2 label. Three variants showing different module widths, with and without check digit, text above vs below.",
+    "category": "barcode",
+    "features": ["^B2", "^BY"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "barcode_pdf417_4x4_203": {
+    "description": "PDF417 2D barcode showcase on 4x4 label. Multiple barcodes showing default config, security levels, column settings, truncated variant, and 90-degree rotation.",
+    "category": "barcode",
+    "features": ["^B7", "rotation"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "barcode_upca_4x2_203": {
+    "description": "UPC-A barcode examples on 4x2 label. Three variants: standard with text below, text above, and no text/no check digit. Standard US retail barcode format.",
+    "category": "barcode",
+    "features": ["^BU"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "barcode_upce_4x2_203": {
+    "description": "UPC-E barcode on 4x2 label with border box. Zero-suppressed compact barcode for small retail items. Title, divider line, centered barcode, description text.",
+    "category": "barcode",
+    "features": ["^B9", "^GB"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "barcode_usps_4x2_203": {
+    "description": "USPS Intelligent Mail (OneCode/4-State) barcode on 4x2 label with border. Tall/short bar pattern for mail sorting. Tracking number and format explanation below.",
+    "category": "barcode",
+    "features": ["^BZ", "^GB"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "baseline_text_4x2_203": {
+    "description": "Text positioning test using ^FT baseline positioning. Multiple text lines demonstrating baseline vs origin alignment differences.",
+    "category": "features",
+    "features": ["^FT", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "bin_hazmat_4x3_203": {
+    "description": "Hazmat storage bin label with border. Black header 'HAZMAT' with UN number. Centered filled black box with reversed white '9' and 'CLASS 9' for hazard diamond. SDS location, emergency contact, storage requirements below.",
+    "category": "warehouse",
+    "features": ["^GB filled", "^FR", "^A0"],
+    "referenceSource": "zplkit",
+    "size": "4x3",
+    "dpi": 203
+  },
+  "bin_pallet_4x3_203": {
+    "description": "Pallet location bin label with border. Shows pallet ID, location code, SKU, description, quantity, weight, and large Code 128 barcode for scanning.",
+    "category": "warehouse",
+    "features": ["^GB", "^BC", "^A0"],
+    "size": "4x3",
+    "dpi": 203
+  },
+  "bin_storage_4x3_203": {
+    "description": "Storage bin label with border. Location header, item description, part number, quantity range, reorder point, supplier info, and Code 128 barcode.",
+    "category": "warehouse",
+    "features": ["^GB", "^BC", "^A0"],
+    "size": "4x3",
+    "dpi": 203
+  },
+  "bin_workstation_4x3_203": {
+    "description": "Workstation bin label with border. Station ID header, tool/supply name, part number, min/max quantities, last restocked date, responsible person, and barcode.",
+    "category": "warehouse",
+    "features": ["^GB", "^BC", "^A0"],
+    "size": "4x3",
+    "dpi": 203
+  },
+  "cable_tag_3x1_203": {
+    "description": "Cable identification tag on 3x1 label. Cable ID, source and destination endpoints, cable type, install date. Designed to wrap around cables.",
+    "category": "asset",
+    "features": ["^A0"],
+    "size": "3x1",
+    "dpi": 203
+  },
+  "datamatrix_4x4_300": {
+    "description": "Data Matrix 2D barcode on 4x4 label at 300 DPI. High-density square barcode for small items, pharmaceutical tracking, or electronics marking.",
+    "category": "barcode",
+    "features": ["^BX"],
+    "size": "4x4",
+    "dpi": 300
+  },
+  "features_barcode_width_4x2_203": {
+    "description": "Barcode module width test using ^BY command. Multiple Code 128 barcodes at different widths (1-4) showing how module width affects barcode size.",
+    "category": "features",
+    "features": ["^BC", "^BY"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "features_code39_4x2_203": {
+    "description": "Code 39 barcode examples on 4x2 label. Standard alphanumeric barcode with start/stop characters. Shows different configurations.",
+    "category": "features",
+    "features": ["^B3"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "features_print_options_4x2_203": {
+    "description": "Print configuration test showing ^PR print speed, ^MD media darkness, and ^PQ print quantity commands. Demonstrates label output settings.",
+    "category": "features",
+    "features": ["^PR", "^MD", "^PQ"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "features_special_chars_4x2_203": {
+    "description": "Special character encoding test. Shows hex-encoded characters using _XX format for ZPL reserved characters like ^ and ~.",
+    "category": "features",
+    "features": ["hex encoding", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "features_textblock_4x2_203": {
+    "description": "TextBlock (^FB) feature test. Multi-line text with automatic word wrap, justification options, and line spacing control.",
+    "category": "features",
+    "features": ["^FB", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "food_basic_2x0.75_203": {
+    "description": "Basic food label for container. Food name and date on small 2x0.75 label for kitchen prep.",
+    "category": "food",
+    "features": ["^A0"],
+    "size": "2x0.75",
+    "dpi": 203
+  },
+  "food_batch_2x0.75_203": {
+    "description": "Food batch label with item name, batch code, and prep/use dates on 2x0.75 label.",
+    "category": "food",
+    "features": ["^A0"],
+    "size": "2x0.75",
+    "dpi": 203
+  },
+  "food_freezer_2x0.75_203": {
+    "description": "Freezer storage label with food item, freeze date, and use-by date on 2x0.75 label.",
+    "category": "food",
+    "features": ["^A0"],
+    "size": "2x0.75",
+    "dpi": 203
+  },
+  "food_leftover_2x0.5_203": {
+    "description": "Leftover food label on tiny 2x0.5 label. Food name and date for refrigerator storage.",
+    "category": "food",
+    "features": ["^A0"],
+    "size": "2x0.5",
+    "dpi": 203
+  },
+  "food_meal_prep_2x1_203": {
+    "description": "Meal prep label on 2x1 label. Meal name, contents description, prep date, and use-by date.",
+    "category": "food",
+    "features": ["^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "food_simple_2x0.5_203": {
+    "description": "Simple food label on tiny 2x0.5 label. Just food name and date.",
+    "category": "food",
+    "features": ["^A0"],
+    "size": "2x0.5",
+    "dpi": 203
+  },
+  "graphic_bolt_fill_2x2_203": {
+    "description": "Lightning bolt icon rendered via ^GF graphic field command. Filled black bolt symbol on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "graphic_checkmark_circle_fill_2x2_203": {
+    "description": "Checkmark in circle icon via ^GF command. Filled approval/success symbol on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "graphic_drop_fill_2x2_203": {
+    "description": "Water drop icon via ^GF command. Filled droplet symbol on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "graphic_exclamationmark_triangle_fill_2x2_203": {
+    "description": "Warning triangle with exclamation mark via ^GF command. Hazard/caution symbol on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "graphic_flame_fill_2x2_203": {
+    "description": "Flame/fire icon via ^GF command. Filled flame symbol for flammable warnings on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "graphic_food_freezer_2x1_203": {
+    "description": "Freezer icon with text label via ^GF command. Snowflake-style symbol with 'FREEZER' text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_food_homemade_2x1_203": {
+    "description": "Homemade food icon with text via ^GF command. House or heart symbol with 'HOMEMADE' text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_food_perishable_2x1_203": {
+    "description": "Perishable warning icon with text via ^GF command. Clock or warning symbol with 'PERISHABLE' text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_hand_thumbsup_fill_2x2_203": {
+    "description": "Thumbs up hand icon via ^GF command. Approval/like symbol on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "graphic_heart_fill_2x2_203": {
+    "description": "Heart icon via ^GF command. Filled heart symbol on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "graphic_leaf_fill_2x2_203": {
+    "description": "Leaf icon via ^GF command. Nature/organic symbol on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "graphic_multi_approve_reject_2x1_203": {
+    "description": "Dual icon label with checkmark and X symbols via ^GF. Approve/reject decision label on 2x1.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_fragile_2x1_203": {
+    "description": "Fragile warning label with broken glass icon via ^GF and 'FRAGILE' text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_hot_item_2x1_203": {
+    "description": "Hot item warning with flame icon via ^GF and warning text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_liked_2x1_203": {
+    "description": "Heart/liked indicator with icon via ^GF and text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_organic_2x1_203": {
+    "description": "Organic product label with leaf icon via ^GF and 'ORGANIC' text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_priority_2x1_203": {
+    "description": "Priority indicator with exclamation or star icon via ^GF and text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_rating_3star_2x1_203": {
+    "description": "3-star rating display with multiple star icons via ^GF on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_status_error_2x1_203": {
+    "description": "Error status indicator with X-circle icon via ^GF and 'ERROR' text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_status_ok_2x1_203": {
+    "description": "OK status indicator with checkmark icon via ^GF and 'OK' text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_status_warning_2x1_203": {
+    "description": "Warning status indicator with triangle icon via ^GF and 'WARNING' text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_weather_rain_2x1_203": {
+    "description": "Rain weather indicator with cloud/drops icon via ^GF and text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_multi_weather_sun_2x1_203": {
+    "description": "Sun weather indicator with sun icon via ^GF and text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_axle_2x1_203": {
+    "description": "Shop part label with axle icon via ^GF, part name and number on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_banjo_2x1_203": {
+    "description": "Shop part label with banjo fitting icon via ^GF, part name and number on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_caliper_2x1_203": {
+    "description": "Shop part label with brake caliper icon via ^GF, part name and number on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_caution_2x1_203": {
+    "description": "Shop caution label with warning icon via ^GF and caution text on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_engine_2x1_203": {
+    "description": "Shop part label with engine icon via ^GF, part name and number on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_exhaust_2x1_203": {
+    "description": "Shop part label with exhaust icon via ^GF, part name and number on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_loctite_2x1_203": {
+    "description": "Shop supply label with Loctite/adhesive icon via ^GF, product info on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_photo_2x1_203": {
+    "description": "Shop label with camera/photo icon via ^GF indicating photo documentation on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_sprocket_2x1_203": {
+    "description": "Shop part label with sprocket/gear icon via ^GF, part name and number on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_torque_2x1_203": {
+    "description": "Shop label with torque wrench icon via ^GF indicating torque spec on 2x1 label.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_shop_triple_2x1_203": {
+    "description": "Shop label with triple clamp icon via ^GF, motorcycle part label on 2x1.",
+    "category": "graphic",
+    "features": ["^GF", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "graphic_star_fill_2x2_203": {
+    "description": "Star icon via ^GF command. Filled 5-point star symbol on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "graphic_xmark_circle_fill_2x2_203": {
+    "description": "X-mark in circle icon via ^GF command. Filled rejection/error symbol on 2x2 label.",
+    "category": "graphic",
+    "features": ["^GF"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "inv_location_4x2_203": {
+    "description": "Inventory location label with zone, aisle, rack, shelf coordinates. Large location code, item count, and Code 128 barcode for scanning.",
+    "category": "inventory",
+    "features": ["^BC", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "inv_picklist_4x2_203": {
+    "description": "Pick list item label with order number, SKU, quantity to pick, location, and barcode. Used for warehouse order fulfillment.",
+    "category": "inventory",
+    "features": ["^BC", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "inv_receiving_4x2_203": {
+    "description": "Receiving dock label with PO number, vendor, item details, quantity received, date, and barcode for intake processing.",
+    "category": "inventory",
+    "features": ["^BC", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "inv_shelf_4x2_203": {
+    "description": "Shelf label with location code, item name, SKU, min/max stock levels, and barcode for inventory management.",
+    "category": "inventory",
+    "features": ["^BC", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "inventory_tag_4x2_203": {
+    "description": "General inventory tag with item name, SKU, description, quantity, location, and Code 128 barcode.",
+    "category": "inventory",
+    "features": ["^BC", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "jewelry_tag_2x1_203": {
+    "description": "Small jewelry price tag with item name, material, price, and tiny barcode. Designed for hanging on jewelry.",
+    "category": "retail",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "microqr_1x1_600": {
+    "description": "Micro QR code on tiny 1x1 label at 600 DPI. High-resolution compact 2D barcode for very small items.",
+    "category": "barcode",
+    "features": ["^BQ"],
+    "size": "1x1",
+    "dpi": 600
+  },
+  "precision_2x1_600": {
+    "description": "High-precision label at 600 DPI on 2x1 label. Tests fine detail rendering with small text and thin lines.",
+    "category": "features",
+    "features": ["^A0", "^GB"],
+    "size": "2x1",
+    "dpi": 600
+  },
+  "product_sku_2x1_203": {
+    "description": "Product SKU label with item name, SKU number, price, and Code 128 barcode on 2x1 label at 203 DPI.",
+    "category": "retail",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "product_sku_2x1_300": {
+    "description": "Product SKU label with item name, SKU number, price, and Code 128 barcode on 2x1 label at 300 DPI.",
+    "category": "retail",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 300
+  },
+  "qr_equipment_4x4_203": {
+    "description": "Equipment asset label with QR code linking to equipment details. Asset ID, name, location, and service info with large QR code.",
+    "category": "asset",
+    "features": ["^BQ", "^A0"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "qr_hires_4x4_300": {
+    "description": "High-resolution QR code on 4x4 label at 300 DPI. Tests QR rendering quality at higher DPI.",
+    "category": "barcode",
+    "features": ["^BQ"],
+    "size": "4x4",
+    "dpi": 300
+  },
+  "qr_label_4x4_203": {
+    "description": "General QR code label with title, QR code, and descriptive text on 4x4 label.",
+    "category": "barcode",
+    "features": ["^BQ", "^A0"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "qr_product_4x4_203": {
+    "description": "Product info QR code label linking to product page. Product name, description, price, and QR code on 4x4 label.",
+    "category": "retail",
+    "features": ["^BQ", "^A0"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "qr_vcard_4x4_203": {
+    "description": "Contact vCard QR code label. QR encodes vCard data for easy contact sharing. Name and contact details with QR on 4x4 label.",
+    "category": "barcode",
+    "features": ["^BQ", "^A0"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "qr_wifi_4x4_203": {
+    "description": "WiFi network QR code label. QR encodes WiFi credentials for easy network joining. Network name and QR code on 4x4 label.",
+    "category": "barcode",
+    "features": ["^BQ", "^A0"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "retail_label_4x2_203": {
+    "description": "Retail shelf label with product name, description, price, sale price, SKU, and Code 128 barcode on 4x2 label.",
+    "category": "retail",
+    "features": ["^BC", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "return_small_3x2_203": {
+    "description": "Compact return label on 3x2 with black header bar containing reversed 'RETURN' text. RMA number, return address, and barcode below.",
+    "category": "shipping",
+    "features": ["^GB filled", "^FR", "^BC"],
+    "referenceSource": "zplkit",
+    "size": "3x2",
+    "dpi": 203
+  },
+  "serial_number_4x2_203": {
+    "description": "Serial number label using ^SN serialization command. Shows incrementing serial numbers for batch printing.",
+    "category": "features",
+    "features": ["^SN", "^A0"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "shapes_all_4x6_203": {
+    "description": "Shape showcase on 4x6 label demonstrating all graphic primitives: boxes, circles, ellipses, diagonal lines, horizontal and vertical lines at various sizes and thicknesses.",
+    "category": "shapes",
+    "features": ["^GB", "^GC", "^GE", "^GD"],
+    "size": "4x6",
+    "dpi": 203
+  },
+  "shapes_circle_4x4_203": {
+    "description": "Circle examples on 4x4 label using ^GC command. Multiple circles with different diameters, thicknesses, and filled vs outline styles.",
+    "category": "shapes",
+    "features": ["^GC"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "shapes_diagonal_4x4_203": {
+    "description": "Diagonal line examples on 4x4 label using ^GD command. Lines at various angles, lengths, and thicknesses.",
+    "category": "shapes",
+    "features": ["^GD"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "shapes_ellipse_4x4_203": {
+    "description": "Ellipse examples on 4x4 label using ^GE command. Multiple ellipses with different dimensions, thicknesses, and filled vs outline styles.",
+    "category": "shapes",
+    "features": ["^GE"],
+    "size": "4x4",
+    "dpi": 203
+  },
+  "shipping_4x6_300": {
+    "description": "Shipping label on 4x6 at 300 DPI. From/to addresses, tracking number, service type, weight, and Code 128 barcode. Higher resolution version.",
+    "category": "shipping",
+    "features": ["^BC", "^A0", "^GB"],
+    "size": "4x6",
+    "dpi": 300
+  },
+  "shipping_fedex_4x6_203": {
+    "description": "FedEx-style shipping label on 4x6. Sender/recipient addresses, tracking barcode, service type, routing codes, and delivery information.",
+    "category": "shipping",
+    "features": ["^BC", "^A0", "^GB"],
+    "size": "4x6",
+    "dpi": 203
+  },
+  "shipping_label_4x6_203": {
+    "description": "Generic shipping label on 4x6. From/to addresses, tracking number, service type, weight, date, and Code 128 barcode.",
+    "category": "shipping",
+    "features": ["^BC", "^A0", "^GB"],
+    "size": "4x6",
+    "dpi": 203
+  },
+  "shipping_return_4x6_203": {
+    "description": "Return shipping label with solid black header bar containing reversed white text 'RETURN LABEL' and RMA number. Normal black text for addresses below. Code 128 barcode near bottom. Fill-in lines for customer address.",
+    "category": "shipping",
+    "features": ["^GB filled", "^FR", "^BC"],
+    "referenceSource": "zplkit",
+    "size": "4x6",
+    "dpi": 203
+  },
+  "shipping_ups_4x6_203": {
+    "description": "UPS-style shipping label on 4x6. MaxiCode-style routing, sender/recipient addresses, tracking barcode, service indicators, and UPS-specific formatting.",
+    "category": "shipping",
+    "features": ["^BC", "^A0", "^GB"],
+    "size": "4x6",
+    "dpi": 203
+  },
+  "shipping_usps_4x6_203": {
+    "description": "USPS-style shipping label on 4x6. Priority Mail formatting, sender/recipient addresses, Intelligent Mail barcode, tracking number, and postal routing info.",
+    "category": "shipping",
+    "features": ["^BC", "^BZ", "^A0", "^GB"],
+    "size": "4x6",
+    "dpi": 203
+  },
+  "shop_brake_caliper_2x1_203": {
+    "description": "Shop parts bin label for brake caliper. Part name, number, vehicle fitment, quantity, and small barcode on 2x1 label.",
+    "category": "shop",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "shop_electrical_2x1_203": {
+    "description": "Shop parts bin label for electrical component. Part name, specs, quantity, and barcode on 2x1 label.",
+    "category": "shop",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "shop_engine_mount_2x1_203": {
+    "description": "Shop parts bin label for engine mount. Part name, vehicle fitment, position (L/R), and barcode on 2x1 label.",
+    "category": "shop",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "shop_fluid_2x1_203": {
+    "description": "Shop supply label for fluid/lubricant. Product name, type, viscosity/spec, quantity, and barcode on 2x1 label.",
+    "category": "shop",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "shop_parts_bin_4x2_203": {
+    "description": "Large shop parts bin label on 4x2. Part name, number, location, quantity range, supplier, and prominent barcode.",
+    "category": "shop",
+    "features": ["^BC", "^A0", "^GB"],
+    "size": "4x2",
+    "dpi": 203
+  },
+  "shop_template_2x1_203": {
+    "description": "Generic shop label template on 2x1 with part name, number, and barcode. Baseline for custom shop labels.",
+    "category": "shop",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "shop_ziplock_2x1_203": {
+    "description": "Label for shop ziplock bag containing small parts. Part name, quantity, date, and barcode on 2x1 label.",
+    "category": "shop",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "shop_ziplock_small_1x1_203": {
+    "description": "Small label for tiny ziplock bag. Part name/number and minimal info on compact 1x1 label.",
+    "category": "shop",
+    "features": ["^A0"],
+    "size": "1x1",
+    "dpi": 203
+  },
+  "simple_bike_part_2x0.75_203": {
+    "description": "Simple bike part label with part name and number on small 2x0.75 label.",
+    "category": "simple",
+    "features": ["^A0"],
+    "size": "2x0.75",
+    "dpi": 203
+  },
+  "simple_count_2x0.5_203": {
+    "description": "Simple count label showing quantity number on tiny 2x0.5 label.",
+    "category": "simple",
+    "features": ["^A0"],
+    "size": "2x0.5",
+    "dpi": 203
+  },
+  "simple_hw_2x0.5_203": {
+    "description": "Simple hardware label with size/type on tiny 2x0.5 label. For bolts, screws, etc.",
+    "category": "simple",
+    "features": ["^A0"],
+    "size": "2x0.5",
+    "dpi": 203
+  },
+  "simple_location_2x0.5_203": {
+    "description": "Simple location code label on tiny 2x0.5 label. Just location identifier.",
+    "category": "simple",
+    "features": ["^A0"],
+    "size": "2x0.5",
+    "dpi": 203
+  },
+  "simple_mini_1x0.5_203": {
+    "description": "Minimal label on very small 1x0.5 label. Single line of text only.",
+    "category": "simple",
+    "features": ["^A0"],
+    "size": "1x0.5",
+    "dpi": 203
+  },
+  "simple_oneline_2x0.5_203": {
+    "description": "Single line text label on 2x0.5 label. Just one line of text.",
+    "category": "simple",
+    "features": ["^A0"],
+    "size": "2x0.5",
+    "dpi": 203
+  },
+  "simple_part_2x0.5_203": {
+    "description": "Simple part label with name on tiny 2x0.5 label.",
+    "category": "simple",
+    "features": ["^A0"],
+    "size": "2x0.5",
+    "dpi": 203
+  },
+  "simple_twoline_2x0.75_203": {
+    "description": "Two-line text label on 2x0.75 label. Title and description or name and number.",
+    "category": "simple",
+    "features": ["^A0"],
+    "size": "2x0.75",
+    "dpi": 203
+  },
+  "sku_asset_2x1_203": {
+    "description": "Asset tag with asset ID, description, department, and Code 128 barcode on 2x1 label.",
+    "category": "asset",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "sku_barcode_2x1_203": {
+    "description": "Simple SKU barcode label with large Code 128 barcode and price on 2x1 label. Minimal text, emphasis on scannable barcode.",
+    "category": "retail",
+    "features": ["^BC", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "sku_clearance_2x1_203": {
+    "description": "Clearance sale label with filled black background and reversed white text. Shows 'CLEARANCE', original price, sale price, and discount percentage.",
+    "category": "retail",
+    "features": ["^GB filled", "^FR", "^A0"],
+    "referenceSource": "zplkit",
+    "size": "2x1",
+    "dpi": 203
+  },
+  "sku_qr_2x1_203": {
+    "description": "SKU label with QR code instead of linear barcode. Product info and QR code on 2x1 label for smartphone scanning.",
+    "category": "retail",
+    "features": ["^BQ", "^A0"],
+    "size": "2x1",
+    "dpi": 203
+  },
+  "specimen_2x2_203": {
+    "description": "Medical specimen label with patient ID, collection date/time, specimen type, tests ordered, and barcode on 2x2 label.",
+    "category": "medical",
+    "features": ["^BC", "^A0"],
+    "size": "2x2",
+    "dpi": 203
+  },
+  "tiny_asset_1x1_203": {
+    "description": "Tiny asset tag on 1x1 label. Asset number and minimal barcode for small equipment tracking.",
+    "category": "asset",
+    "features": ["^BC", "^A0"],
+    "size": "1x1",
+    "dpi": 203
+  },
+  "warehouse_bin_4x3_203": {
+    "description": "Warehouse bin label with location code, item info, quantity levels, and large barcode. Standard warehouse inventory label.",
+    "category": "warehouse",
+    "features": ["^BC", "^A0", "^GB"],
+    "size": "4x3",
+    "dpi": 203
+  }
+}

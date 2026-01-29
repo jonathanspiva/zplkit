@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Receiving dock label with PO number, vendor, item details,
+^FX quantity received, date, and barcode for intake processing.
 ^PW812
 ^LL406
 ^FO30,20^A0N,35,35^FDRECEIVING^FS

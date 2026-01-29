@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: WiFi network QR code label. QR encodes WiFi credentials
+^FX for easy network joining. Network name and QR code on 4x4 label.
 ^PW812
 ^LL812
 ^FO30,30^GB752,752,3^FS

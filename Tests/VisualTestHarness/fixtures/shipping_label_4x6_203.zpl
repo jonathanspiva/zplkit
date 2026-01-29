@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Generic shipping label on 4x6. From/to addresses, tracking
+^FX number, service type, weight, date, and Code 128 barcode.
 ^PW812
 ^LL1218
 ^FO50,50^A0N,40,40^FDShip To:^FS

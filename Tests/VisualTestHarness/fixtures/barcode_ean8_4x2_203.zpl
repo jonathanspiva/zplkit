@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: EAN-8 barcode on 4x2 label with border box. Title at top,
+^FX horizontal divider, centered barcode with human-readable text.
+^FX Description text explaining compact retail use.
 ^PW812
 ^LL406
 ^FO30,30^GB752,346,3^FS

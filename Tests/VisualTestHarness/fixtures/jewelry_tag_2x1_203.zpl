@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Small jewelry price tag with item name, material, price,
+^FX and tiny barcode. Designed for hanging on jewelry.
 ^PW457
 ^LL254
 ^FO20,20^A0N,22,22^FD14K Gold Ring^FS

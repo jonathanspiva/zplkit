@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Barcode module width test using ^BY command. Multiple Code
+^FX 128 barcodes at different widths (1-4) showing how module width affects
+^FX barcode size.
 ^PW812
 ^LL406
 ^FO30,30^A0N,30,30^FDBarcode Module Width^FS

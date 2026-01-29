@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Compact return label on 3x2 with black header bar
+^FX containing reversed 'RETURN' text. RMA number, return address, and
+^FX barcode below.
 ^PW609
 ^LL406
 ^FO20,20^GB569,366,569,B^FS

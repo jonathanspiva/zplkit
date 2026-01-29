@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Medical specimen label with patient ID, collection
+^FX date/time, specimen type, tests ordered, and barcode on 2x2 label.
 ^PW406
 ^LL406
 ^FO20,20^GB366,366,3^FS

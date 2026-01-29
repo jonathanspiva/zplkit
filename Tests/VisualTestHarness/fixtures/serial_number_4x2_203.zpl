@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Serial number label using ^SN serialization command. Shows
+^FX incrementing serial numbers for batch printing.
 ^PW812
 ^LL406
 ^FO30,30^A0N,30,30^FDSerial Numbers^FS

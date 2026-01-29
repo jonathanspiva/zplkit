@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Shelf label with location code, item name, SKU, min/max
+^FX stock levels, and barcode for inventory management.
 ^PW812
 ^LL406
 ^FO50,30^A0N,60,60^FD$12.99^FS

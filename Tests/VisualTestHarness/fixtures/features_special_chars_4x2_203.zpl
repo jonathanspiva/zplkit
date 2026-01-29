@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Special character encoding test. Shows hex-encoded
+^FX characters using _XX format for ZPL reserved characters like ^ and ~.
 ^PW812
 ^LL406
 ^FO30,30^A0N,35,35^FDSpecial Characters Test^FS

@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Interleaved 2 of 5 barcode examples on 4x2 label. Three
+^FX variants showing different module widths, with and without check digit,
+^FX text above vs below.
 ^PW812
 ^LL406
 ^FO30,30^A0N,30,30^FDInterleaved 2 of 5^FS

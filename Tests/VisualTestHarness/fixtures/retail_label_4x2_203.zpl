@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Retail shelf label with product name, description, price,
+^FX sale price, SKU, and Code 128 barcode on 4x2 label.
 ^PW812
 ^LL406
 ^FO30,20^A0N,35,35^FDRetail Product Label^FS

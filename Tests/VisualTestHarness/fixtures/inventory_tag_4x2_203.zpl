@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: General inventory tag with item name, SKU, description,
+^FX quantity, location, and Code 128 barcode.
 ^PW812
 ^LL406
 ^FO30,30^GB752,346,3^FS

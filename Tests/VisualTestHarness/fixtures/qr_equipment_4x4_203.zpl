@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Equipment asset label with QR code linking to equipment
+^FX details. Asset ID, name, location, and service info with large QR code.
 ^PW812
 ^LL812
 ^FO30,30^GB752,752,4^FS

@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: TextBlock (^FB) feature test. Multi-line text with
+^FX automatic word wrap, justification options, and line spacing control.
 ^PW812
 ^LL406
 ^LH10,10

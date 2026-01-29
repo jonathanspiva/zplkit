@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: High-resolution QR code on 4x4 label at 300 DPI. Tests QR
+^FX rendering quality at higher DPI.
 ^PW1200
 ^LL1200
 ^FO45,45^GB1110,1110,4^FS

@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: FedEx-style shipping label on 4x6. Sender/recipient
+^FX addresses, tracking barcode, service type, routing codes, and delivery
+^FX information.
 ^PW812
 ^LL1218
 ^FO30,30^GB752,400,3^FS

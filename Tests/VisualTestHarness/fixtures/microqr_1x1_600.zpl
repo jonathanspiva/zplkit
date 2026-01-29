@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Micro QR code on tiny 1x1 label at 600 DPI.
+^FX High-resolution compact 2D barcode for very small items.
 ^PW600
 ^LL600
 ^FO30,30^GB540,540,4^FS

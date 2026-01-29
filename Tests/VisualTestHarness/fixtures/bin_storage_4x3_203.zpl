@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Storage bin label with border. Location header, item
+^FX description, part number, quantity range, reorder point, supplier info,
+^FX and Code 128 barcode.
 ^PW812
 ^LL609
 ^FO30,30^GB752,549,4^FS

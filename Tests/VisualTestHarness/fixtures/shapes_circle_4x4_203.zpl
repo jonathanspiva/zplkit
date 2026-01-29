@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Circle examples on 4x4 label using ^GC command. Multiple
+^FX circles with different diameters, thicknesses, and filled vs outline
+^FX styles.
 ^PW812
 ^LL812
 ^FO30,30^A0N,30,30^FDCircle Shapes^FS

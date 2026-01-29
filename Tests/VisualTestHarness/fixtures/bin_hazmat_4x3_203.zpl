@@ -1,4 +1,8 @@
 ^XA
+^FX DESCRIPTION: Hazmat storage bin label with border. Black header
+^FX 'HAZMAT' with UN number. Centered filled black box with reversed white
+^FX '9' and 'CLASS 9' for hazard diamond. SDS location, emergency contact,
+^FX storage requirements below.
 ^PW812
 ^LL609
 ^FO30,30^GB752,549,6^FS

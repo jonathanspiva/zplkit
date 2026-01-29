@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Shipping label on 4x6 at 300 DPI. From/to addresses,
+^FX tracking number, service type, weight, and Code 128 barcode. Higher
+^FX resolution version.
 ^PW1200
 ^LL1800
 ^FO75,75^A0N,60,60^FDShip To:^FS

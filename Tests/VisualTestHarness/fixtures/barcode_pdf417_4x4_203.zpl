@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: PDF417 2D barcode showcase on 4x4 label. Multiple barcodes
+^FX showing default config, security levels, column settings, truncated
+^FX variant, and 90-degree rotation.
 ^PW812
 ^LL812
 ^FO30,30^A0N,30,30^FDPDF417 Barcodes^FS

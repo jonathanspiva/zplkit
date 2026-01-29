@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: High-precision label at 600 DPI on 2x1 label. Tests fine
+^FX detail rendering with small text and thin lines.
 ^PW1200
 ^LL600
 ^FO60,60^A0N,84,84^FDPrecision Label^FS

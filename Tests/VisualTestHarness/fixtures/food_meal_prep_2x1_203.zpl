@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Meal prep label on 2x1 label. Meal name, contents
+^FX description, prep date, and use-by date.
 ^PW406
 ^LL203
 ^FO20,20^A0N,55,55^FDLunch - Salmon^FS

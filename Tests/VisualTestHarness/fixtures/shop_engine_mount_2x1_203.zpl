@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Shop parts bin label for engine mount. Part name, vehicle
+^FX fitment, position (L/R), and barcode on 2x1 label.
 ^PW406
 ^LL203
 ^FO20,15^A0N,26,26^FDKT M 1290 ADV^FS

@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Shop supply label for fluid/lubricant. Product name, type,
+^FX viscosity/spec, quantity, and barcode on 2x1 label.
 ^PW406
 ^LL203
 ^FO20,20^A0N,28,28^FDKTM 1290 ADV^FS

@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: UPC-E barcode on 4x2 label with border box.
+^FX Zero-suppressed compact barcode for small retail items. Title, divider
+^FX line, centered barcode, description text.
 ^PW812
 ^LL406
 ^FO30,30^GB752,346,3^FS

@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Generic shop label template on 2x1 with part name, number,
+^FX and barcode. Baseline for custom shop labels.
 ^PW406
 ^LL203
 ^FO20,20^A0N,28,28^FD{{vehicle}}^FS

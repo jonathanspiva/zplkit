@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Inventory location label with zone, aisle, rack, shelf
+^FX coordinates. Large location code, item count, and Code 128 barcode for
+^FX scanning.
 ^PW812
 ^LL406
 ^FO30,30^GB752,346,3^FS

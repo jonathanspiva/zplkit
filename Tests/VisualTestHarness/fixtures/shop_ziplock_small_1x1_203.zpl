@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Small label for tiny ziplock bag. Part name/number and
+^FX minimal info on compact 1x1 label.
 ^PW203
 ^LL203
 ^FO10,10^A0N,24,24^FD1299 Rear^FS

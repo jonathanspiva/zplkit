@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Freezer storage label with food item, freeze date, and
+^FX use-by date on 2x0.75 label.
 ^PW406
 ^LL152
 ^FO20,20^A0N,50,50^FDBeef Chili^FS

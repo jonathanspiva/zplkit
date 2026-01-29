@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: UPS-style shipping label on 4x6. MaxiCode-style routing,
+^FX sender/recipient addresses, tracking barcode, service indicators, and
+^FX UPS-specific formatting.
 ^PW812
 ^LL1218
 ^FO50,30^A0N,50,50^FDUPS^FS

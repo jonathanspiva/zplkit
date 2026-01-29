@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Ellipse examples on 4x4 label using ^GE command. Multiple
+^FX ellipses with different dimensions, thicknesses, and filled vs outline
+^FX styles.
 ^PW812
 ^LL812
 ^FO30,30^A0N,30,30^FDEllipse Shapes^FS

@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Workstation bin label with border. Station ID header,
+^FX tool/supply name, part number, min/max quantities, last restocked date,
+^FX responsible person, and barcode.
 ^PW812
 ^LL609
 ^FO30,30^GB752,549,3^FS

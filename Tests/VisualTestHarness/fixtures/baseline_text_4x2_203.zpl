@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Text positioning test using ^FT baseline positioning.
+^FX Multiple text lines demonstrating baseline vs origin alignment
+^FX differences.
 ^PW812
 ^LL406
 ^FO30,30^A0N,30,30^FDBaseline vs Origin Positioning^FS

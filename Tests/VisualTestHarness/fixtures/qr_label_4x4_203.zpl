@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: General QR code label with title, QR code, and descriptive
+^FX text on 4x4 label.
 ^PW812
 ^LL812
 ^FO30,30^GB752,752,3^FS

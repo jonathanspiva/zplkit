@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Contact vCard QR code label. QR encodes vCard data for
+^FX easy contact sharing. Name and contact details with QR on 4x4 label.
 ^PW812
 ^LL812
 ^FO30,30^GB752,752,3^FS

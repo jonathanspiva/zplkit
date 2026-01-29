@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: USPS Intelligent Mail (OneCode/4-State) barcode on 4x2
+^FX label with border. Tall/short bar pattern for mail sorting. Tracking
+^FX number and format explanation below.
 ^PW812
 ^LL406
 ^FO30,30^GB752,346,3^FS

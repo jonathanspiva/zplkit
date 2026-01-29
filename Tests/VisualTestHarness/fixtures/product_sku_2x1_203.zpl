@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Product SKU label with item name, SKU number, price, and
+^FX Code 128 barcode on 2x1 label at 203 DPI.
 ^PW406
 ^LL203
 ^FO20,20^A0N,28,28^FDM6 Titanium Bolt^FS

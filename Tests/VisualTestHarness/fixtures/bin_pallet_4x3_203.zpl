@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Pallet location bin label with border. Shows pallet ID,
+^FX location code, SKU, description, quantity, weight, and large Code 128
+^FX barcode for scanning.
 ^PW812
 ^LL609
 ^FO30,20^A0N,50,50^FDPALLET TAG^FS

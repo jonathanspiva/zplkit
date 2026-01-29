@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Aztec barcode showcase on 4x4 label. Multiple Aztec codes at
+^FX different magnifications (3-6), including rotated 90 degrees. Shows ECI
+^FX mode, error correction, and URL encoding. Labels beneath each barcode.
 ^PW812
 ^LL812
 ^FO30,30^A0N,30,30^FDAztec Barcodes^FS

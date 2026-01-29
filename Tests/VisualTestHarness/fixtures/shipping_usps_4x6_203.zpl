@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: USPS-style shipping label on 4x6. Priority Mail
+^FX formatting, sender/recipient addresses, Intelligent Mail barcode,
+^FX tracking number, and postal routing info.
 ^PW812
 ^LL1218
 ^FO50,30^A0N,45,45^FDUSPS PRIORITY MAIL^FS

@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Clearance sale label with filled black background and
+^FX reversed white text. Shows 'CLEARANCE', original price, sale price, and
+^FX discount percentage.
 ^PW406
 ^LL203
 ^FO10,10^GB386,183,386,B^FS

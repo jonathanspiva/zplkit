@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Shape showcase on 4x6 label demonstrating all graphic
+^FX primitives: boxes, circles, ellipses, diagonal lines, horizontal and
+^FX vertical lines at various sizes and thicknesses.
 ^PW812
 ^LL1218
 ^FO30,30^A0N,35,35^FDAll Shape Types^FS

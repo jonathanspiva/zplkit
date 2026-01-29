@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Code 39 barcode examples on 4x2 label. Standard
+^FX alphanumeric barcode with start/stop characters. Shows different
+^FX configurations.
 ^PW812
 ^LL406
 ^FO30,30^A0N,35,35^FDCode 39 Barcode^FS

@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Print configuration test showing ^PR print speed, ^MD
+^FX media darkness, and ^PQ print quantity commands. Demonstrates label
+^FX output settings.
 ^PW812
 ^LL406
 ^MD15

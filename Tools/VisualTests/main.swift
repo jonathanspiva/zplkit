@@ -39,6 +39,15 @@ struct ScoreResult {
     let hasDiff: Bool
 }
 
+struct FixtureMetadata: Codable {
+    let description: String
+    let category: String
+    let features: [String]
+    let size: String
+    let dpi: Int
+    let referenceSource: String?
+}
+
 @main
 struct VisualTests {
     static let fixturesDir = "Tests/VisualTestHarness/fixtures"
@@ -47,6 +56,7 @@ struct VisualTests {
     static let referenceDir = "Tests/VisualTestHarness/reference"
     static let diffDir = "Tests/VisualTestHarness/output-diff"
     static let htmlPath = "Tests/VisualTestHarness/comparison.html"
+    static let fixturesJsonPath = "Tests/VisualTestHarness/fixtures.json"
 
     static func main() async throws {
         let args = CommandLine.arguments
@@ -78,6 +88,17 @@ struct VisualTests {
         let referencePath = "\(root)/\(referenceDir)"
         let diffPath = "\(root)/\(diffDir)"
         let htmlFullPath = "\(root)/\(htmlPath)"
+        let fixturesJsonFullPath = "\(root)/\(fixturesJsonPath)"
+
+        // Load fixtures metadata
+        var fixturesMetadata: [String: FixtureMetadata] = [:]
+        if let jsonData = fileManager.contents(atPath: fixturesJsonFullPath),
+           let metadata = try? JSONDecoder().decode([String: FixtureMetadata].self, from: jsonData) {
+            fixturesMetadata = metadata
+            print("Loaded metadata for \(metadata.count) fixtures")
+        } else {
+            print("Warning: Could not load fixtures.json, filtering will be limited")
+        }
 
         // Create output directories
         try fileManager.createDirectory(atPath: outputPath, withIntermediateDirectories: true)
@@ -211,7 +232,8 @@ struct VisualTests {
             includeLabelary: includeLabelary,
             labelaryFailures: Set(labelaryFailures.map { $0.file }),
             includeScore: includeScore,
-            scores: scores
+            scores: scores,
+            metadata: fixturesMetadata
         )
         try html.write(toFile: htmlFullPath, atomically: true, encoding: .utf8)
         print("Created \(htmlPath)")
@@ -481,17 +503,42 @@ struct VisualTests {
 
     // MARK: - HTML Generation
 
-    static func generateHTML(fixtures: [String], results: [(name: String, dpi: DPI, parseMs: Double, renderMs: Double)], includeLabelary: Bool, labelaryFailures: Set<String> = [], includeScore: Bool = false, scores: [ScoreResult] = []) -> String {
+    static func generateHTML(fixtures: [String], results: [(name: String, dpi: DPI, parseMs: Double, renderMs: Double)], includeLabelary: Bool, labelaryFailures: Set<String> = [], includeScore: Bool = false, scores: [ScoreResult] = [], metadata: [String: FixtureMetadata] = [:]) -> String {
         let resultsDict = Dictionary(uniqueKeysWithValues: results.map { ($0.name, $0) })
         let scoresDict = Dictionary(uniqueKeysWithValues: scores.map { ($0.fixture, $0) })
 
+        // Collect unique values for filters
+        var categories = Set<String>()
+        var sizes = Set<String>()
+        var dpis = Set<Int>()
+        var allFeatures = Set<String>()
+
+        for file in fixtures {
+            let name = file.replacingOccurrences(of: ".zpl", with: "")
+            if let meta = metadata[name] {
+                categories.insert(meta.category)
+                sizes.insert(meta.size)
+                dpis.insert(meta.dpi)
+                allFeatures.formUnion(meta.features)
+            }
+        }
+
         var rows = ""
         for file in fixtures {
+            let name = file.replacingOccurrences(of: ".zpl", with: "")
             let pngName = file.replacingOccurrences(of: ".zpl", with: ".png")
             let result = resultsDict[file]
             let score = scoresDict[file]
+            let meta = metadata[name]
             let timeStr = result.map { String(format: "%.1fms", $0.parseMs + $0.renderMs) } ?? "—"
             let labelaryFailed = labelaryFailures.contains(file)
+
+            // Data attributes for filtering
+            let category = meta?.category ?? "unknown"
+            let size = meta?.size ?? "unknown"
+            let dpi = meta?.dpi ?? 203
+            let features = (meta?.features ?? []).joined(separator: " ")
+            let description = meta?.description ?? ""
 
             let scoreHtml: String
             if let s = score {
@@ -501,16 +548,23 @@ struct VisualTests {
                 scoreHtml = ""
             }
 
+            // Category badge
+            let categoryBadge = "<span class=\"category-badge cat-\(category)\">\(category)</span>"
+
             rows += """
-            <div class="fixture">
+            <div class="fixture" data-category="\(category)" data-size="\(size)" data-dpi="\(dpi)" data-features="\(features)">
                 <div class="fixture-header">
-                    <span class="fixture-name">\(file)</span>
+                    <div class="fixture-title">
+                        <span class="fixture-name">\(file)</span>
+                        \(categoryBadge)
+                    </div>
                     <span class="fixture-meta">\(scoreHtml) \(timeStr)</span>
                 </div>
+                <div class="fixture-description">\(description)</div>
                 <div class="renders">
                     <div class="render">
                         <div class="render-label">ZPLKitRenderer</div>
-                        <img src="output-swift/\(pngName)" alt="\(file)">
+                        <img src="output-swift/\(pngName)" alt="\(file)" loading="lazy">
                     </div>
             """
 
@@ -526,7 +580,7 @@ struct VisualTests {
                     rows += """
                     <div class="render">
                         <div class="render-label">Labelary</div>
-                        <img src="output-labelary/\(pngName)" alt="\(file)">
+                        <img src="output-labelary/\(pngName)" alt="\(file)" loading="lazy">
                     </div>
             """
                 }
@@ -536,11 +590,11 @@ struct VisualTests {
                 rows += """
                     <div class="render">
                         <div class="render-label">Reference</div>
-                        <img src="reference/\(pngName)" alt="\(file) reference">
+                        <img src="reference/\(pngName)" alt="\(file) reference" loading="lazy">
                     </div>
                     <div class="render">
                         <div class="render-label">Diff</div>
-                        <img src="output-diff/\(pngName)" alt="\(file) diff">
+                        <img src="output-diff/\(pngName)" alt="\(file) diff" loading="lazy">
                     </div>
             """
             }
@@ -549,6 +603,21 @@ struct VisualTests {
                 </div>
             </div>
             """
+        }
+
+        // Generate category chips
+        let categoryChips = categories.sorted().map { cat in
+            "<button class=\"chip\" data-filter=\"category\" data-value=\"\(cat)\">\(cat)</button>"
+        }.joined(separator: "\n                    ")
+
+        // Generate size options
+        let sizeOptions = ["<option value=\"\">All sizes</option>"] + sizes.sorted().map { size in
+            "<option value=\"\(size)\">\(size)</option>"
+        }
+
+        // Generate DPI options
+        let dpiOptions = ["<option value=\"\">All DPIs</option>"] + dpis.sorted().map { dpi in
+            "<option value=\"\(dpi)\">\(dpi) DPI</option>"
         }
 
         let totalTime = results.reduce(0) { $0 + $1.parseMs + $1.renderMs }
@@ -574,33 +643,101 @@ struct VisualTests {
                     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
                     margin: 0;
                     padding: 20px;
-                    background: #f5f5f5;
+                    background: #888;
                 }
-                h1 { margin: 0 0 10px 0; }
+                h1 { margin: 0 0 10px 0; color: white; }
+                a { color: #adf; }
                 .summary {
-                    background: #e8f4fd;
+                    background: #ccc;
                     padding: 15px;
                     border-radius: 8px;
-                    margin-bottom: 20px;
+                    margin-bottom: 15px;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     flex-wrap: wrap;
                     gap: 10px;
                 }
+                .summary-stats { color: #333; }
                 .summary-stats span { margin-right: 30px; }
                 .overall-score {
                     font-size: 18px;
                     padding: 8px 16px;
                     border-radius: 4px;
                 }
-                .fixture {
+                .filter-section {
+                    background: #ccc;
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin-bottom: 15px;
+                }
+                .filter-row {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                    align-items: center;
+                    margin-bottom: 10px;
+                }
+                .filter-row:last-child { margin-bottom: 0; }
+                .filter-label {
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #666;
+                    min-width: 70px;
+                }
+                .filter-bar input[type="text"] {
+                    padding: 8px 12px;
+                    font-size: 14px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    width: 250px;
+                }
+                .filter-bar select {
+                    padding: 8px 12px;
+                    font-size: 14px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
                     background: white;
+                }
+                .chips {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 6px;
+                }
+                .chip {
+                    padding: 5px 12px;
+                    font-size: 13px;
+                    border: 1px solid #ddd;
+                    border-radius: 16px;
+                    background: white;
+                    cursor: pointer;
+                    transition: all 0.15s;
+                }
+                .chip:hover { background: #f0f0f0; }
+                .chip.active {
+                    background: #333;
+                    color: white;
+                    border-color: #333;
+                }
+                .chip-clear {
+                    background: #f8f8f8;
+                    color: #999;
+                    border-style: dashed;
+                }
+                .chip-clear:hover { background: #eee; }
+                .visible-count {
+                    font-size: 13px;
+                    color: #666;
+                    margin-left: auto;
+                }
+                .fixture {
+                    background: #ddd;
                     border-radius: 8px;
                     margin-bottom: 15px;
                     overflow: hidden;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
                 }
+                .fixture.hidden { display: none; }
                 .fixture-header {
                     background: #333;
                     color: white;
@@ -608,9 +745,43 @@ struct VisualTests {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                }
+                .fixture-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
                 }
                 .fixture-name { font-family: monospace; font-size: 14px; }
                 .fixture-meta { font-size: 12px; color: #aaa; display: flex; align-items: center; gap: 10px; }
+                .fixture-description {
+                    padding: 10px 15px;
+                    font-size: 13px;
+                    color: #444;
+                    background: #ccc;
+                }
+                .category-badge {
+                    font-size: 11px;
+                    padding: 2px 8px;
+                    border-radius: 10px;
+                    text-transform: uppercase;
+                    font-weight: 600;
+                }
+                .cat-barcode { background: #e3f2fd; color: #1565c0; }
+                .cat-shipping { background: #fff3e0; color: #e65100; }
+                .cat-retail { background: #f3e5f5; color: #7b1fa2; }
+                .cat-warehouse { background: #e8f5e9; color: #2e7d32; }
+                .cat-inventory { background: #e0f7fa; color: #00838f; }
+                .cat-food { background: #fce4ec; color: #c2185b; }
+                .cat-graphic { background: #ede7f6; color: #512da8; }
+                .cat-shapes { background: #fff8e1; color: #ff8f00; }
+                .cat-features { background: #e8eaf6; color: #3949ab; }
+                .cat-asset { background: #efebe9; color: #5d4037; }
+                .cat-shop { background: #eceff1; color: #455a64; }
+                .cat-simple { background: #f5f5f5; color: #616161; }
+                .cat-medical { background: #ffebee; color: #c62828; }
+                .cat-unknown { background: #eee; color: #666; }
                 .score {
                     padding: 2px 8px;
                     border-radius: 3px;
@@ -624,6 +795,7 @@ struct VisualTests {
                     gap: 20px;
                     padding: 15px;
                     flex-wrap: wrap;
+                    background: #ddd;
                 }
                 .render {
                     flex: 1;
@@ -648,20 +820,10 @@ struct VisualTests {
                     color: #856404;
                     font-size: 14px;
                 }
-                .filter-bar {
-                    margin-bottom: 15px;
-                }
-                .filter-bar input {
-                    padding: 8px 12px;
-                    font-size: 14px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    width: 300px;
-                }
             </style>
         </head>
         <body>
-            <h1>ZPLKit Visual Tests</h1>
+            <h1>ZPLKit Visual Tests <a href="https://github.com/jonathanspiva/ZPLKit" style="font-size: 14px; font-weight: normal;">github.com/jonathanspiva/ZPLKit</a></h1>
             <div class="summary">
                 <div class="summary-stats">
                     <span><strong>\(fixtures.count)</strong> fixtures</span>
@@ -670,20 +832,83 @@ struct VisualTests {
                 </div>
                 \(overallScoreHtml)
             </div>
-            <div class="filter-bar">
-                <input type="text" id="filter" placeholder="Filter fixtures..." oninput="filterFixtures()">
+            <div class="filter-section">
+                <div class="filter-row filter-bar">
+                    <span class="filter-label">Search:</span>
+                    <input type="text" id="textFilter" placeholder="Filter by name or description..." oninput="applyFilters()">
+                    <select id="sizeFilter" onchange="applyFilters()">
+                        \(sizeOptions.joined(separator: "\n                        "))
+                    </select>
+                    <select id="dpiFilter" onchange="applyFilters()">
+                        \(dpiOptions.joined(separator: "\n                        "))
+                    </select>
+                    <span class="visible-count" id="visibleCount"></span>
+                </div>
+                <div class="filter-row">
+                    <span class="filter-label">Category:</span>
+                    <div class="chips">
+                        <button class="chip chip-clear" onclick="clearCategory()">All</button>
+                        \(categoryChips)
+                    </div>
+                </div>
             </div>
             <div id="fixtures">
                 \(rows)
             </div>
             <script>
-                function filterFixtures() {
-                    const filter = document.getElementById('filter').value.toLowerCase();
+                let activeCategory = null;
+
+                function applyFilters() {
+                    const textFilter = document.getElementById('textFilter').value.toLowerCase();
+                    const sizeFilter = document.getElementById('sizeFilter').value;
+                    const dpiFilter = document.getElementById('dpiFilter').value;
+
+                    let visible = 0;
                     document.querySelectorAll('.fixture').forEach(f => {
                         const name = f.querySelector('.fixture-name').textContent.toLowerCase();
-                        f.style.display = name.includes(filter) ? '' : 'none';
+                        const desc = f.querySelector('.fixture-description')?.textContent.toLowerCase() || '';
+                        const category = f.dataset.category;
+                        const size = f.dataset.size;
+                        const dpi = f.dataset.dpi;
+
+                        const matchesText = !textFilter || name.includes(textFilter) || desc.includes(textFilter);
+                        const matchesCategory = !activeCategory || category === activeCategory;
+                        const matchesSize = !sizeFilter || size === sizeFilter;
+                        const matchesDpi = !dpiFilter || dpi === dpiFilter;
+
+                        if (matchesText && matchesCategory && matchesSize && matchesDpi) {
+                            f.classList.remove('hidden');
+                            visible++;
+                        } else {
+                            f.classList.add('hidden');
+                        }
                     });
+
+                    document.getElementById('visibleCount').textContent = visible + ' shown';
                 }
+
+                function clearCategory() {
+                    activeCategory = null;
+                    document.querySelectorAll('.chip[data-filter="category"]').forEach(c => c.classList.remove('active'));
+                    applyFilters();
+                }
+
+                document.querySelectorAll('.chip[data-filter="category"]').forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        const value = chip.dataset.value;
+                        if (activeCategory === value) {
+                            clearCategory();
+                        } else {
+                            activeCategory = value;
+                            document.querySelectorAll('.chip[data-filter="category"]').forEach(c => c.classList.remove('active'));
+                            chip.classList.add('active');
+                            applyFilters();
+                        }
+                    });
+                });
+
+                // Initialize count
+                applyFilters();
             </script>
         </body>
         </html>

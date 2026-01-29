@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Product info QR code label linking to product page.
+^FX Product name, description, price, and QR code on 4x4 label.
 ^PW812
 ^LL812
 ^FO30,30^GB752,752,3^FS

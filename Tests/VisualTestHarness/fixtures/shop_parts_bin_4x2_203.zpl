@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Large shop parts bin label on 4x2. Part name, number,
+^FX location, quantity range, supplier, and prominent barcode.
 ^PW812
 ^LL406
 ^FO30,25^A0N,45,45^FDDucati 1299 Panigale^FS

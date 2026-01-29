@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Food batch label with item name, batch code, and prep/use
+^FX dates on 2x0.75 label.
 ^PW406
 ^LL152
 ^FO20,20^A0N,50,50^FDBolognese^FS

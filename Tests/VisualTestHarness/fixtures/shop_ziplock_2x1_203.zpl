@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Label for shop ziplock bag containing small parts. Part
+^FX name, quantity, date, and barcode on 2x1 label.
 ^PW406
 ^LL203
 ^FO20,20^A0N,28,28^FDDucati 1299^FS

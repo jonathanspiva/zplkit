@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: UPC-A barcode examples on 4x2 label. Three variants:
+^FX standard with text below, text above, and no text/no check digit.
+^FX Standard US retail barcode format.
 ^PW812
 ^LL406
 ^FO30,30^A0N,30,30^FDUPC-A Barcodes^FS

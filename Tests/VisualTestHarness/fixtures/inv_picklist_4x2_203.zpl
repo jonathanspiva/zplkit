@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Pick list item label with order number, SKU, quantity to
+^FX pick, location, and barcode. Used for warehouse order fulfillment.
 ^PW812
 ^LL406
 ^FO30,20^A0N,40,40^FDPICK LIST^FS

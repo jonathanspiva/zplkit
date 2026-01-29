@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Warehouse bin label with location code, item info,
+^FX quantity levels, and large barcode. Standard warehouse inventory label.
 ^PW812
 ^LL609
 ^FO30,30^GB752,549,4^FS

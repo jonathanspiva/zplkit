@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Asset tag with asset ID, description, department, and Code
+^FX 128 barcode on 2x1 label.
 ^PW406
 ^LL203
 ^FO10,10^GB386,183,2^FS

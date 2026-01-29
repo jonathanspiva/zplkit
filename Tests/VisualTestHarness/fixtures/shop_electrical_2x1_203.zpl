@@ -1,4 +1,6 @@
 ^XA
+^FX DESCRIPTION: Shop parts bin label for electrical component. Part name,
+^FX specs, quantity, and barcode on 2x1 label.
 ^PW406
 ^LL203
 ^FO20,20^A0N,26,26^FDBuell XB12R^FS
