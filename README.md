@@ -264,6 +264,12 @@ The renderer handles all ZPL commands that ZPLKit generates, including text, bar
 - Swift 6.0+
 - iOS 15+ / macOS 12+ / tvOS 15+ / watchOS 8+
 
+## Resources
+
+- [Zebra ZPL Programming Guide](https://www.zebra.com/content/dam/zebra/manuals/printers/common/programming/zpl-zbi2-pm-en.pdf) - Official ZPL command reference
+- [Labelary](http://labelary.com/viewer.html) - Online ZPL viewer for testing
+- [zpl-image](https://www.npmjs.com/package/zpl-image) - Node.js ZPL renderer that inspired ZPLKitRenderer
+
 ## License
 
 MIT
