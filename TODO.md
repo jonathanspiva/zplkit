@@ -12,18 +12,17 @@
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
-- [ ] **Printer network commands**
-  - [ ] Query printer status (`~HS` host status)
-  - [ ] Get configuration (`^HH` configuration return)
-  - [ ] Calibrate media (`~JC` calibration)
-  - [ ] Reset printer (`~JR` power-on reset)
-  - [ ] Save/restore settings (`^JUS`, `^JUR`)
-  - [ ] Network configuration (IP, gateway, etc.)
+- [ ] **Printer commands (one-way, fire and forget)**
+  - [ ] Print network config (`~WL`)
+  - [ ] Calibrate media (`~JC`)
+  - [ ] Reset printer (`~JR`)
+  - [ ] Cancel current job (`~JA`)
 - [ ] Barcode decode verification (scan rendered barcodes to verify encoded data)
 - [ ] Icon support via LiveUI/Awesome (FontAwesome 6, native CGImage, 1,500+ icons)
 
 ## Never
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
+- Two-way printer commands (`~HS`, `^HH`) - Require response parsing and network client, out of scope for a generation/rendering library
 
 ## Done
 - [x] Fixture metadata JSON with descriptions, categories, features, size, DPI
