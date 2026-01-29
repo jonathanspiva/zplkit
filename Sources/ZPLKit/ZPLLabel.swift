@@ -29,6 +29,9 @@ public struct ZPLLabel: Sendable {
     /// Print speed settings (print, slew, backfeed).
     private var printSpeed: (print: Int, slew: Int?, backfeed: Int?)?
 
+    /// Reverse print mode (white on black).
+    private var reversePrint: Bool = false
+
     /// Creates a new label with the given dimensions and content.
     /// - Parameters:
     ///   - width: Label width in inches.
@@ -87,6 +90,16 @@ public struct ZPLLabel: Sendable {
     public func printSpeed(_ speed: Int, slew: Int? = nil, backfeed: Int? = nil) -> ZPLLabel {
         var copy = self
         copy.printSpeed = (print: max(1, speed), slew: slew, backfeed: backfeed)
+        return copy
+    }
+
+    /// Enables reverse print mode for the entire label.
+    ///
+    /// When enabled, all fields are printed as white on black (inverted).
+    /// This affects the entire label, not individual elements.
+    public func reversePrint(_ enabled: Bool = true) -> ZPLLabel {
+        var copy = self
+        copy.reversePrint = enabled
         return copy
     }
 
@@ -171,6 +184,11 @@ public struct ZPLLabel: Sendable {
                 prCommand += ",,\(backfeed)"
             }
             commands.append(prCommand)
+        }
+
+        // Reverse print (label-wide)
+        if reversePrint {
+            commands.append("^LRY")
         }
 
         // Render all elements

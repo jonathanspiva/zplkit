@@ -754,4 +754,71 @@ final class ZPLKitTests: XCTestCase {
         XCTAssertTrue(zpl.contains("Test"))
         XCTAssertTrue(zpl.contains("{{missing}}"))  // Unsubstituted variable remains
     }
+
+    // MARK: - Reverse Print Tests
+
+    func testReversePrint() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Inverted", at: .inches(0.25, 0.25))
+        }.reversePrint()
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^LRY"))  // Label-wide reverse
+    }
+
+    func testReversePrintDisabled() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Normal", at: .inches(0.25, 0.25))
+        }.reversePrint(false)
+
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^LRY"))
+    }
+
+    func testReversePrintDefault() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Normal", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^LRY"))  // Should not be present by default
+    }
+
+    // MARK: - Comment Tests
+
+    func testCommentRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Comment("This is a debugging note")
+            Text("Hello", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FX This is a debugging note ^FS"))
+    }
+
+    func testCommentNotPrinted() {
+        // Comments should be in ZPL output but use ^FX which is ignored by printer
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Comment("Section 1: Header")
+            Text("Title", at: .inches(0.25, 0.25))
+            Comment("Section 2: Content")
+            Text("Body", at: .inches(0.25, 0.5))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FX Section 1: Header ^FS"))
+        XCTAssertTrue(zpl.contains("^FX Section 2: Content ^FS"))
+        XCTAssertTrue(zpl.contains("^FDTitle^FS"))
+        XCTAssertTrue(zpl.contains("^FDBody^FS"))
+    }
+
+    func testCommentEmpty() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Comment("")
+            Text("Test", at: .inches(0.25, 0.25))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FX  ^FS"))  // Empty comment still renders
+    }
 }
