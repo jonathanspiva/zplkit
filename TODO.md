@@ -16,6 +16,13 @@
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
+- [ ] **Printer network commands**
+  - [ ] Query printer status (`~HS` host status)
+  - [ ] Get configuration (`^HH` configuration return)
+  - [ ] Calibrate media (`~JC` calibration)
+  - [ ] Reset printer (`~JR` power-on reset)
+  - [ ] Save/restore settings (`^JUS`, `^JUR`)
+  - [ ] Network configuration (IP, gateway, etc.)
 - [ ] Barcode decode verification (scan rendered barcodes to verify encoded data)
 - [ ] Icon support via LiveUI/Awesome (FontAwesome 6, native CGImage, 1,500+ icons)
 
