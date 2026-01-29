@@ -8,57 +8,34 @@ on:
 
 jobs:
   build-and-test:
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Swift
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: "6.0"
 
       - name: Build
         run: swift build
 
-      - name: Run tests
+      - name: Run unit tests
         run: swift test
 
   visual-tests:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     needs: build-and-test
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Swift
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: "6.0"
+      - name: Build
+        run: swift build -c release
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+      - name: Run visual tests with Labelary comparison
+        run: swift run -c release VisualTests --labelary
 
-      - name: Build library
-        run: swift build
-
-      - name: Generate ZPL fixtures
-        run: swift test --filter VisualTests || true
-
-      - name: Install visual test dependencies
-        working-directory: Tests/VisualTestHarness
-        run: npm ci
-
-      - name: Run visual tests
-        working-directory: Tests/VisualTestHarness
-        run: npm test
-
-      - name: Upload diff artifacts on failure
-        if: failure()
+      - name: Upload visual comparison
         uses: actions/upload-artifact@v4
         with:
-          name: visual-diff
-          path: Tests/VisualTestHarness/output/
+          name: visual-comparison
+          path: |
+            Tests/VisualTestHarness/comparison.html
+            Tests/VisualTestHarness/output-swift/
+            Tests/VisualTestHarness/output-labelary/
+          retention-days: 7
