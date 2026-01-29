@@ -821,4 +821,78 @@ final class ZPLKitTests: XCTestCase {
         let zpl = label.render()
         XCTAssertTrue(zpl.contains("^FX  ^FS"))  // Empty comment still renders
     }
+
+    // MARK: - Graphic Tests
+
+    #if canImport(CoreGraphics)
+    func testGraphicBasic() {
+        // Create a simple 8x8 test pattern (checkerboard)
+        let width = 8
+        let height = 8
+        let bytesPerRow = width
+        var pixelData = [UInt8](repeating: 0, count: width * height)
+
+        // Create checkerboard: black pixels where (x+y) is even
+        for y in 0..<height {
+            for x in 0..<width {
+                pixelData[y * width + x] = ((x + y) % 2 == 0) ? 0 : 255
+            }
+        }
+
+        let colorSpace = CGColorSpace(name: CGColorSpace.linearGray)!
+        let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        )!
+
+        let cgImage = context.makeImage()!
+
+        let label = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(cgImage, at: .dots(10, 10), width: .dots(8))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GFA,"))  // ASCII format
+        XCTAssertTrue(zpl.contains("^FO10,10"))  // Position
+    }
+
+    func testGraphicWithInvert() {
+        // Create a simple black square
+        let width = 8
+        let height = 8
+        var pixelData = [UInt8](repeating: 0, count: width * height)  // All black
+
+        let colorSpace = CGColorSpace(name: CGColorSpace.linearGray)!
+        let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        )!
+
+        let cgImage = context.makeImage()!
+
+        let labelNormal = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(cgImage, at: .dots(10, 10), width: .dots(8), invert: false)
+        }
+
+        let labelInverted = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(cgImage, at: .dots(10, 10), width: .dots(8), invert: true)
+        }
+
+        let zplNormal = labelNormal.render()
+        let zplInverted = labelInverted.render()
+
+        // The hex data should be different when inverted
+        XCTAssertNotEqual(zplNormal, zplInverted)
+    }
+    #endif
 }

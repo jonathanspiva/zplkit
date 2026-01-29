@@ -70,6 +70,9 @@ public enum CoreGraphicsRenderer {
 
             case .barcode(let barcode):
                 try renderBarcode(barcode, in: context)
+
+            case .graphic(let graphic):
+                renderGraphic(graphic, in: context)
             }
         }
 
@@ -289,6 +292,70 @@ public enum CoreGraphicsRenderer {
             context.addLine(to: CGPoint(x: endX, y: endY))
         }
         context.strokePath()
+    }
+
+    // MARK: - Graphic Rendering
+
+    private static func renderGraphic(_ graphic: ParsedGraphic, in context: CGContext) {
+        let bytesPerRow = graphic.bytesPerRow
+        let width = bytesPerRow * 8  // Each byte = 8 pixels
+        let height = graphic.data.count / bytesPerRow
+
+        guard height > 0, width > 0 else { return }
+
+        // Create a bitmap from the 1-bit data
+        // Each byte in data represents 8 horizontal pixels (MSB first)
+        var expandedData = [UInt8](repeating: 255, count: width * height)  // Start with white
+
+        for y in 0..<height {
+            for byteIndex in 0..<bytesPerRow {
+                let dataIndex = y * bytesPerRow + byteIndex
+                guard dataIndex < graphic.data.count else { continue }
+
+                let byte = graphic.data[dataIndex]
+
+                for bit in 0..<8 {
+                    let x = byteIndex * 8 + bit
+                    guard x < width else { continue }
+
+                    let pixelIndex = y * width + x
+                    // MSB first: bit 7 is leftmost pixel
+                    let isSet = (byte & (0x80 >> bit)) != 0
+                    expandedData[pixelIndex] = isSet ? 0 : 255  // Black if set, white if not
+                }
+            }
+        }
+
+        // Create CGImage from the expanded data
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.linearGray),
+              let provider = CGDataProvider(data: Data(expandedData) as CFData),
+              let cgImage = CGImage(
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 8,
+                bytesPerRow: width,
+                space: colorSpace,
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: false,
+                intent: .defaultIntent
+              ) else {
+            return
+        }
+
+        // Draw the image at the specified position
+        // Need to flip vertically because CGContext is already flipped for ZPL coords,
+        // but CGImage drawing expects unflipped
+        let rect = CGRect(x: graphic.x, y: graphic.y, width: width, height: height)
+
+        context.saveGState()
+        // Flip around the center of the graphic
+        context.translateBy(x: 0, y: CGFloat(graphic.y * 2 + height))
+        context.scaleBy(x: 1, y: -1)
+        context.draw(cgImage, in: rect)
+        context.restoreGState()
     }
 
     // MARK: - Barcode Rendering

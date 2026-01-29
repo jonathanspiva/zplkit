@@ -19,6 +19,7 @@ public enum ParsedElement: Sendable {
     case ellipse(ParsedEllipse)
     case diagonalLine(ParsedDiagonalLine)
     case barcode(ParsedBarcode)
+    case graphic(ParsedGraphic)
 }
 
 // MARK: - Text Elements
@@ -116,5 +117,22 @@ public struct ParsedBarcode: Sendable {
         case upcE = "B9"
         case aztec = "B0"
         case intelligentMail = "BZ"
+    }
+}
+
+// MARK: - Graphic Elements
+
+public struct ParsedGraphic: Sendable {
+    public let x: Int
+    public let y: Int
+    public let format: GraphicFormat
+    public let bytesPerRow: Int
+    public let totalBytes: Int
+    public let data: [UInt8]  // Decoded bitmap data
+
+    public enum GraphicFormat: String, Sendable {
+        case ascii = "A"      // ASCII hex
+        case binary = "B"     // Binary
+        case compressed = "C" // Compressed binary
     }
 }

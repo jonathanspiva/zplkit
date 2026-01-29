@@ -6,8 +6,10 @@ import ZPLKitRenderer
 /// Renders all fixtures and generates HTML comparison
 ///
 /// Usage:
-///   swift run VisualTests              # Render only (fast, local)
-///   swift run VisualTests --labelary   # Also fetch Labelary renders for comparison
+///   swift run VisualTests                      # Render all (fast, local)
+///   swift run VisualTests --labelary           # Also fetch Labelary renders
+///   swift run VisualTests --filter graphic     # Only files matching "graphic"
+///   swift run VisualTests --filter graphic --labelary
 
 @main
 struct VisualTests {
@@ -19,6 +21,12 @@ struct VisualTests {
     static func main() async throws {
         let args = CommandLine.arguments
         let includeLabelary = args.contains("--labelary")
+
+        // Parse filter option
+        var filterPattern: String? = nil
+        if let filterIndex = args.firstIndex(of: "--filter"), filterIndex + 1 < args.count {
+            filterPattern = args[filterIndex + 1]
+        }
 
         let fileManager = FileManager.default
 
@@ -50,8 +58,15 @@ struct VisualTests {
             exit(1)
         }
 
-        let zplFiles = files.filter { $0.hasSuffix(".zpl") }.sorted()
-        print("Found \(zplFiles.count) ZPL fixtures\n")
+        var zplFiles = files.filter { $0.hasSuffix(".zpl") }.sorted()
+
+        // Apply filter if specified
+        if let pattern = filterPattern {
+            zplFiles = zplFiles.filter { $0.contains(pattern) }
+            print("Found \(zplFiles.count) ZPL fixtures matching '\(pattern)'\n")
+        } else {
+            print("Found \(zplFiles.count) ZPL fixtures\n")
+        }
 
         // Render with ZPLKitRenderer
         print("=== Rendering with ZPLKitRenderer ===")
@@ -149,15 +164,16 @@ struct VisualTests {
     }
 
     static func fetchLabelary(zpl: String, dpi: DPI, width: Double, height: Double) async throws -> Data? {
-        let dpiValue: Int
+        // Labelary uses dots per mm (dpmm) not DPI
+        let dpmm: String
         switch dpi {
-        case .dpi152: dpiValue = 152
-        case .dpi203: dpiValue = 203
-        case .dpi300: dpiValue = 300
-        case .dpi600: dpiValue = 600
+        case .dpi152: dpmm = "6dpmm"
+        case .dpi203: dpmm = "8dpmm"
+        case .dpi300: dpmm = "12dpmm"
+        case .dpi600: dpmm = "24dpmm"
         }
 
-        let urlString = "http://api.labelary.com/v1/printers/\(dpiValue)dpi/labels/\(width)x\(height)/0/"
+        let urlString = "http://api.labelary.com/v1/printers/\(dpmm)/labels/\(width)x\(height)/0/"
         guard let url = URL(string: urlString) else { return nil }
 
         var request = URLRequest(url: url)

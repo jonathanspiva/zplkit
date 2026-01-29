@@ -51,5 +51,10 @@ let package = Package(
             dependencies: ["ZPLKitRenderer"],
             path: "Tools/VisualTests"
         ),
+        .executableTarget(
+            name: "GraphicsTest",
+            dependencies: ["ZPLKit"],
+            path: "Tools/GraphicsTest"
+        ),
     ]
 )
