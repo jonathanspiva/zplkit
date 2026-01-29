@@ -4,8 +4,6 @@
 - [ ] Nothing active
 
 ## Later
-- [ ] **Documentation**
-  - [ ] DocC documentation
 - [ ] **Renderer validation**
   - [ ] GitHub Actions workflow for Labelary comparison
   - [ ] Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
@@ -30,6 +28,7 @@
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
 
 ## Done
+- [x] DocC documentation (ZPLLabel, types, core elements)
 - [x] README badges (Swift version, platforms, CI status)
 - [x] Examples/ directory (BasicLabel, ShippingLabel, InventoryTag, PartsBinLabel, ProductLabel)
 - [x] Core ZPL elements (Text, TextBlock, Box, Barcode128, QRCode, DataMatrix, Code39)
