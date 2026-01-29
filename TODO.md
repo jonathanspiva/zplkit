@@ -4,7 +4,15 @@
 - [ ] Nothing active
 
 ## Later
-- [ ] GitHub Actions workflow for Labelary comparison (optional CI validation step)
+- [ ] **Open source prep**
+  - [ ] Add LICENSE file (MIT)
+  - [ ] Tag v1.0.0 release
+  - [ ] Make repo public
+  - [ ] Submit to Swift Package Index
+  - [ ] Add badges to README (Swift version, platforms, CI status)
+- [ ] GitHub Actions workflow for Labelary comparison (validates both ZPL output and renderer)
+- [ ] ZPLKitRenderer: Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
+- [ ] ZPLKitRenderer: Swift-native test harness (replaces npm for local testing)
 - [ ] Label templates with variable substitution
 - [ ] Stored formats (`^DF`, `^XF`)
 - [ ] DocC documentation
@@ -12,7 +20,7 @@
 
 ## Someday
 - [ ] Graphics/images (`^GF`, `~DG`) via separate ZPLKitGraphics package
-- [ ] Barcode decode verification - use zxing-js to scan rendered barcodes and verify encoded data matches input
+- [ ] Barcode decode verification - scan rendered barcodes to verify encoded data
 
 ## Never
 
@@ -32,3 +40,9 @@
 - [x] Baseline text positioning (`^FT`)
 - [x] Labelary comparison tool for renderer validation
 - [x] Additional barcodes (EAN8, UPCE, IntelligentMail)
+- [x] **ZPLKitRenderer** - Native Swift ZPL renderer for label previews
+  - [x] ZPL parser (parse ZPL strings into element tree)
+  - [x] CoreGraphics rendering engine (Apple platforms only)
+  - [x] Font handling: configurable mapping, defaults to system fonts (Helvetica for Font 0)
+  - [x] Barcode rendering (CoreImage: QR, Code128, Aztec, PDF417, DataMatrix; 1D math: Code39, EAN-13, EAN-8, UPC-A, UPC-E, I2of5)
+  - [x] Performance instrumentation: benchmark parse/render times

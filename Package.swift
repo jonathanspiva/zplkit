@@ -16,14 +16,26 @@ let package = Package(
             name: "ZPLKit",
             targets: ["ZPLKit"]
         ),
+        .library(
+            name: "ZPLKitRenderer",
+            targets: ["ZPLKitRenderer"]
+        ),
     ],
     targets: [
         .target(
             name: "ZPLKit"
         ),
+        .target(
+            name: "ZPLKitRenderer",
+            dependencies: ["ZPLKit"]
+        ),
         .testTarget(
             name: "ZPLKitTests",
             dependencies: ["ZPLKit"]
+        ),
+        .testTarget(
+            name: "ZPLKitRendererTests",
+            dependencies: ["ZPLKitRenderer"]
         ),
     ]
 )
