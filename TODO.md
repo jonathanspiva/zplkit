@@ -4,7 +4,12 @@
 - [ ] Nothing active
 
 ## Later
-- [ ] Nothing planned
+- [ ] **ZPLVerifier public API** - Verification framework for rendered labels
+  - [ ] Promote barcode verification from tests to public API
+  - [ ] Text OCR via `VNRecognizeTextRequest` - extract text from rendered image
+  - [ ] Bounds/clipping detection - detect if text or elements are cut off at label edges
+  - [ ] Layout assertions - "label should contain 'chicken stock'" style verification
+  - [ ] Return structured results (missing text, clipped elements, confidence scores)
 
 ## Someday
 - [ ] Data Matrix renderer (CoreImage doesn't support it, needs mathematical implementation)
