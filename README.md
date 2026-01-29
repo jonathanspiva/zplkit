@@ -264,6 +264,23 @@ The renderer handles all ZPL commands that ZPLKit generates, including text, bar
 - Swift 6.0+
 - iOS 15+ / macOS 12+ / tvOS 15+ / watchOS 8+
 
+## ZPL Command Coverage
+
+ZPLKit supports the most commonly used ZPL II commands for label design:
+
+| Category | Commands |
+|----------|----------|
+| **Label Format** | `^XA` `^XZ` `^PW` `^LL` `^LH` `^LRY` |
+| **Text & Fonts** | `^A` `^CF` `^FD` `^FS` `^FB` `^FH` `^FR` `^FT` |
+| **1D Barcodes** | `^BC` `^B3` `^BE` `^B8` `^BU` `^B9` `^B2` `^BZ` `^BY` |
+| **2D Barcodes** | `^BQ` `^BX` `^B7` `^B0` |
+| **Shapes** | `^GB` `^GC` `^GE` `^GD` |
+| **Graphics** | `^GF` |
+| **Print Control** | `^PQ` `^MD` `^PR` |
+| **Fields** | `^FO` `^SN` `^FX` |
+
+The renderer (ZPLKitRenderer) parses and renders all commands that ZPLKit generates.
+
 ## Resources
 
 - [Zebra ZPL Programming Guide](https://www.zebra.com/content/dam/zebra/manuals/printers/common/programming/zpl-zbi2-pm-en.pdf) - Official ZPL command reference
