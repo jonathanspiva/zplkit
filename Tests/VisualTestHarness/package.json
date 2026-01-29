@@ -9,7 +9,9 @@
     "coverage": "node coverage.js",
     "test": "npm run render && npm run compare",
     "test:all": "npm run coverage && npm run render && npm run compare",
-    "update-baselines": "cp output/*.png baselines/"
+    "update-baselines": "cp output/*.png baselines/",
+    "labelary": "node labelary-compare.js",
+    "labelary:full": "npm run render && node labelary-compare.js"
   },
   "dependencies": {
     "zpl-renderer-js": "^2.2.1",

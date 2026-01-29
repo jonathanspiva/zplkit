@@ -458,4 +458,163 @@ final class ZPLKitTests: XCTestCase {
         XCTAssertTrue(zpl.contains("^FT"))
         XCTAssertFalse(zpl.contains("^FO"))
     }
+
+    // MARK: - EAN-8 Tests
+
+    func testEAN8Valid() {
+        let barcode = EAN8("1234567", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testEAN8With8Digits() {
+        // 8 digits includes check digit
+        let barcode = EAN8("12345670", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testEAN8InvalidLength() {
+        // Should fail with wrong length
+        let barcode = EAN8("12345", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testEAN8InvalidChars() {
+        // Should fail with non-numeric characters
+        let barcode = EAN8("123456A", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testEAN8Renders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            EAN8("1234567", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B8"))
+        XCTAssertTrue(zpl.contains("^FD1234567^FS"))
+    }
+
+    func testEAN8TextAbove() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            EAN8("1234567", at: .inches(0.25, 0.25))?
+                .textAbove()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B8N,100,Y,Y"))  // Last Y = text above
+    }
+
+    // MARK: - UPC-E Tests
+
+    func testUPCEValid() {
+        let barcode = UPCE("123456", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testUPCEWith8Digits() {
+        // 8 digits = number system + data + check
+        let barcode = UPCE("01234565", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testUPCEInvalidLength() {
+        // Should fail with wrong length (too short)
+        let barcode = UPCE("12345", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+
+        // Should fail with wrong length (too long)
+        let barcode2 = UPCE("123456789", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode2)
+    }
+
+    func testUPCEInvalidChars() {
+        // Should fail with non-numeric characters
+        let barcode = UPCE("12345A", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testUPCERenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            UPCE("123456", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B9"))
+        XCTAssertTrue(zpl.contains("^FD123456^FS"))
+    }
+
+    func testUPCEWithOptions() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            UPCE("123456", at: .inches(0.25, 0.25))?
+                .showText(false)
+                .checkDigit(false)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B9N,100,N,N,N"))
+    }
+
+    // MARK: - Intelligent Mail Tests
+
+    func testIntelligentMailValid20() {
+        // 20 digits = tracking code only
+        let barcode = IntelligentMail("01234567890123456789", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testIntelligentMailValid25() {
+        // 25 digits = tracking + 5-digit ZIP
+        let barcode = IntelligentMail("0123456789012345678901234", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testIntelligentMailValid29() {
+        // 29 digits = tracking + 9-digit ZIP
+        let barcode = IntelligentMail("01234567890123456789012345678", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testIntelligentMailValid31() {
+        // 31 digits = tracking + 11-digit delivery point
+        let barcode = IntelligentMail("0123456789012345678901234567890", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testIntelligentMailInvalidLength() {
+        // Should fail with invalid lengths
+        let barcode1 = IntelligentMail("123456789", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode1)
+
+        let barcode2 = IntelligentMail("012345678901234567890123", at: .inches(0.5, 0.5))  // 24 digits
+        XCTAssertNil(barcode2)
+    }
+
+    func testIntelligentMailInvalidChars() {
+        // Should fail with non-numeric characters
+        let barcode = IntelligentMail("0123456789012345678A", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testIntelligentMailRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            IntelligentMail("01234567890123456789", at: .inches(0.25, 0.25))?
+                .height(.dots(30))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BZ"))
+        XCTAssertTrue(zpl.contains("^FD01234567890123456789^FS"))
+    }
+
+    func testIntelligentMailRotated() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            IntelligentMail("01234567890123456789", at: .inches(0.25, 0.25))?
+                .rotated(.rotated90)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BZR,"))  // R = rotated 90
+    }
 }

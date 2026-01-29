@@ -33,8 +33,11 @@ const SUPPORTED_COMMANDS = {
     '^B7': { category: 'Barcodes', description: 'PDF417', element: 'PDF417' },
     '^B2': { category: 'Barcodes', description: 'Interleaved 2 of 5', element: 'Interleaved2of5' },
     '^BE': { category: 'Barcodes', description: 'EAN-13', element: 'EAN13' },
+    '^B8': { category: 'Barcodes', description: 'EAN-8', element: 'EAN8' },
     '^BU': { category: 'Barcodes', description: 'UPC-A', element: 'UPCA' },
+    '^B9': { category: 'Barcodes', description: 'UPC-E', element: 'UPCE' },
     '^B0': { category: 'Barcodes', description: 'Aztec', element: 'Aztec' },
+    '^BZ': { category: 'Barcodes', description: 'USPS Intelligent Mail', element: 'IntelligentMail' },
     '^BY': { category: 'Barcodes', description: 'Barcode defaults', element: 'Barcode128.moduleWidth()' },
 
     // Graphics
@@ -60,7 +63,7 @@ const ALL_KNOWN_COMMANDS = [
     // Fonts
     '^A', '^CF', '^CW',
     // Barcodes
-    '^BC', '^BQ', '^B3', '^BX', '^BY', '^BE', '^B8', '^BU', '^B9', '^BO', '^B7', '^BA', '^B2', '^B1',
+    '^BC', '^BQ', '^B3', '^BX', '^BY', '^BE', '^B8', '^BU', '^B9', '^B0', '^B7', '^BA', '^B2', '^B1', '^BZ',
     // Graphics
     '^GB', '^GC', '^GD', '^GE', '^GF', '^GS',
     // Print Control
