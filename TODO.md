@@ -14,11 +14,15 @@
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
-- [ ] Icon support via LiveUI/Awesome (FontAwesome 6, native CGImage, 1,500+ icons)
+- [ ] Icon support via FontAwesome (LiveUI/Awesome library)
+  - FontAwesome 6 Free: 1,500+ icons as native CGImages
+  - CC BY 4.0 / OFL / MIT licensed (can be printed and redistributed)
+  - SF Symbols rejected: Apple licensing prohibits redistribution and printed materials
 
 ## Never
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
 - Two-way printer commands (`~HS`, `^HH`) - Require response parsing and network client, out of scope for a generation/rendering library
+- SF Symbols icon support - Apple licensing prohibits redistribution and use in printed materials; FontAwesome is the supported alternative
 
 ## Done
 - [x] Fixture metadata JSON with descriptions, categories, features, size, DPI
