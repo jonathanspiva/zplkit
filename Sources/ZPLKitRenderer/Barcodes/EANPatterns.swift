@@ -2,7 +2,7 @@ import Foundation
 
 /// EAN/UPC barcode pattern encoder
 enum EANPatterns {
-    // L-codes (left side, odd parity)
+    // L-codes (left side, odd parity) - start with space (0)
     private static let lCodes: [Character: [Bool]] = [
         "0": [false, false, false, true, true, false, true],
         "1": [false, false, true, true, false, false, true],
@@ -30,7 +30,7 @@ enum EANPatterns {
         "9": [false, false, true, false, true, true, true]
     ]
 
-    // R-codes (right side)
+    // R-codes (right side) - start with bar (1)
     private static let rCodes: [Character: [Bool]] = [
         "0": [true, true, true, false, false, true, false],
         "1": [true, true, false, false, true, true, false],
@@ -44,7 +44,7 @@ enum EANPatterns {
         "9": [true, true, true, false, true, false, false]
     ]
 
-    // First digit encoding pattern for EAN-13 (which L/G codes to use)
+    // First digit encoding pattern for EAN-13 (which L/G codes to use for positions 2-7)
     private static let firstDigitPatterns: [Character: String] = [
         "0": "LLLLLL",
         "1": "LLGLGG",
@@ -58,27 +58,94 @@ enum EANPatterns {
         "9": "LGGLGL"
     ]
 
+    // UPC-E parity patterns based on check digit (for number system 0)
+    private static let upceParityPatterns: [Character: String] = [
+        "0": "EEEOOO",
+        "1": "EEOEOO",
+        "2": "EEOOEO",
+        "3": "EEOOOE",
+        "4": "EOEEOO",
+        "5": "EOOEEO",
+        "6": "EOOOEE",
+        "7": "EOEOEO",
+        "8": "EOEOOE",
+        "9": "EOOEOE"
+    ]
+
     // Start/end guards: 101
     private static let startEnd: [Bool] = [true, false, true]
 
     // Center guard: 01010
     private static let center: [Bool] = [false, true, false, true, false]
 
-    /// Encodes EAN-13 barcode
+    // UPC-E end guard: 010101
+    private static let upceEnd: [Bool] = [false, true, false, true, false, true]
+
+    // Quiet zone (minimum 7 modules for EAN, 9 for UPC-A left)
+    private static let quietZone: [Bool] = Array(repeating: false, count: 9)
+
+    // MARK: - Check Digit Calculation
+
+    /// Calculate EAN-13/UPC-A check digit using mod-10 algorithm
+    static func calculateEAN13CheckDigit(_ digits: String) -> Character {
+        let chars = Array(digits.filter { $0.isNumber })
+        guard chars.count >= 12 else { return "0" }
+
+        var sum = 0
+        for (i, c) in chars.prefix(12).enumerated() {
+            let digit = Int(String(c)) ?? 0
+            sum += digit * (i % 2 == 0 ? 1 : 3)
+        }
+        let check = (10 - (sum % 10)) % 10
+        return Character(String(check))
+    }
+
+    /// Calculate EAN-8 check digit
+    static func calculateEAN8CheckDigit(_ digits: String) -> Character {
+        let chars = Array(digits.filter { $0.isNumber })
+        guard chars.count >= 7 else { return "0" }
+
+        var sum = 0
+        for (i, c) in chars.prefix(7).enumerated() {
+            let digit = Int(String(c)) ?? 0
+            sum += digit * (i % 2 == 0 ? 3 : 1)
+        }
+        let check = (10 - (sum % 10)) % 10
+        return Character(String(check))
+    }
+
+    /// Calculate UPC-A check digit (same as EAN-13 but for 11 digits, result applied at position 12)
+    static func calculateUPCACheckDigit(_ digits: String) -> Character {
+        // Pad to 12 digits with leading 0 if needed, then calculate EAN-13 style
+        let paddedDigits = String(repeating: "0", count: max(0, 11 - digits.count)) + digits
+        return calculateEAN13CheckDigit("0" + paddedDigits)
+    }
+
+    // MARK: - Encoding Functions
+
+    /// Encodes EAN-13 barcode with quiet zones
     static func encodeEAN13(_ data: String) -> [Bool] {
-        let digits = data.filter { $0.isNumber }
+        var digits = data.filter { $0.isNumber }
         guard digits.count >= 12 else { return [] }
 
+        // Calculate and append check digit if only 12 digits provided
+        if digits.count == 12 {
+            digits.append(calculateEAN13CheckDigit(String(digits)))
+        }
+
         var result: [Bool] = []
+
+        // Left quiet zone
+        result.append(contentsOf: quietZone)
 
         // Start guard
         result.append(contentsOf: startEnd)
 
-        // First digit determines encoding pattern
+        // First digit determines encoding pattern for left side
         let firstDigit = digits[digits.startIndex]
         let pattern = firstDigitPatterns[firstDigit] ?? "LLLLLL"
 
-        // Left side (6 digits, using L or G codes based on first digit)
+        // Left side (digits 2-7, using L or G codes based on first digit pattern)
         let leftDigits = digits.dropFirst().prefix(6)
         for (index, digit) in leftDigits.enumerated() {
             let useG = pattern[pattern.index(pattern.startIndex, offsetBy: index)] == "G"
@@ -91,7 +158,7 @@ enum EANPatterns {
         // Center guard
         result.append(contentsOf: center)
 
-        // Right side (6 digits, using R codes)
+        // Right side (digits 8-13, using R codes)
         let rightDigits = digits.dropFirst(7).prefix(6)
         for digit in rightDigits {
             if let code = rCodes[digit] {
@@ -102,15 +169,26 @@ enum EANPatterns {
         // End guard
         result.append(contentsOf: startEnd)
 
+        // Right quiet zone
+        result.append(contentsOf: quietZone)
+
         return result
     }
 
-    /// Encodes EAN-8 barcode
+    /// Encodes EAN-8 barcode with quiet zones
     static func encodeEAN8(_ data: String) -> [Bool] {
-        let digits = data.filter { $0.isNumber }
+        var digits = data.filter { $0.isNumber }
         guard digits.count >= 7 else { return [] }
 
+        // Calculate and append check digit if only 7 digits provided
+        if digits.count == 7 {
+            digits.append(calculateEAN8CheckDigit(String(digits)))
+        }
+
         var result: [Bool] = []
+
+        // Left quiet zone
+        result.append(contentsOf: quietZone)
 
         // Start guard
         result.append(contentsOf: startEnd)
@@ -135,15 +213,26 @@ enum EANPatterns {
         // End guard
         result.append(contentsOf: startEnd)
 
+        // Right quiet zone
+        result.append(contentsOf: quietZone)
+
         return result
     }
 
-    /// Encodes UPC-A barcode (subset of EAN-13)
+    /// Encodes UPC-A barcode with quiet zones
     static func encodeUPCA(_ data: String) -> [Bool] {
-        let digits = data.filter { $0.isNumber }
+        var digits = data.filter { $0.isNumber }
         guard digits.count >= 11 else { return [] }
 
+        // Calculate and append check digit if only 11 digits provided
+        if digits.count == 11 {
+            digits.append(calculateUPCACheckDigit(String(digits)))
+        }
+
         var result: [Bool] = []
+
+        // Left quiet zone (9 modules for UPC-A)
+        result.append(contentsOf: quietZone)
 
         // Start guard
         result.append(contentsOf: startEnd)
@@ -168,29 +257,83 @@ enum EANPatterns {
         // End guard
         result.append(contentsOf: startEnd)
 
+        // Right quiet zone
+        result.append(contentsOf: quietZone)
+
         return result
     }
 
-    /// Encodes UPC-E barcode
+    /// Encodes UPC-E barcode with proper parity patterns
     static func encodeUPCE(_ data: String) -> [Bool] {
-        let digits = data.filter { $0.isNumber }
-        guard digits.count >= 6 else { return [] }
+        let inputDigits = data.filter { $0.isNumber }
+        guard inputDigits.count >= 6 else { return [] }
+
+        // Get the 6-digit code (without number system or check digit)
+        let sixDigits: String
+        if inputDigits.count == 6 {
+            sixDigits = String(inputDigits)
+        } else if inputDigits.count == 7 {
+            // First digit is number system, skip it
+            sixDigits = String(inputDigits.dropFirst())
+        } else {
+            // 8 digits: first is number system, last is check digit
+            sixDigits = String(inputDigits.dropFirst().dropLast())
+        }
+
+        // Expand UPC-E to UPC-A to calculate check digit
+        let upcA = expandUPCEtoUPCA(sixDigits)
+        let checkDigit = calculateUPCACheckDigit(upcA)
+
+        // Get parity pattern based on check digit (for number system 0)
+        let parityPattern = upceParityPatterns[checkDigit] ?? "EEEOOO"
 
         var result: [Bool] = []
 
-        // UPC-E start guard: 101
+        // Left quiet zone
+        result.append(contentsOf: quietZone)
+
+        // Start guard: 101
         result.append(contentsOf: startEnd)
 
-        // 6 digits using L/G pattern (simplified - all L for now)
-        for digit in digits.prefix(6) {
-            if let code = lCodes[digit] {
+        // 6 digits using O (odd/L) or E (even/G) codes based on parity pattern
+        for (index, digit) in sixDigits.enumerated() {
+            let patternChar = parityPattern[parityPattern.index(parityPattern.startIndex, offsetBy: index)]
+            let codes = (patternChar == "O") ? lCodes : gCodes
+            if let code = codes[digit] {
                 result.append(contentsOf: code)
             }
         }
 
-        // UPC-E end guard: 010101
-        result.append(contentsOf: [false, true, false, true, false, true])
+        // End guard: 010101
+        result.append(contentsOf: upceEnd)
+
+        // Right quiet zone
+        result.append(contentsOf: quietZone)
 
         return result
+    }
+
+    /// Expand 6-digit UPC-E to 11-digit UPC-A (without check digit)
+    private static func expandUPCEtoUPCA(_ upce: String) -> String {
+        guard upce.count == 6 else { return upce }
+
+        let chars = Array(upce)
+        let lastDigit = chars[5]
+
+        // UPC-E compression rules (assuming number system 0)
+        switch lastDigit {
+        case "0", "1", "2":
+            // Manufacturer: X1X200, Product: 00X3X4X5
+            return "0\(chars[0])\(chars[1])\(lastDigit)0000\(chars[2])\(chars[3])\(chars[4])"
+        case "3":
+            // Manufacturer: X1X2X300, Product: 000X4X5
+            return "0\(chars[0])\(chars[1])\(chars[2])00000\(chars[3])\(chars[4])"
+        case "4":
+            // Manufacturer: X1X2X3X400, Product: 0000X5
+            return "0\(chars[0])\(chars[1])\(chars[2])\(chars[3])00000\(chars[4])"
+        default: // 5-9
+            // Manufacturer: X1X2X3X4X5, Product: 0000X6
+            return "0\(chars[0])\(chars[1])\(chars[2])\(chars[3])\(chars[4])0000\(lastDigit)"
+        }
     }
 }

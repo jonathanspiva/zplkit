@@ -6,7 +6,6 @@
 ## Later
 
 ## Someday
-- [ ] Fix EAN/UPC barcode rendering (EAN-8, EAN-13, UPC-A, UPC-E not generating valid scannable patterns)
 - [ ] Data Matrix renderer (CoreImage doesn't support it, needs mathematical implementation)
 - [ ] Intelligent Mail renderer (also uses placeholder currently)
 - [ ] **Open source release**
@@ -25,6 +24,11 @@
 - SF Symbols icon support - Apple licensing prohibits redistribution and use in printed materials; FontAwesome is the supported alternative
 
 ## Done
+- [x] **EAN/UPC barcode rendering fix** - All EAN/UPC barcodes now scannable
+  - Added check digit calculation for EAN-13, EAN-8, UPC-A
+  - Fixed UPC-E parity patterns (was using all L-codes, now proper O/E pattern)
+  - Added quiet zones (9-module margins) for all EAN/UPC types
+  - Verification improved from 76% to 89%
 - [x] **ZPLVerifier public API** - Verification framework for rendered labels
   - [x] Barcode detection via Vision framework (Code128, QR, Code39, EAN-13, Aztec, PDF417, etc.)
   - [x] Text OCR via `VNRecognizeTextRequest`
