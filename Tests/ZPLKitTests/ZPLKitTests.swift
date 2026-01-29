@@ -166,13 +166,13 @@ final class ZPLKitTests: XCTestCase {
         let dpi = DPI.dpi203
 
         // 1 inch = 203 dots
-        XCTAssertEqual(Dimension.inches(1.0).resolve(dpi: dpi), 203)
+        XCTAssertEqual(ZPLKit.Dimension.inches(1.0).resolve(dpi: dpi), 203)
 
         // 25.4 mm = 1 inch = 203 dots
-        XCTAssertEqual(Dimension.mm(25.4).resolve(dpi: dpi), 203)
+        XCTAssertEqual(ZPLKit.Dimension.mm(25.4).resolve(dpi: dpi), 203)
 
         // Integer literal becomes dots
-        let dim: Dimension = 100
+        let dim: ZPLKit.Dimension = 100
         XCTAssertEqual(dim.resolve(dpi: dpi), 100)
     }
 
