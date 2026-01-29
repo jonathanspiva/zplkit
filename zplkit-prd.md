@@ -33,14 +33,14 @@ A Swift library for generating ZPL (Zebra Programming Language) code. Nothing el
 ```swift
 // The entire mental model in one example:
 let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
-    Text("M6 Titanium Bolt", at: .position(50, 50))
-        .font(.default, height: 30)
+    Text("M6 Titanium Bolt", at: .inches(0.25, 0.25))
+        .font(.default, height: .inches(0.15))
 
-    Barcode128("M6-TI-001", at: .position(50, 150))  // Returns optional
-        .height(100)
+    Barcode128("M6-TI-001", at: .inches(0.25, 0.75))  // Returns optional
+        .height(.inches(0.5))
 
-    Box(at: .position(40, 40), width: 320, height: 280)
-        .thickness(2)
+    Box(at: .inches(0.2, 0.2), width: .inches(1.5), height: .inches(1.4))
+        .thickness(2)  // Integer literal = dots (via ExpressibleByIntegerLiteral)
 }
 
 let zpl = label.render()  // "^XA^FO50,50^A0N,30,30^FDM6 Titanium Bolt^FS..."
@@ -147,9 +147,19 @@ public enum DPI: Int, Sendable {
 
 // Position specification (converted to dots at render time using label's DPI)
 public enum Position: Sendable {
-    case position(Int, Int)           // x, y in dots
+    case dots(Int, Int)               // x, y in dots
     case inches(Double, Double)       // converted at render time
     case mm(Double, Double)           // converted at render time
+}
+
+// Single-value dimension (converted to dots at render time using label's DPI)
+public enum Dimension: Sendable, ExpressibleByIntegerLiteral {
+    case dots(Int)
+    case inches(Double)
+    case mm(Double)
+
+    // ExpressibleByIntegerLiteral allows: .height(100) instead of .height(.dots(100))
+    public init(integerLiteral value: Int) { self = .dots(value) }
 }
 
 // All elements conform to this
@@ -172,8 +182,8 @@ public struct Text: ZPLElement {
     public init(_ text: String, at position: Position)
 
     // Modifiers (return Self for chaining)
-    /// Default: font 0, height 30, width 30 (~10pt at 203 DPI)
-    public func font(_ font: ZPLFont, height: Int, width: Int? = nil) -> Self
+    /// Default: font 0, height 30 dots, width = height (~10pt at 203 DPI)
+    public func font(_ font: ZPLFont, height: Dimension, width: Dimension? = nil) -> Self
     public func reversed() -> Self
     public func rotated(_ rotation: Rotation) -> Self
 }
@@ -203,18 +213,18 @@ public enum Rotation: String, Sendable {
 ```swift
 public struct Barcode128: ZPLElement {
     public init?(_ data: String, at position: Position)  // Failable: validates charset
-    
-    public func height(_ height: Int) -> Self
+
+    public func height(_ height: Dimension) -> Self
     public func showText(_ show: Bool) -> Self
     public func textAbove() -> Self
     public func rotated(_ rotation: Rotation) -> Self
-    public func moduleWidth(_ width: Int) -> Self  // 1-10, default 2
+    public func moduleWidth(_ width: Int) -> Self  // 1-10, default 2 (unitless)
 }
 
 public struct QRCode: ZPLElement {
     public init(_ data: String, at position: Position)
-    
-    public func magnification(_ mag: Int) -> Self  // 1-10
+
+    public func magnification(_ mag: Int) -> Self  // 1-10 (unitless multiplier)
     public func errorCorrection(_ level: QRErrorCorrection) -> Self
 }
 
@@ -228,7 +238,7 @@ public enum QRErrorCorrection: String, Sendable {
 public struct Code39: ZPLElement {
     public init?(_ data: String, at position: Position)  // Failable: A-Z, 0-9, space, -.$/+% only
 
-    public func height(_ height: Int) -> Self
+    public func height(_ height: Dimension) -> Self
     public func showText(_ show: Bool) -> Self
     public func checkDigit(_ include: Bool) -> Self
 }
@@ -236,7 +246,7 @@ public struct Code39: ZPLElement {
 public struct DataMatrix: ZPLElement {
     public init(_ data: String, at position: Position)  // Accepts any data
 
-    public func size(_ size: Int) -> Self              // Module size 1-10
+    public func size(_ size: Int) -> Self              // Module size 1-10 (unitless)
     public func quality(_ level: Int) -> Self          // 0, 50, 80, 100, 140, 200
     public func columns(_ cols: Int) -> Self           // Fixed columns (optional)
     public func rows(_ rows: Int) -> Self              // Fixed rows (optional)
@@ -254,21 +264,21 @@ public struct DataMatrix: ZPLElement {
 
 ```swift
 public struct Box: ZPLElement {
-    public init(at position: Position, width: Int, height: Int)
-    
-    public func thickness(_ thickness: Int) -> Self  // border thickness
-    public func filled() -> Self                      // solid fill
-    public func cornerRadius(_ radius: Int) -> Self   // 0-8
-    public func white() -> Self                       // white/reverse
+    public init(at position: Position, width: Dimension, height: Dimension)
+
+    public func thickness(_ thickness: Dimension) -> Self  // border thickness
+    public func filled() -> Self                           // solid fill
+    public func cornerRadius(_ radius: Int) -> Self        // 0-8 (unitless)
+    public func white() -> Self                            // white/reverse
 }
 
 // Convenience for lines
 public struct HorizontalLine: ZPLElement {
-    public init(at position: Position, length: Int, thickness: Int = 2)
+    public init(at position: Position, length: Dimension, thickness: Dimension = 2)
 }
 
 public struct VerticalLine: ZPLElement {
-    public init(at position: Position, length: Int, thickness: Int = 2)
+    public init(at position: Position, length: Dimension, thickness: Dimension = 2)
 }
 ```
 
@@ -445,10 +455,12 @@ ZPLKit/
 │       │   ├── Barcode128.swift
 │       │   ├── QRCode.swift
 │       │   ├── Code39.swift
+│       │   ├── DataMatrix.swift
 │       │   ├── Box.swift
 │       │   └── Line.swift
 │       ├── Types/
 │       │   ├── Position.swift
+│       │   ├── Dimension.swift
 │       │   ├── Rotation.swift
 │       │   ├── DPI.swift
 │       │   └── ZPLFont.swift
@@ -500,7 +512,7 @@ Separate `Examples/` directory with:
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/[org]/ZPLKit.git", from: "1.0.0")
+    .package(url: "https://github.com/jonathanspiva/ZPLKit.git", from: "1.0.0")
 ]
 ```
 
@@ -517,6 +529,10 @@ dependencies: [
 - Semantic versioning
 - Public API stability from 1.0.0
 - Deprecation warnings for one major version before removal
+
+### 9.4 License
+
+MIT
 
 ---
 
@@ -559,10 +575,13 @@ The library is successful if:
 | Barcode validation | Failable initializers for charset-restricted types |
 | Text limits | None enforced, documented only |
 | Special characters | Auto-escape via `^FH` + `_XX` hex encoding |
+| Unit handling | `Dimension` type supports `.dots()`, `.inches()`, `.mm()` everywhere; `ExpressibleByIntegerLiteral` allows bare integers as dots |
+| License | MIT |
+| GitHub location | `jonathanspiva/ZPLKit` |
 
 ## 13. Open Questions
 
-1. **Unit handling:** Support dots, inches, and mm everywhere? Or pick one canonical unit?
+*None at this time.*
 
 ---
 
