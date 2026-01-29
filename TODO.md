@@ -48,3 +48,5 @@
 - [x] Label templates with variable substitution (`{{variable}}` syntax)
 - [x] TextBlock enhancements (rotation, reverse print, newline support)
 - [x] Print speed control (`^PR`)
+- [x] Reverse print (`^LRY`) - label-wide white on black
+- [x] Comment support (`^FX`) - non-printing documentation

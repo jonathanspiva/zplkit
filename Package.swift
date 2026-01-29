@@ -27,7 +27,11 @@ let package = Package(
         ),
         .target(
             name: "ZPLKitRenderer",
-            dependencies: ["ZPLKit"]
+            dependencies: ["ZPLKit"],
+            resources: [
+                .copy("Resources/RobotoCondensed-Bold.ttf"),
+                .copy("Resources/OFL.txt")
+            ]
         ),
         .testTarget(
             name: "ZPLKitTests",

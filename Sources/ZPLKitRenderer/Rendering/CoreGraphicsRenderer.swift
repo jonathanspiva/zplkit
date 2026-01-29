@@ -83,10 +83,11 @@ public enum CoreGraphicsRenderer {
     // MARK: - Text Rendering
 
     private static func renderText(_ text: ParsedText, in context: CGContext, fontConfig: ZPLRenderer.FontConfiguration) {
-        let fontName = fontConfig.font0
         let fontSize = CGFloat(text.fontHeight)
 
-        let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
+        guard let font = fontConfig.font0.createFont(size: fontSize) else {
+            return // Skip rendering if font unavailable
+        }
 
         let color = text.isReversed ? CGColor(red: 1, green: 1, blue: 1, alpha: 1) : CGColor(red: 0, green: 0, blue: 0, alpha: 1)
 
@@ -140,10 +141,11 @@ public enum CoreGraphicsRenderer {
     }
 
     private static func renderTextBlock(_ textBlock: ParsedTextBlock, in context: CGContext, fontConfig: ZPLRenderer.FontConfiguration) {
-        let fontName = fontConfig.font0
         let fontSize = CGFloat(textBlock.fontHeight)
 
-        let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
+        guard let font = fontConfig.font0.createFont(size: fontSize) else {
+            return // Skip rendering if font unavailable
+        }
 
         // Create paragraph style using CoreText
         var alignment: CTTextAlignment
