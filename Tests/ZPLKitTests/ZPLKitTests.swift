@@ -326,4 +326,136 @@ final class ZPLKitTests: XCTestCase {
         let zpl = label.render()
         XCTAssertTrue(zpl.contains(",Y^FD"))  // Check digit flag = Y
     }
+
+    // MARK: - EAN-13 Tests
+
+    func testEAN13Valid() {
+        let barcode = EAN13("590123412345", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testEAN13InvalidLength() {
+        // Should fail with wrong length
+        let barcode = EAN13("12345", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testEAN13InvalidChars() {
+        // Should fail with non-numeric characters
+        let barcode = EAN13("59012341234A", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testEAN13Renders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            EAN13("590123412345", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BE"))
+        XCTAssertTrue(zpl.contains("^FD590123412345^FS"))
+    }
+
+    // MARK: - UPC-A Tests
+
+    func testUPCAValid() {
+        let barcode = UPCA("01234567890", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testUPCAInvalidLength() {
+        // Should fail with wrong length
+        let barcode = UPCA("12345", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testUPCAInvalidChars() {
+        // Should fail with non-numeric characters
+        let barcode = UPCA("0123456789A", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testUPCARenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            UPCA("01234567890", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^BU"))
+        XCTAssertTrue(zpl.contains("^FD01234567890^FS"))
+    }
+
+    // MARK: - Aztec Tests
+
+    func testAztecRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Aztec("TICKET-DATA-12345", at: .inches(0.5, 0.5))
+                .magnification(5)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B0"))
+        XCTAssertTrue(zpl.contains("^FDTICKET-DATA-12345^FS"))
+    }
+
+    func testAztecWithOptions() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Aztec("SECURE-DATA", at: .inches(0.5, 0.5))
+                .magnification(4)
+                .errorCorrection(50)
+                .extendedChannel(true)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B0N,4,Y,50"))
+    }
+
+    // MARK: - Serial Number Tests
+
+    func testSerialNumberRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            SerialNumber("001", at: .inches(0.25, 0.25))
+                .increment(1)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^SN001,1,Y"))
+    }
+
+    func testSerialNumberDecrement() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            SerialNumber("100", at: .inches(0.25, 0.25))
+                .increment(-1)
+                .leadingZeros(false)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^SN100,-1,N"))
+    }
+
+    // MARK: - Baseline Positioning Tests
+
+    func testTextBaseline() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Baseline", at: .inches(0.5, 0.5))
+                .baseline()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FT"))  // Uses ^FT instead of ^FO
+        XCTAssertFalse(zpl.contains("^FO"))
+    }
+
+    func testTextBlockBaseline() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            TextBlock("Baseline block", at: .inches(0.25, 0.5), width: .inches(2.0))
+                .baseline()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FT"))
+        XCTAssertFalse(zpl.contains("^FO"))
+    }
 }

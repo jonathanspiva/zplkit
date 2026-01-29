@@ -69,11 +69,12 @@ let zpl = label.render()  // "^XA^FO50,50^A0N,30,30^FDM6 Titanium Bolt^FS..."
 ### 3.1 In Scope (v1.0)
 
 **Label Elements:**
-- Text fields (`^FD`, `^A`, `^FO`)
-- Barcodes: Code128 (`^BC`), QR Code (`^BQ`), Code39 (`^B3`), DataMatrix (`^BX`), PDF417 (`^B7`), Interleaved 2 of 5 (`^B2`)
+- Text fields (`^FD`, `^A`, `^FO`, `^FT`)
+- Barcodes: Code128 (`^BC`), QR Code (`^BQ`), Code39 (`^B3`), DataMatrix (`^BX`), PDF417 (`^B7`), Interleaved 2 of 5 (`^B2`), EAN-13 (`^BE`), UPC-A (`^BU`), Aztec (`^B0`)
 - Shapes: Box (`^GB`), Lines (horizontal/vertical via thin box), Circle (`^GC`), Ellipse (`^GE`), Diagonal Line (`^GD`)
-- Field positioning (`^FO`, `^FT`)
+- Field positioning (`^FO` top-left, `^FT` baseline)
 - Field orientation/rotation
+- Serialization (`^SN`) for auto-incrementing values
 
 **Label Configuration:**
 - Label start/end (`^XA`, `^XZ`)
@@ -96,9 +97,9 @@ let zpl = label.render()  // "^XA^FO50,50^A0N,30,30^FDM6 Titanium Bolt^FS..."
 
 ### 3.3 Future Consideration (v2.0+)
 
-- Additional barcodes (EAN-13, EAN-8, UPC-A, UPC-E, Aztec)
+- Additional barcodes (EAN-8, UPC-E, USPS Intelligent Mail)
 - Label templates with variable substitution
-- Advanced serialization (`^SF`, `^SN`)
+- Stored formats (`^DF`, `^XF`)
 
 ### 3.4 Someday (No Commitment)
 
@@ -301,6 +302,36 @@ public struct Interleaved2of5: ZPLElement {
 }
 ```
 
+public struct EAN13: ZPLElement {
+    public init?(_ data: String, at position: Position)  // Failable: 12-13 digits only
+
+    public func rotated(_ rotation: Rotation) -> Self
+    public func height(_ height: Dimension) -> Self
+    public func showText(_ show: Bool) -> Self
+    public func textAbove() -> Self
+}
+
+public struct UPCA: ZPLElement {
+    public init?(_ data: String, at position: Position)  // Failable: 11-12 digits only
+
+    public func rotated(_ rotation: Rotation) -> Self
+    public func height(_ height: Dimension) -> Self
+    public func showText(_ show: Bool) -> Self
+    public func textAbove() -> Self
+    public func checkDigit(_ include: Bool) -> Self
+}
+
+public struct Aztec: ZPLElement {
+    public init(_ data: String, at position: Position)  // Non-failable
+
+    public func rotated(_ rotation: Rotation) -> Self
+    public func magnification(_ mag: Int) -> Self       // 1-10
+    public func extendedChannel(_ enabled: Bool) -> Self
+    public func errorCorrection(_ level: Int) -> Self   // 0-99
+    public func menuSymbol(_ enabled: Bool) -> Self
+}
+```
+
 **Output:**
 ```zpl
 ^FO50,200^BCN,100,Y,N,N^FD123456^FS
@@ -308,6 +339,27 @@ public struct Interleaved2of5: ZPLElement {
 ^FO50,500^BXN,5,200^FDserial123^FS
 ^FO50,600^B7N,8,0,0,0,N^FDPDF417-DATA^FS
 ^FO50,700^B2N,80,Y,N,N^FD123456789012^FS
+^FO50,800^BEN,80,Y,N^FD590123412345^FS
+^FO50,900^BUN,80,Y,N,Y^FD01234567890^FS
+^FO50,1000^B0N,5,N,0,N,1^FDAZTEC-DATA^FS
+```
+
+### 4.5b Serialization
+
+```swift
+public struct SerialNumber: ZPLElement {
+    public init(_ startValue: String, at position: Position)
+
+    public func increment(_ value: Int) -> Self         // Positive or negative
+    public func leadingZeros(_ preserve: Bool) -> Self  // Default: true
+    public func font(_ font: ZPLFont, height: Dimension, width: Dimension? = nil) -> Self
+    public func rotated(_ rotation: Rotation) -> Self
+}
+```
+
+**Output:**
+```zpl
+^FO50,50^A0N,30,30^SN001,1,Y^FS
 ```
 
 ### 4.6 Shapes
@@ -460,6 +512,9 @@ Text("Price: $5.00 (~10% off)", at: .dots(0, 0))
 | `DataMatrix` | `init` | Any (non-failable) |
 | `PDF417` | `init` | Any (non-failable) |
 | `Interleaved2of5` | `init?` | Digits 0-9 only |
+| `EAN13` | `init?` | Exactly 12-13 digits |
+| `UPCA` | `init?` | Exactly 11-12 digits |
+| `Aztec` | `init` | Any (non-failable) |
 
 ### 5.5 Text Handling
 

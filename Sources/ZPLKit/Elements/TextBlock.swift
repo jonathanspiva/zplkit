@@ -18,6 +18,7 @@ public struct TextBlock: ZPLElement {
     private var lineSpacing: Dimension = .dots(0)
     private var alignment: TextAlignment = .left
     private var hangingIndent: Dimension = .dots(0)
+    private var useBaselinePosition: Bool = false
 
     /// Creates a text block at the given position with the specified width.
     /// - Parameters:
@@ -67,6 +68,13 @@ public struct TextBlock: ZPLElement {
         return copy
     }
 
+    /// Uses baseline positioning (^FT) instead of top-left positioning (^FO).
+    public func baseline() -> TextBlock {
+        var copy = self
+        copy.useBaselinePosition = true
+        return copy
+    }
+
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
         let width = blockWidth.resolve(dpi: context.dpi)
@@ -77,7 +85,8 @@ public struct TextBlock: ZPLElement {
 
         let (needsHex, escapedText) = escapeZPLFieldData(text)
 
-        var result = "^FO\(pos.x),\(pos.y)"
+        let positionCommand = useBaselinePosition ? "^FT" : "^FO"
+        var result = "\(positionCommand)\(pos.x),\(pos.y)"
         result += "^A\(font.rawValue)N,\(height),\(fontW)"
 
         // ^FB command: width, max lines, line spacing, alignment, hanging indent

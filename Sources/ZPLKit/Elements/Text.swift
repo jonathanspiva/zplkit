@@ -7,6 +7,7 @@ public struct Text: ZPLElement {
     private var fontWidth: Dimension?
     private var rotation: Rotation = .normal
     private var isReversed: Bool = false
+    private var useBaselinePosition: Bool = false
 
     /// Creates a text element at the given position.
     /// - Parameters:
@@ -44,6 +45,15 @@ public struct Text: ZPLElement {
         return copy
     }
 
+    /// Uses baseline positioning (^FT) instead of top-left positioning (^FO).
+    /// With baseline positioning, the y coordinate specifies the text baseline
+    /// rather than the top of the text bounding box.
+    public func baseline() -> Text {
+        var copy = self
+        copy.useBaselinePosition = true
+        return copy
+    }
+
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
         let height = fontHeight.resolve(dpi: context.dpi)
@@ -51,7 +61,9 @@ public struct Text: ZPLElement {
 
         let (needsHex, escapedText) = escapeZPLFieldData(text)
 
-        var result = "^FO\(pos.x),\(pos.y)"
+        // Use ^FT for baseline positioning, ^FO for top-left positioning
+        let positionCommand = useBaselinePosition ? "^FT" : "^FO"
+        var result = "\(positionCommand)\(pos.x),\(pos.y)"
 
         if isReversed {
             result += "^FR"

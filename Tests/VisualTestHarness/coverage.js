@@ -3,7 +3,7 @@ import { join } from 'path';
 
 const FIXTURES_DIR = './fixtures';
 
-// Commands supported by ZPLKit v1.1
+// Commands supported by ZPLKit v1.2
 const SUPPORTED_COMMANDS = {
     // Label Format
     '^XA': { category: 'Label Format', description: 'Start format', element: 'ZPLLabel' },
@@ -13,6 +13,7 @@ const SUPPORTED_COMMANDS = {
 
     // Field Positioning
     '^FO': { category: 'Field Positioning', description: 'Field origin', element: 'All elements' },
+    '^FT': { category: 'Field Positioning', description: 'Field typeset', element: 'Text.baseline()' },
     '^LH': { category: 'Field Positioning', description: 'Label home', element: 'ZPLLabel.labelHome()' },
 
     // Text and Fonts
@@ -31,6 +32,9 @@ const SUPPORTED_COMMANDS = {
     '^BX': { category: 'Barcodes', description: 'DataMatrix', element: 'DataMatrix' },
     '^B7': { category: 'Barcodes', description: 'PDF417', element: 'PDF417' },
     '^B2': { category: 'Barcodes', description: 'Interleaved 2 of 5', element: 'Interleaved2of5' },
+    '^BE': { category: 'Barcodes', description: 'EAN-13', element: 'EAN13' },
+    '^BU': { category: 'Barcodes', description: 'UPC-A', element: 'UPCA' },
+    '^B0': { category: 'Barcodes', description: 'Aztec', element: 'Aztec' },
     '^BY': { category: 'Barcodes', description: 'Barcode defaults', element: 'Barcode128.moduleWidth()' },
 
     // Graphics
@@ -42,6 +46,9 @@ const SUPPORTED_COMMANDS = {
     // Print Control
     '^PQ': { category: 'Print Control', description: 'Print quantity', element: 'ZPLLabel.printQuantity()' },
     '^MD': { category: 'Print Control', description: 'Media darkness', element: 'ZPLLabel.printDarkness()' },
+
+    // Serialization
+    '^SN': { category: 'Serialization', description: 'Serial number', element: 'SerialNumber' },
 };
 
 // Known ZPL commands (for tracking what we could support)
