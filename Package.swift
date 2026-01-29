@@ -24,6 +24,10 @@ let package = Package(
             name: "ZPLVerifier",
             targets: ["ZPLVerifier"]
         ),
+        .library(
+            name: "ZPLKitPrinter",
+            targets: ["ZPLKitPrinter"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/LiveUI/Awesome", from: "2.0.0"),
@@ -50,6 +54,13 @@ let package = Package(
         ),
         .target(
             name: "ZPLVerifier"
+        ),
+        .target(
+            name: "ZPLKitPrinter"
+        ),
+        .testTarget(
+            name: "ZPLKitPrinterTests",
+            dependencies: ["ZPLKitPrinter", "ZPLKit"]
         ),
         .testTarget(
             name: "ZPLVerifierTests",
