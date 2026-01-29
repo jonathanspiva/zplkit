@@ -419,6 +419,33 @@ Text("Price: $5.00 (~10% off)", at: .position(0, 0))
 
 ## 6. Testing Strategy
 
+### 6.0 Local-First Testing Requirement
+
+**All tests must run locally without network dependencies.** This is a hard requirement.
+
+- No external APIs (Labelary, etc.)
+- No cloud services
+- No authentication or API keys
+- CI runs the exact same commands as local development
+
+**Local test commands:**
+
+```bash
+# Run all Swift tests (unit + golden file)
+swift test
+
+# Run visual regression tests
+swift test --filter VisualTests
+cd Tests/VisualTestHarness && npm test
+
+# Run everything
+swift test && cd Tests/VisualTestHarness && npm test
+```
+
+**Prerequisites:**
+- Swift 6.2+
+- Node.js 22+ (for visual test harness)
+
 ### 6.1 Unit Tests (Swift Testing)
 
 Using Swift Testing framework (`@Test`, `#expect`):
@@ -749,6 +776,8 @@ The library is successful if:
 | Unit handling | `Dimension` type supports `.dots()`, `.inches()`, `.mm()` everywhere; `ExpressibleByIntegerLiteral` allows bare integers as dots |
 | License | MIT |
 | GitHub location | `jonathanspiva/ZPLKit` |
+| Testing | Local-first; all tests runnable offline with no external dependencies |
+| Visual testing | zpl-renderer-js (local Node.js); no Labelary API |
 
 ## 14. Open Questions
 
