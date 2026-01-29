@@ -13,10 +13,6 @@
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
-- [ ] Icon support via FontAwesome (LiveUI/Awesome library)
-  - FontAwesome 6 Free: 1,500+ icons as native CGImages
-  - CC BY 4.0 / OFL / MIT licensed (can be printed and redistributed)
-  - SF Symbols rejected: Apple licensing prohibits redistribution and printed materials
 
 ## Never
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
@@ -24,6 +20,11 @@
 - SF Symbols icon support - Apple licensing prohibits redistribution and use in printed materials; FontAwesome is the supported alternative
 
 ## Done
+- [x] **FontAwesome icon support** - Replaced SF Symbols with LiveUI/Awesome library
+  - SF Symbols licensing prohibits redistribution and printed materials
+  - FontAwesome 6 Free: 1,500+ icons as native CGImages
+  - CC BY 4.0 / OFL / MIT licensed (safe for printed labels)
+  - All 36 graphic fixtures regenerated and verified
 - [x] **EAN/UPC barcode rendering fix** - All EAN/UPC barcodes now scannable
   - Added check digit calculation for EAN-13, EAN-8, UPC-A
   - Fixed UPC-E parity patterns (was using all L-codes, now proper O/E pattern)
