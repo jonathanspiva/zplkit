@@ -5,8 +5,8 @@
 
 ## Later
 - [ ] **Renderer validation**
-  - [ ] GitHub Actions workflow for Labelary comparison
-  - [ ] Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
+  - [ ] Automated diff detection (flag visual regressions in CI)
+  - [ ] Baseline management (approve/reject render changes)
 
 ## Someday
 - [ ] **Open source release**
@@ -46,7 +46,7 @@
 - [x] Bundled Roboto Condensed Bold font for Font 0
 - [x] README with quick start example
 - [x] LICENSE file (MIT)
-- [x] GitHub Actions CI workflow (macOS + Linux)
+- [x] GitHub Actions CI workflow (macOS, with artifact uploads)
 - [x] Visual test harness (Swift-native, replaces npm)
-- [x] Labelary comparison tool
+- [x] Labelary comparison in CI (retry logic, graceful failure handling)
 - [x] Comprehensive unit testing (268 tests)

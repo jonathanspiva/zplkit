@@ -1,6 +1,12 @@
 import Foundation
 import ZPLKit
 import ZPLKitRenderer
+import CoreGraphics
+import ImageIO
+
+#if canImport(UniformTypeIdentifiers)
+import UniformTypeIdentifiers
+#endif
 
 /// Swift-native visual test harness for ZPLKit
 /// Renders all fixtures and generates HTML comparison
@@ -8,8 +14,8 @@ import ZPLKitRenderer
 /// Usage:
 ///   swift run VisualTests                      # Render all (fast, local)
 ///   swift run VisualTests --labelary           # Also fetch Labelary renders
+///   swift run VisualTests --score              # Score against reference images
 ///   swift run VisualTests --filter graphic     # Only files matching "graphic"
-///   swift run VisualTests --filter graphic --labelary
 
 enum LabelaryError: Error, CustomStringConvertible {
     case httpError(statusCode: Int)
@@ -25,16 +31,27 @@ enum LabelaryError: Error, CustomStringConvertible {
     }
 }
 
+struct ScoreResult {
+    let fixture: String
+    let matchPercentage: Double
+    let totalPixels: Int
+    let differentPixels: Int
+    let hasDiff: Bool
+}
+
 @main
 struct VisualTests {
     static let fixturesDir = "Tests/VisualTestHarness/fixtures"
     static let outputDir = "Tests/VisualTestHarness/output-swift"
     static let labelaryDir = "Tests/VisualTestHarness/output-labelary"
+    static let referenceDir = "Tests/VisualTestHarness/reference"
+    static let diffDir = "Tests/VisualTestHarness/output-diff"
     static let htmlPath = "Tests/VisualTestHarness/comparison.html"
 
     static func main() async throws {
         let args = CommandLine.arguments
         let includeLabelary = args.contains("--labelary")
+        let includeScore = args.contains("--score")
 
         // Parse filter option
         var filterPattern: String? = nil
@@ -58,12 +75,17 @@ struct VisualTests {
         let fixturesPath = "\(root)/\(fixturesDir)"
         let outputPath = "\(root)/\(outputDir)"
         let labelaryPath = "\(root)/\(labelaryDir)"
+        let referencePath = "\(root)/\(referenceDir)"
+        let diffPath = "\(root)/\(diffDir)"
         let htmlFullPath = "\(root)/\(htmlPath)"
 
         // Create output directories
         try fileManager.createDirectory(atPath: outputPath, withIntermediateDirectories: true)
         if includeLabelary {
             try fileManager.createDirectory(atPath: labelaryPath, withIntermediateDirectories: true)
+        }
+        if includeScore {
+            try fileManager.createDirectory(atPath: diffPath, withIntermediateDirectories: true)
         }
 
         // Get fixture files
@@ -142,13 +164,54 @@ struct VisualTests {
             }
         }
 
+        // Score against reference images
+        var scores: [ScoreResult] = []
+
+        if includeScore {
+            print("\n=== Scoring against reference images ===\n")
+
+            // Check if reference directory exists and has images
+            guard fileManager.fileExists(atPath: referencePath) else {
+                print("Error: Reference directory not found at \(referenceDir)")
+                print("Run with --labelary first, then copy output-labelary/ to reference/")
+                exit(1)
+            }
+
+            for file in zplFiles {
+                let pngName = file.replacingOccurrences(of: ".zpl", with: ".png")
+                let swiftPath = "\(outputPath)/\(pngName)"
+                let refPath = "\(referencePath)/\(pngName)"
+                let diffImagePath = "\(diffPath)/\(pngName)"
+
+                guard fileManager.fileExists(atPath: refPath) else {
+                    print("  ⊘ \(file): No reference image")
+                    continue
+                }
+
+                guard fileManager.fileExists(atPath: swiftPath) else {
+                    print("  ⊘ \(file): No rendered image")
+                    continue
+                }
+
+                if let result = compareImages(swiftPath: swiftPath, referencePath: refPath, diffOutputPath: diffImagePath, fixtureName: file) {
+                    scores.append(result)
+                    let icon = result.matchPercentage >= 99.0 ? "✓" : (result.matchPercentage >= 90.0 ? "○" : "✗")
+                    print("  \(icon) \(file): \(String(format: "%.1f", result.matchPercentage))% match (\(result.differentPixels) pixels differ)")
+                } else {
+                    print("  ✗ \(file): Failed to compare")
+                }
+            }
+        }
+
         // Generate HTML
         print("\n=== Generating comparison.html ===")
         let html = generateHTML(
             fixtures: zplFiles,
             results: results,
             includeLabelary: includeLabelary,
-            labelaryFailures: Set(labelaryFailures.map { $0.file })
+            labelaryFailures: Set(labelaryFailures.map { $0.file }),
+            includeScore: includeScore,
+            scores: scores
         )
         try html.write(toFile: htmlFullPath, atomically: true, encoding: .utf8)
         print("Created \(htmlPath)")
@@ -166,6 +229,27 @@ struct VisualTests {
             print("  Labelary: \(labelarySuccesses)/\(zplFiles.count) succeeded")
             if !labelaryFailures.isEmpty {
                 print("  ⚠️  \(labelaryFailures.count) Labelary fetches failed (comparison will show Swift renders only)")
+            }
+        }
+
+        if includeScore && !scores.isEmpty {
+            let avgScore = scores.reduce(0.0) { $0 + $1.matchPercentage } / Double(scores.count)
+            let perfectMatches = scores.filter { $0.matchPercentage >= 99.9 }.count
+            let goodMatches = scores.filter { $0.matchPercentage >= 95.0 }.count
+
+            print("\n  ═══════════════════════════════════")
+            print("  ACCURACY SCORE: \(String(format: "%.1f", avgScore))%")
+            print("  ═══════════════════════════════════")
+            print("  Perfect (≥99.9%): \(perfectMatches)/\(scores.count)")
+            print("  Good (≥95%): \(goodMatches)/\(scores.count)")
+
+            // Show worst performers
+            let worstScores = scores.sorted { $0.matchPercentage < $1.matchPercentage }.prefix(5)
+            if let worst = worstScores.first, worst.matchPercentage < 95.0 {
+                print("\n  Needs improvement:")
+                for score in worstScores where score.matchPercentage < 95.0 {
+                    print("    • \(score.fixture): \(String(format: "%.1f", score.matchPercentage))%")
+                }
             }
         }
     }
@@ -249,21 +333,179 @@ struct VisualTests {
         }
     }
 
-    static func generateHTML(fixtures: [String], results: [(name: String, dpi: DPI, parseMs: Double, renderMs: Double)], includeLabelary: Bool, labelaryFailures: Set<String> = []) -> String {
+    // MARK: - Image Comparison
+
+    static func compareImages(swiftPath: String, referencePath: String, diffOutputPath: String, fixtureName: String) -> ScoreResult? {
+        guard let swiftImage = loadCGImage(from: swiftPath),
+              let refImage = loadCGImage(from: referencePath) else {
+            return nil
+        }
+
+        let swiftWidth = swiftImage.width
+        let swiftHeight = swiftImage.height
+        let refWidth = refImage.width
+        let refHeight = refImage.height
+
+        // Use the larger dimensions to handle size mismatches
+        let width = max(swiftWidth, refWidth)
+        let height = max(swiftHeight, refHeight)
+        let totalPixels = width * height
+
+        // Get pixel data
+        guard let swiftPixels = getPixelData(from: swiftImage, targetWidth: width, targetHeight: height),
+              let refPixels = getPixelData(from: refImage, targetWidth: width, targetHeight: height) else {
+            return nil
+        }
+
+        // Compare pixels and build diff image
+        var differentPixels = 0
+        var diffPixels = [UInt8](repeating: 255, count: width * height * 4) // RGBA
+
+        for y in 0..<height {
+            for x in 0..<width {
+                let idx = (y * width + x) * 4
+
+                let swiftR = swiftPixels[idx]
+                let swiftG = swiftPixels[idx + 1]
+                let swiftB = swiftPixels[idx + 2]
+
+                let refR = refPixels[idx]
+                let refG = refPixels[idx + 1]
+                let refB = refPixels[idx + 2]
+
+                // Check if pixels match (with small tolerance for antialiasing)
+                let tolerance: UInt8 = 2
+                let rDiff = abs(Int(swiftR) - Int(refR))
+                let gDiff = abs(Int(swiftG) - Int(refG))
+                let bDiff = abs(Int(swiftB) - Int(refB))
+
+                if rDiff > Int(tolerance) || gDiff > Int(tolerance) || bDiff > Int(tolerance) {
+                    differentPixels += 1
+                    // Red for different pixels
+                    diffPixels[idx] = 255     // R
+                    diffPixels[idx + 1] = 0   // G
+                    diffPixels[idx + 2] = 0   // B
+                    diffPixels[idx + 3] = 255 // A
+                } else {
+                    // Grayscale version of original for matching pixels
+                    let gray = UInt8((Int(swiftR) + Int(swiftG) + Int(swiftB)) / 3)
+                    diffPixels[idx] = gray
+                    diffPixels[idx + 1] = gray
+                    diffPixels[idx + 2] = gray
+                    diffPixels[idx + 3] = 255
+                }
+            }
+        }
+
+        // Save diff image
+        saveDiffImage(pixels: diffPixels, width: width, height: height, to: diffOutputPath)
+
+        let matchPercentage = Double(totalPixels - differentPixels) / Double(totalPixels) * 100.0
+
+        return ScoreResult(
+            fixture: fixtureName,
+            matchPercentage: matchPercentage,
+            totalPixels: totalPixels,
+            differentPixels: differentPixels,
+            hasDiff: differentPixels > 0
+        )
+    }
+
+    static func loadCGImage(from path: String) -> CGImage? {
+        let url = URL(fileURLWithPath: path)
+        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+            return nil
+        }
+        return image
+    }
+
+    static func getPixelData(from image: CGImage, targetWidth: Int, targetHeight: Int) -> [UInt8]? {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 255, count: targetWidth * targetHeight * 4)
+
+        guard let context = CGContext(
+            data: &pixels,
+            width: targetWidth,
+            height: targetHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: targetWidth * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+
+        // Fill with white background
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
+
+        // Draw image (will be scaled if sizes don't match)
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+
+        return pixels
+    }
+
+    static func saveDiffImage(pixels: [UInt8], width: Int, height: Int, to path: String) {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var mutablePixels = pixels
+
+        guard let context = CGContext(
+            data: &mutablePixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ),
+        let cgImage = context.makeImage() else {
+            return
+        }
+
+        let url = URL(fileURLWithPath: path) as CFURL
+
+        #if canImport(UniformTypeIdentifiers)
+        let imageType = UTType.png.identifier as CFString
+        #else
+        let imageType = "public.png" as CFString
+        #endif
+
+        guard let destination = CGImageDestinationCreateWithURL(url, imageType, 1, nil) else {
+            return
+        }
+
+        CGImageDestinationAddImage(destination, cgImage, nil)
+        CGImageDestinationFinalize(destination)
+    }
+
+    // MARK: - HTML Generation
+
+    static func generateHTML(fixtures: [String], results: [(name: String, dpi: DPI, parseMs: Double, renderMs: Double)], includeLabelary: Bool, labelaryFailures: Set<String> = [], includeScore: Bool = false, scores: [ScoreResult] = []) -> String {
         let resultsDict = Dictionary(uniqueKeysWithValues: results.map { ($0.name, $0) })
+        let scoresDict = Dictionary(uniqueKeysWithValues: scores.map { ($0.fixture, $0) })
 
         var rows = ""
         for file in fixtures {
             let pngName = file.replacingOccurrences(of: ".zpl", with: ".png")
             let result = resultsDict[file]
+            let score = scoresDict[file]
             let timeStr = result.map { String(format: "%.1fms", $0.parseMs + $0.renderMs) } ?? "—"
             let labelaryFailed = labelaryFailures.contains(file)
+
+            let scoreHtml: String
+            if let s = score {
+                let scoreClass = s.matchPercentage >= 99.0 ? "score-good" : (s.matchPercentage >= 90.0 ? "score-ok" : "score-bad")
+                scoreHtml = "<span class=\"score \(scoreClass)\">\(String(format: "%.1f", s.matchPercentage))%</span>"
+            } else {
+                scoreHtml = ""
+            }
 
             rows += """
             <div class="fixture">
                 <div class="fixture-header">
                     <span class="fixture-name">\(file)</span>
-                    <span class="fixture-time">\(timeStr)</span>
+                    <span class="fixture-meta">\(scoreHtml) \(timeStr)</span>
                 </div>
                 <div class="renders">
                     <div class="render">
@@ -290,6 +532,19 @@ struct VisualTests {
                 }
             }
 
+            if includeScore {
+                rows += """
+                    <div class="render">
+                        <div class="render-label">Reference</div>
+                        <img src="reference/\(pngName)" alt="\(file) reference">
+                    </div>
+                    <div class="render">
+                        <div class="render-label">Diff</div>
+                        <img src="output-diff/\(pngName)" alt="\(file) diff">
+                    </div>
+            """
+            }
+
             rows += """
                 </div>
             </div>
@@ -298,6 +553,15 @@ struct VisualTests {
 
         let totalTime = results.reduce(0) { $0 + $1.parseMs + $1.renderMs }
         let avgTime = results.isEmpty ? 0 : totalTime / Double(results.count)
+
+        let overallScoreHtml: String
+        if !scores.isEmpty {
+            let avgScore = scores.reduce(0.0) { $0 + $1.matchPercentage } / Double(scores.count)
+            let scoreClass = avgScore >= 99.0 ? "score-good" : (avgScore >= 90.0 ? "score-ok" : "score-bad")
+            overallScoreHtml = "<span class=\"overall-score \(scoreClass)\"><strong>\(String(format: "%.1f", avgScore))%</strong> accuracy</span>"
+        } else {
+            overallScoreHtml = ""
+        }
 
         return """
         <!DOCTYPE html>
@@ -318,8 +582,18 @@ struct VisualTests {
                     padding: 15px;
                     border-radius: 8px;
                     margin-bottom: 20px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    flex-wrap: wrap;
+                    gap: 10px;
                 }
-                .summary span { margin-right: 30px; }
+                .summary-stats span { margin-right: 30px; }
+                .overall-score {
+                    font-size: 18px;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                }
                 .fixture {
                     background: white;
                     border-radius: 8px;
@@ -336,7 +610,15 @@ struct VisualTests {
                     align-items: center;
                 }
                 .fixture-name { font-family: monospace; font-size: 14px; }
-                .fixture-time { font-size: 12px; color: #aaa; }
+                .fixture-meta { font-size: 12px; color: #aaa; display: flex; align-items: center; gap: 10px; }
+                .score {
+                    padding: 2px 8px;
+                    border-radius: 3px;
+                    font-weight: 600;
+                }
+                .score-good { background: #28a745; color: white; }
+                .score-ok { background: #ffc107; color: #333; }
+                .score-bad { background: #dc3545; color: white; }
                 .renders {
                     display: flex;
                     gap: 20px;
@@ -345,7 +627,7 @@ struct VisualTests {
                 }
                 .render {
                     flex: 1;
-                    min-width: 300px;
+                    min-width: 200px;
                 }
                 .render-label {
                     font-size: 12px;
@@ -381,9 +663,12 @@ struct VisualTests {
         <body>
             <h1>ZPLKit Visual Tests</h1>
             <div class="summary">
-                <span><strong>\(fixtures.count)</strong> fixtures</span>
-                <span><strong>\(String(format: "%.1f", totalTime))ms</strong> total render time</span>
-                <span><strong>\(String(format: "%.2f", avgTime))ms</strong> average</span>
+                <div class="summary-stats">
+                    <span><strong>\(fixtures.count)</strong> fixtures</span>
+                    <span><strong>\(String(format: "%.1f", totalTime))ms</strong> total render time</span>
+                    <span><strong>\(String(format: "%.2f", avgTime))ms</strong> average</span>
+                </div>
+                \(overallScoreHtml)
             </div>
             <div class="filter-bar">
                 <input type="text" id="filter" placeholder="Filter fixtures..." oninput="filterFixtures()">

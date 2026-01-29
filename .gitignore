@@ -26,6 +26,7 @@ Tests/VisualTestHarness/node_modules/
 Tests/VisualTestHarness/output/
 Tests/VisualTestHarness/output-swift/
 Tests/VisualTestHarness/output-labelary/
+Tests/VisualTestHarness/output-diff/
 Tests/VisualTestHarness/comparison.html
 
 # Font Comparison (generated output)
