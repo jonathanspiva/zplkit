@@ -32,6 +32,8 @@
   - [x] Declarative DSL with `Barcode(...)` and `Text(...)` expectations
   - [x] Vision hints optimization for faster detection
   - [x] 37 unit and integration tests
+  - [x] Visual test harness integration with verification and discovery display
+  - [x] fixtures.json populated with expectedBarcodes for 54 barcode fixtures
 - [x] Fixture metadata JSON with descriptions, categories, features, size, DPI
 - [x] ^FX DESCRIPTION comments in all 114 ZPL fixtures
 - [x] HTML comparison with filtering (category chips, size/DPI dropdowns, text search)
