@@ -45,15 +45,15 @@
     "dpi" : 203,
     "expectedBarcodes" : [
       {
-        "payload" : "590123412345",
+        "payload" : "5901234123457",
         "symbology" : "ean13"
       },
       {
-        "payload" : "978030640615",
+        "payload" : "9780306406157",
         "symbology" : "ean13"
       },
       {
-        "payload" : "401234567890",
+        "payload" : "4012345678901",
         "symbology" : "ean13"
       }
     ],
@@ -68,7 +68,7 @@
     "dpi" : 203,
     "expectedBarcodes" : [
       {
-        "payload" : "1234567",
+        "payload" : "12345670",
         "symbology" : "ean8"
       }
     ],
@@ -136,15 +136,15 @@
     "dpi" : 203,
     "expectedBarcodes" : [
       {
-        "payload" : "01234567890",
+        "payload" : "0012345678905",
         "symbology" : "ean13"
       },
       {
-        "payload" : "98765432109",
+        "payload" : "0987654321098",
         "symbology" : "ean13"
       },
       {
-        "payload" : "12345678901",
+        "payload" : "0123456789012",
         "symbology" : "ean13"
       }
     ],
@@ -1035,15 +1035,15 @@
     "dpi" : 203,
     "expectedBarcodes" : [
       {
-        "payload" : "012345678905",
+        "payload" : "0123456789050",
         "symbology" : "ean13"
       },
       {
-        "payload" : "01234567890",
+        "payload" : "0012345678905",
         "symbology" : "ean13"
       },
       {
-        "payload" : "https:\/\/example.com\/p\/12345",
+        "payload" : "QA,https:\/\/example.com\/p\/12345",
         "symbology" : "qr"
       }
     ],

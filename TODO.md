@@ -6,6 +6,7 @@
 ## Later
 
 ## Someday
+- [ ] Fix EAN/UPC barcode rendering (EAN-8, EAN-13, UPC-A, UPC-E not generating valid scannable patterns)
 - [ ] Data Matrix renderer (CoreImage doesn't support it, needs mathematical implementation)
 - [ ] Intelligent Mail renderer (also uses placeholder currently)
 - [ ] **Open source release**
