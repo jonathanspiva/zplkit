@@ -1,0 +1,14 @@
+^XA
+^PW812
+^LL812
+^FO30,30^GB752,752,3^FS
+^FO50,50^A0N,40,40^FDProduct Registration^FS
+^FO50,100^GB712,4,4^FS
+^FO180,160^BQN,2,10^FDHA,https://example.com/register/SN123456^FS
+^FO50,580^A0N,30,30^FDScan to register your product^FS
+^FO50,620^A0N,30,30^FDand activate warranty^FS
+^FO50,690^A0N,25,25^FDS/N: SN123456^FS
+^FO400,690^A0N,25,25^FDModel: PRO-500^FS
+^FO50,730^A0N,22,22^FDMfg Date: 2026-01^FS
+^FO400,730^A0N,22,22^FDWarranty: 2 Years^FS
+^XZ
