@@ -1378,4 +1378,100 @@ final class ZPLKitRendererTests: XCTestCase {
 
         XCTAssertTrue(result.passed, result.summary)
     }
+
+    // MARK: - Fixture Metadata Completeness Tests
+
+    private func visualTestHarnessPath() -> URL {
+        // Find the Tests directory by walking up from the source file
+        var url = URL(fileURLWithPath: #filePath)
+        while url.lastPathComponent != "Tests" && url.path != "/" {
+            url = url.deletingLastPathComponent()
+        }
+        return url.appendingPathComponent("VisualTestHarness")
+    }
+
+    func testAllFixturesHaveMetadata() throws {
+        let harnessPath = visualTestHarnessPath()
+        let fixturesDir = harnessPath.appendingPathComponent("fixtures")
+        let metadataURL = harnessPath.appendingPathComponent("fixtures.json")
+
+        // Load fixtures.json
+        let metadataData = try Data(contentsOf: metadataURL)
+        let metadata = try JSONDecoder().decode([String: FixtureMetadata].self, from: metadataData)
+
+        // Get all ZPL files in fixtures directory
+        let fileManager = FileManager.default
+        let zplFiles = try fileManager.contentsOfDirectory(at: fixturesDir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "zpl" }
+            .map { $0.deletingPathExtension().lastPathComponent }
+
+        var missingMetadata: [String] = []
+        var incompleteMetadata: [String] = []
+
+        for fixture in zplFiles {
+            guard let entry = metadata[fixture] else {
+                missingMetadata.append(fixture)
+                continue
+            }
+
+            // Check required fields
+            var missing: [String] = []
+            if entry.description.isEmpty { missing.append("description") }
+            if entry.category.isEmpty { missing.append("category") }
+            if entry.size.isEmpty { missing.append("size") }
+            if entry.dpi == 0 { missing.append("dpi") }
+
+            if !missing.isEmpty {
+                incompleteMetadata.append("\(fixture): missing \(missing.joined(separator: ", "))")
+            }
+        }
+
+        if !missingMetadata.isEmpty {
+            XCTFail("Fixtures without metadata entry:\n  \(missingMetadata.joined(separator: "\n  "))")
+        }
+
+        if !incompleteMetadata.isEmpty {
+            XCTFail("Fixtures with incomplete metadata:\n  \(incompleteMetadata.joined(separator: "\n  "))")
+        }
+    }
+
+    func testFixtureMetadataHasNoOrphanedEntries() throws {
+        let harnessPath = visualTestHarnessPath()
+        let fixturesDir = harnessPath.appendingPathComponent("fixtures")
+        let metadataURL = harnessPath.appendingPathComponent("fixtures.json")
+
+        // Load fixtures.json
+        let metadataData = try Data(contentsOf: metadataURL)
+        let metadata = try JSONDecoder().decode([String: FixtureMetadata].self, from: metadataData)
+
+        // Get all ZPL files in fixtures directory
+        let fileManager = FileManager.default
+        let zplFiles = try fileManager.contentsOfDirectory(at: fixturesDir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "zpl" }
+            .map { $0.deletingPathExtension().lastPathComponent }
+
+        let zplSet = Set(zplFiles)
+        let orphaned = metadata.keys.filter { !zplSet.contains($0) }
+
+        if !orphaned.isEmpty {
+            XCTFail("Metadata entries without matching fixture files:\n  \(orphaned.sorted().joined(separator: "\n  "))")
+        }
+    }
+}
+
+// MARK: - Fixture Metadata Model
+
+private struct FixtureMetadata: Decodable {
+    let description: String
+    let category: String
+    let size: String
+    let dpi: Int
+    let features: [String]?
+    let expectedBarcodes: [ExpectedBarcode]?
+    let referenceSource: String?
+
+    struct ExpectedBarcode: Decodable {
+        let symbology: String
+        let payload: String
+    }
 }
