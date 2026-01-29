@@ -26,6 +26,9 @@ public struct ZPLLabel: Sendable {
     /// Print darkness (0-30).
     private var darkness: Int?
 
+    /// Print speed settings (print, slew, backfeed).
+    private var printSpeed: (print: Int, slew: Int?, backfeed: Int?)?
+
     /// Creates a new label with the given dimensions and content.
     /// - Parameters:
     ///   - width: Label width in inches.
@@ -69,6 +72,21 @@ public struct ZPLLabel: Sendable {
     public func printDarkness(_ level: Int) -> ZPLLabel {
         var copy = self
         copy.darkness = min(30, max(0, level))
+        return copy
+    }
+
+    /// Sets the print speed.
+    ///
+    /// Speed values typically range from 1-14, but vary by printer model.
+    /// Higher values = faster printing but potentially lower quality.
+    ///
+    /// - Parameters:
+    ///   - speed: Print speed (inches per second, typically 1-14)
+    ///   - slew: Slew speed for non-print movement (optional, defaults to print speed)
+    ///   - backfeed: Backfeed speed (optional, defaults to print speed)
+    public func printSpeed(_ speed: Int, slew: Int? = nil, backfeed: Int? = nil) -> ZPLLabel {
+        var copy = self
+        copy.printSpeed = (print: max(1, speed), slew: slew, backfeed: backfeed)
         return copy
     }
 
@@ -139,6 +157,20 @@ public struct ZPLLabel: Sendable {
         // Print darkness
         if let darkness = darkness {
             commands.append("^MD\(darkness)")
+        }
+
+        // Print speed
+        if let speed = printSpeed {
+            var prCommand = "^PR\(speed.print)"
+            if let slew = speed.slew {
+                prCommand += ",\(slew)"
+                if let backfeed = speed.backfeed {
+                    prCommand += ",\(backfeed)"
+                }
+            } else if let backfeed = speed.backfeed {
+                prCommand += ",,\(backfeed)"
+            }
+            commands.append(prCommand)
         }
 
         // Render all elements

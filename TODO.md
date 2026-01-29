@@ -47,3 +47,4 @@
   - [x] Performance instrumentation: benchmark parse/render times
 - [x] Label templates with variable substitution (`{{variable}}` syntax)
 - [x] TextBlock enhancements (rotation, reverse print, newline support)
+- [x] Print speed control (`^PR`)

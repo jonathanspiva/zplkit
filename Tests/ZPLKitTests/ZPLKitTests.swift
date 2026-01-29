@@ -162,6 +162,42 @@ final class ZPLKitTests: XCTestCase {
         XCTAssertTrue(zpl.contains("^PQ5"))
     }
 
+    func testPrintSpeed() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printSpeed(6)
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^PR6"))
+    }
+
+    func testPrintSpeedWithSlew() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printSpeed(6, slew: 8)
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^PR6,8"))
+    }
+
+    func testPrintSpeedWithAllOptions() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printSpeed(6, slew: 8, backfeed: 4)
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^PR6,8,4"))
+    }
+
+    func testPrintSpeedWithBackfeedOnly() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printSpeed(6, backfeed: 4)
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^PR6,,4"))
+    }
+
     func testDimensionConversions() {
         let dpi = DPI.dpi203
 
