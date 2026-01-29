@@ -33,6 +33,13 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 - **Mathematical 1D barcode rendering** for Code39, EAN-13, EAN-8, UPC-A, UPC-E, Interleaved 2 of 5
 - **Bundled Roboto Condensed Bold font** for accurate Font 0 rendering
 
+### ZPL Test Fixtures
+
+- **114 real-world ZPL files** for testing parsers and renderers
+- **Categorized**: shipping, retail, warehouse, barcodes, shapes, graphics, and more
+- **Documented**: Each file includes `^FX DESCRIPTION:` comments
+- **Metadata**: `fixtures.json` with category, features, size, and DPI for each fixture
+
 ## Installation
 
 Add ZPLKit to your `Package.swift`:
@@ -306,16 +313,6 @@ ZPLKit supports the most commonly used ZPL II commands for label design:
 The renderer (ZPLKitRenderer) parses and renders all commands that ZPLKit generates.
 
 **Not covered:** RFID commands, printer configuration/calibration, stored formats, network settings, and some uncommon barcodes (Codabar, Postnet, Planet Code). These are either printer-management functions or legacy formats rarely needed in modern label design.
-
-## ZPL Test Fixtures
-
-This repository includes **114 real-world ZPL test fixtures** in `Tests/VisualTestHarness/fixtures/`. These are useful for testing any ZPL parser or renderer.
-
-Each fixture includes:
-- **`^FX DESCRIPTION:`** comments explaining what the label contains
-- **Metadata** in `fixtures.json` with category, features, size, and DPI
-
-Categories include shipping labels, retail tags, warehouse bins, barcodes, shapes, graphics, and more. Fixtures range from simple one-line labels to complex multi-element shipping labels with barcodes.
 
 ## Resources
 
