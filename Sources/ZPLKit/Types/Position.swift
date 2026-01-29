@@ -22,7 +22,7 @@
 ///
 /// The origin (0, 0) is at the top-left corner of the label.
 /// X increases to the right, Y increases downward.
-public enum Position: Sendable {
+public enum Position: Sendable, Codable, Equatable, Hashable {
     /// Position in dots (printer native resolution).
     ///
     /// - Parameters:

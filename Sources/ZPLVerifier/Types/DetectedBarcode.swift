@@ -1,7 +1,7 @@
 import Foundation
 
 /// A barcode detected in a rendered label image.
-public struct DetectedBarcode: Sendable, Hashable {
+public struct DetectedBarcode: Sendable, Hashable, Codable, CustomStringConvertible {
     /// The barcode symbology type.
     public let symbology: BarcodeSymbology
 
@@ -36,5 +36,9 @@ public struct DetectedBarcode: Sendable, Hashable {
         self.payload = payload
         self.boundingBox = boundingBox
         self.confidence = confidence
+    }
+
+    public var description: String {
+        "\(symbology): \(payload)"
     }
 }

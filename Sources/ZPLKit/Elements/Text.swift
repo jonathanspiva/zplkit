@@ -29,7 +29,7 @@
 /// specifies where the text sits rather than the top of the bounding box.
 ///
 /// - Note: For multi-line text with word wrapping, use ``TextBlock`` instead.
-public struct Text: ZPLElement {
+public struct Text: ZPLElement, Equatable, Hashable {
     private let text: String
     private let position: Position
     private var font: ZPLFont = .default

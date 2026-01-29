@@ -1,7 +1,7 @@
 /// A UPC-E barcode element using ZPL's ^B9 command.
 /// UPC-E is the zero-suppressed (compressed) version of UPC-A for small packages.
 /// Encodes 6 digits which expand to a full UPC-A when scanned.
-public struct UPCE: ZPLElement {
+public struct UPCE: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var rotation: Rotation = .normal

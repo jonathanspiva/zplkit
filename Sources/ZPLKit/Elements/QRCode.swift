@@ -2,7 +2,8 @@
 ///
 /// Higher error correction allows the QR code to be read even if partially
 /// damaged, but requires more space (larger QR code).
-public enum QRErrorCorrection: String, Sendable {
+@frozen
+public enum QRErrorCorrection: String, Sendable, Codable, Hashable {
     /// Ultra-high error correction (30% recovery capacity).
     case ultraHigh = "H"
     /// High error correction (25% recovery capacity).
@@ -44,7 +45,7 @@ public enum QRErrorCorrection: String, Sendable {
 /// // vCard contact
 /// QRCode("BEGIN:VCARD\nVERSION:3.0\nN:Doe;John\nEND:VCARD", at: .inches(0.5, 0.5))
 /// ```
-public struct QRCode: ZPLElement {
+public struct QRCode: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var magnification: Int = 3  // 1-10

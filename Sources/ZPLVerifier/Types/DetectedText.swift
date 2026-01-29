@@ -1,7 +1,7 @@
 import Foundation
 
 /// A text region detected in a rendered label image.
-public struct DetectedText: Sendable, Hashable {
+public struct DetectedText: Sendable, Hashable, Codable, CustomStringConvertible {
     /// The recognized text string.
     public let text: String
 
@@ -31,5 +31,9 @@ public struct DetectedText: Sendable, Hashable {
         self.text = text
         self.boundingBox = boundingBox
         self.confidence = confidence
+    }
+
+    public var description: String {
+        "\"\(text)\""
     }
 }

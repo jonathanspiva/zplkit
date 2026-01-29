@@ -22,7 +22,8 @@
 /// Fonts A-V are bitmap fonts with fixed sizes. They may render differently
 /// across printer models and are generally not recommended unless you have
 /// specific requirements.
-public enum ZPLFont: String, Sendable {
+@frozen
+public enum ZPLFont: String, Sendable, Codable, Hashable {
     /// Scalable font (Font 0). Recommended for most use cases.
     case `default` = "0"
     /// Bitmap font A.

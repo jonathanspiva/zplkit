@@ -16,7 +16,7 @@ import Foundation
 ///     Graphic(cgImage, at: .dots(50, 50), width: .dots(100))
 /// }
 /// ```
-public struct Graphic: ZPLElement {
+public struct Graphic: ZPLElement, Equatable, Hashable {
     private let image: CGImage
     private let position: Position
     private let targetWidth: Dimension

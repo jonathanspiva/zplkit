@@ -1,7 +1,7 @@
 /// A serial number field element using ZPL's ^SN command.
 /// Automatically increments or decrements a numeric or alphanumeric value
 /// across multiple labels in a print job.
-public struct SerialNumber: ZPLElement {
+public struct SerialNumber: ZPLElement, Equatable, Hashable {
     private let startValue: String
     private let position: Position
     private var increment: Int = 1

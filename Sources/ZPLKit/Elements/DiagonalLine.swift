@@ -1,5 +1,5 @@
 /// A diagonal line element using ZPL's ^GD command.
-public struct DiagonalLine: ZPLElement {
+public struct DiagonalLine: ZPLElement, Equatable, Hashable {
     private let position: Position
     private let boxWidth: Dimension
     private let boxHeight: Dimension

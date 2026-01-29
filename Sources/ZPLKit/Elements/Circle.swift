@@ -21,7 +21,7 @@
 /// Circle(at: .inches(0.5, 0.5), diameter: .inches(1.0))
 ///     .thickness(.dots(5))
 /// ```
-public struct Circle: ZPLElement {
+public struct Circle: ZPLElement, Equatable, Hashable {
     private let position: Position
     private let diameter: Dimension
     private var thickness: Dimension = .dots(1)

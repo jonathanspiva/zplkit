@@ -9,7 +9,8 @@
 /// Barcode128("12345", at: .inches(0.5, 1.0))?
 ///     .rotated(.rotated270)
 /// ```
-public enum Rotation: String, Sendable {
+@frozen
+public enum Rotation: String, Sendable, Codable, Hashable {
     /// No rotation (0 degrees).
     case normal = "N"
     /// Rotated 90 degrees clockwise.

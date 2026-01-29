@@ -1,7 +1,7 @@
 /// An EAN-8 barcode element using ZPL's ^B8 command.
 /// EAN-8 is the compact European Article Number for small packages.
 /// Encodes exactly 7 digits (8th is check digit, auto-calculated).
-public struct EAN8: ZPLElement {
+public struct EAN8: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var rotation: Rotation = .normal

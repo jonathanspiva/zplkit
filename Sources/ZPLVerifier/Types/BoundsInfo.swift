@@ -1,7 +1,7 @@
 import Foundation
 
 /// Information about content near label edges, indicating potential clipping.
-public struct BoundsInfo: Sendable, Hashable {
+public struct BoundsInfo: Sendable, Hashable, Codable {
     /// Whether any detected content is near the top edge.
     public let hasTopEdgeContent: Bool
 
@@ -30,7 +30,8 @@ public struct BoundsInfo: Sendable, Hashable {
     }
 
     /// Label edges.
-    public enum Edge: String, Sendable, CaseIterable {
+    @frozen
+    public enum Edge: String, Sendable, Codable, Hashable, CaseIterable {
         case top
         case bottom
         case left

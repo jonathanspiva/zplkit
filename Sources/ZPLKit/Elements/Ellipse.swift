@@ -1,5 +1,5 @@
 /// An ellipse element using ZPL's ^GE command.
-public struct Ellipse: ZPLElement {
+public struct Ellipse: ZPLElement, Equatable, Hashable {
     private let position: Position
     private let ellipseWidth: Dimension
     private let ellipseHeight: Dimension

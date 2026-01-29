@@ -1,6 +1,6 @@
 /// A PDF417 barcode element using ZPL's ^B7 command.
 /// PDF417 is a 2D stacked barcode commonly used on shipping labels, ID cards, and official documents.
-public struct PDF417: ZPLElement {
+public struct PDF417: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var rotation: Rotation = .normal

@@ -4,7 +4,8 @@ import Vision
 ///
 /// These map to Vision framework's `VNBarcodeSymbology` types that are
 /// available on macOS 12+.
-public enum BarcodeSymbology: String, Sendable, Hashable, CaseIterable {
+@frozen
+public enum BarcodeSymbology: String, Sendable, Codable, Hashable, CaseIterable, CustomStringConvertible {
     case aztec
     case code39
     case code39Checksum
@@ -43,6 +44,23 @@ public enum BarcodeSymbology: String, Sendable, Hashable, CaseIterable {
         case .pdf417: return .pdf417
         case .qr: return .qr
         case .upce: return .upce
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case .aztec: return "Aztec"
+        case .code39, .code39Checksum, .code39FullASCII, .code39FullASCIIChecksum: return "Code 39"
+        case .code93, .code93i: return "Code 93"
+        case .code128: return "Code 128"
+        case .dataMatrix: return "Data Matrix"
+        case .ean8: return "EAN-8"
+        case .ean13: return "EAN-13"
+        case .i2of5, .i2of5Checksum: return "Interleaved 2 of 5"
+        case .itf14: return "ITF-14"
+        case .pdf417: return "PDF417"
+        case .qr: return "QR Code"
+        case .upce: return "UPC-E"
         }
     }
 

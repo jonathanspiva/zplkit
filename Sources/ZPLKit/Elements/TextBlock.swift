@@ -1,5 +1,6 @@
 /// Text alignment options for text blocks.
-public enum TextAlignment: String, Sendable {
+@frozen
+public enum TextAlignment: String, Sendable, Codable, Hashable {
     /// Left-aligned text.
     case left = "L"
     /// Center-aligned text.
@@ -44,7 +45,7 @@ public enum TextAlignment: String, Sendable {
 ///           at: .inches(0.25, 0.25),
 ///           width: .inches(2.0))
 /// ```
-public struct TextBlock: ZPLElement {
+public struct TextBlock: ZPLElement, Equatable, Hashable {
     private let text: String
     private let position: Position
     private let blockWidth: Dimension

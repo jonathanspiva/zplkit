@@ -1,5 +1,5 @@
 /// A DataMatrix barcode element.
-public struct DataMatrix: ZPLElement {
+public struct DataMatrix: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var moduleSize: Int = 3      // 1-10

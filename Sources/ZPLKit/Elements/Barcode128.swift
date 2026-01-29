@@ -29,7 +29,7 @@
 /// // Returns nil - emoji not supported
 /// let invalid = Barcode128("Hello 👋", at: .inches(0.25, 0.5))
 /// ```
-public struct Barcode128: ZPLElement {
+public struct Barcode128: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var barcodeHeight: Dimension = .dots(100)

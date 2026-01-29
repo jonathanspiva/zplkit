@@ -12,7 +12,7 @@
 ///     Barcode128("12345", at: .inches(0.25, 0.5))
 /// }
 /// ```
-public struct Comment: ZPLElement {
+public struct Comment: ZPLElement, Equatable, Hashable {
     private let text: String
 
     /// Creates a comment with the given text.

@@ -1,7 +1,7 @@
 /// An EAN-13 barcode element using ZPL's ^BE command.
 /// EAN-13 is the European Article Number, commonly used in retail worldwide.
 /// Encodes exactly 12 digits (13th is check digit, auto-calculated).
-public struct EAN13: ZPLElement {
+public struct EAN13: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var rotation: Rotation = .normal

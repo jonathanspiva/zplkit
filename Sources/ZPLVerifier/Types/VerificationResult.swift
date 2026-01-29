@@ -1,7 +1,7 @@
 import Foundation
 
 /// Results from verifying a rendered label against expectations.
-public struct VerificationResult: Sendable {
+public struct VerificationResult: Sendable, Equatable, CustomStringConvertible {
     /// Whether all expectations passed.
     public let passed: Bool
 
@@ -46,10 +46,14 @@ public struct VerificationResult: Sendable {
     public var failedExpectations: [ExpectationResult] {
         expectations.filter { !$0.passed }
     }
+
+    public var description: String {
+        summary
+    }
 }
 
 /// Result for a single expectation check.
-public struct ExpectationResult: Sendable {
+public struct ExpectationResult: Sendable, Equatable {
     /// Description of what was expected.
     public let description: String
 
@@ -75,7 +79,8 @@ public struct ExpectationResult: Sendable {
     }
 
     /// An item that matched an expectation.
-    public enum MatchedItem: Sendable {
+    @frozen
+    public enum MatchedItem: Sendable, Equatable, Hashable {
         case barcode(DetectedBarcode)
         case text(DetectedText)
     }

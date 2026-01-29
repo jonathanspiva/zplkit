@@ -1,7 +1,7 @@
 /// An Aztec barcode element using ZPL's ^B0 (B-zero) command.
 /// Aztec is a 2D barcode commonly used on tickets, boarding passes, and ID cards.
 /// It can encode any data and has built-in error correction.
-public struct Aztec: ZPLElement {
+public struct Aztec: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var rotation: Rotation = .normal

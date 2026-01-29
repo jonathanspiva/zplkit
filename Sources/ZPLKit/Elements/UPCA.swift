@@ -1,7 +1,7 @@
 /// A UPC-A barcode element using ZPL's ^BU command.
 /// UPC-A is the Universal Product Code used primarily in North America.
 /// Encodes exactly 11 digits (12th is check digit, auto-calculated).
-public struct UPCA: ZPLElement {
+public struct UPCA: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var rotation: Rotation = .normal

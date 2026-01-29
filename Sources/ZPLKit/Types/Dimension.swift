@@ -25,7 +25,7 @@
 /// Barcode128("123", at: .inches(0.5, 0.5)).height(.dots(100))
 /// Barcode128("123", at: .inches(0.5, 0.5)).height(100)
 /// ```
-public enum Dimension: Sendable, ExpressibleByIntegerLiteral {
+public enum Dimension: Sendable, ExpressibleByIntegerLiteral, Codable, Equatable, Hashable {
     /// Dimension in dots (printer native resolution).
     case dots(Int)
 

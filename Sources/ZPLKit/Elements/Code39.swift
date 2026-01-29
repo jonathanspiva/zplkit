@@ -1,5 +1,5 @@
 /// A Code 39 barcode element.
-public struct Code39: ZPLElement {
+public struct Code39: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var barcodeHeight: Dimension = .dots(100)

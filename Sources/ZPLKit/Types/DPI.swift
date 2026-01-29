@@ -24,7 +24,8 @@
 ///     Text("High Resolution", at: .inches(0.25, 0.25))
 /// }
 /// ```
-public enum DPI: Int, Sendable {
+@frozen
+public enum DPI: Int, Sendable, Codable, Hashable, CustomStringConvertible {
     /// 152 DPI (6 dots/mm) - Economy desktop printers.
     case dpi152 = 152
 
@@ -52,5 +53,9 @@ public enum DPI: Int, Sendable {
     public func dots(fromMM mm: Double) -> Int {
         let inches = mm / 25.4
         return dots(fromInches: inches)
+    }
+
+    public var description: String {
+        "\(rawValue) DPI"
     }
 }

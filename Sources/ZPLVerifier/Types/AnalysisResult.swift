@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Discovery mode finds all barcodes and text in an image without
 /// any expectations about what should be present.
-public struct AnalysisResult: Sendable {
+public struct AnalysisResult: Sendable, Codable, Equatable {
     /// All barcodes detected in the image.
     public let barcodes: [DetectedBarcode]
 

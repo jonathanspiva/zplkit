@@ -1,7 +1,7 @@
 /// An Interleaved 2 of 5 barcode element using ZPL's ^B2 command.
 /// Commonly used in shipping, warehousing, and the logistics industry.
 /// Only encodes numeric data (digits 0-9). Data length must be even.
-public struct Interleaved2of5: ZPLElement {
+public struct Interleaved2of5: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var rotation: Rotation = .normal

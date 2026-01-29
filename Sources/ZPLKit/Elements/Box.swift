@@ -31,7 +31,7 @@
 ///     .filled()
 ///     .white()
 /// ```
-public struct Box: ZPLElement {
+public struct Box: ZPLElement, Equatable, Hashable {
     private let position: Position
     private let boxWidth: Dimension
     private let boxHeight: Dimension

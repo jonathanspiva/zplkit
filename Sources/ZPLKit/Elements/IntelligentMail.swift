@@ -2,7 +2,7 @@
 /// Intelligent Mail (also called OneCode or 4-State Customer Barcode) is used
 /// by USPS for mail tracking and sorting.
 /// Encodes 20, 25, 29, or 31 digits depending on the routing information included.
-public struct IntelligentMail: ZPLElement {
+public struct IntelligentMail: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
     private var rotation: Rotation = .normal

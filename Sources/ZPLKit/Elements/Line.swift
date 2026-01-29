@@ -1,5 +1,5 @@
 /// A horizontal line element.
-public struct HorizontalLine: ZPLElement {
+public struct HorizontalLine: ZPLElement, Equatable, Hashable {
     private let position: Position
     private let lineLength: Dimension
     private let lineThickness: Dimension
@@ -26,7 +26,7 @@ public struct HorizontalLine: ZPLElement {
 }
 
 /// A vertical line element.
-public struct VerticalLine: ZPLElement {
+public struct VerticalLine: ZPLElement, Equatable, Hashable {
     private let position: Position
     private let lineLength: Dimension
     private let lineThickness: Dimension
