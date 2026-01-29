@@ -1,15 +1,32 @@
 # ZPLKit
 
-A Swift library for generating ZPL (Zebra Programming Language) code.
+![Swift 6.0+](https://img.shields.io/badge/Swift-6.0+-orange.svg)
+![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS-blue.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+[![CI](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml)
+
+A Swift library for generating ZPL (Zebra Programming Language) code with a declarative, type-safe API.
 
 ## Features
 
-- Simple, declarative API using Swift result builders
-- Support for text, barcodes (Code128, QR, Code39, DataMatrix), and shapes
-- Automatic unit conversion (inches, mm, dots)
-- Special character escaping
-- Zero external dependencies
-- Full Swift 6 concurrency support (`Sendable` types)
+- **Declarative API** using Swift result builders
+- **Text** with fonts, rotation, reverse print, and baseline positioning
+- **Text blocks** with word wrap, alignment, and multi-line support
+- **Barcodes**: Code128, Code39, QR, DataMatrix, PDF417, Aztec, EAN-13, EAN-8, UPC-A, UPC-E, Interleaved 2 of 5, Intelligent Mail
+- **Shapes**: Box, Circle, Ellipse, Horizontal/Vertical/Diagonal lines
+- **Graphics**: Embed images via `^GF` command
+- **Templates**: Variable substitution with `{{variable}}` syntax
+- **Serial numbers**: Auto-incrementing fields with `^SN`
+- **Automatic unit conversion** (inches, mm, dots)
+- **Zero external dependencies** for ZPLKit core
+- **Full Swift 6 concurrency support** (`Sendable` types)
+
+### ZPLKitRenderer (Apple platforms)
+
+- Parse ZPL strings into element trees
+- Render labels to PNG images for previews
+- CoreGraphics-based rendering engine
+- Bundled Roboto Condensed Bold font for accurate Font 0 rendering
 
 ## Installation
 
@@ -21,24 +38,34 @@ dependencies: [
 ]
 ```
 
+Then add the product to your target:
+
+```swift
+.target(name: "YourTarget", dependencies: ["ZPLKit"])
+
+// For rendering support (Apple platforms only):
+.target(name: "YourTarget", dependencies: ["ZPLKit", "ZPLKitRenderer"])
+```
+
 ## Quick Start
 
 ```swift
 import ZPLKit
 
 let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
-    Text("M6 Titanium Bolt", at: .inches(0.25, 0.25))
-        .font(.default, height: .inches(0.15))
+    Text("PARTS BIN A-7", at: .inches(0.25, 0.25))
+        .font(.default, height: .inches(0.2))
 
-    Barcode128("M6-TI-001", at: .inches(0.25, 0.75))
+    Barcode128("BIN-A7-001", at: .inches(0.25, 0.6))
         .height(.inches(0.5))
+        .showText(true)
 
-    Box(at: .inches(0.2, 0.2), width: .inches(1.5), height: .inches(1.4))
+    Box(at: .inches(0.2, 0.2), width: .inches(3.5), height: .inches(1.2))
         .thickness(2)
 }
 
 let zpl = label.render()
-// Send `zpl` string to your Zebra printer
+// Send `zpl` to your Zebra printer
 ```
 
 ## Elements
@@ -55,37 +82,43 @@ Text("Hello World", at: .inches(0.5, 0.5))
 ### Text Block (Word Wrap)
 
 ```swift
-TextBlock("Long text that wraps", at: .inches(0.5, 0.5), width: .inches(2.0))
+TextBlock("Long text that wraps automatically", at: .inches(0.5, 0.5), width: .inches(2.0))
     .maxLines(3)
     .alignment(.center)
+    .lineSpacing(5)
 ```
 
 ### Barcodes
 
 ```swift
-// Code 128
+// 1D Barcodes
 Barcode128("ABC123", at: .inches(0.5, 1.0))
     .height(.inches(0.5))
     .showText(true)
 
-// QR Code
-QRCode("https://example.com", at: .inches(0.5, 2.0))
+Code39("HELLO-123", at: .inches(0.5, 1.5))
+    .height(.inches(0.4))
+
+EAN13("5901234123457", at: .inches(0.5, 2.0))
+UPCA("012345678905", at: .inches(0.5, 2.5))
+Interleaved2of5("1234567890", at: .inches(0.5, 3.0))
+
+// 2D Barcodes
+QRCode("https://example.com", at: .inches(0.5, 3.5))
     .magnification(5)
     .errorCorrection(.high)
 
-// Code 39
-Code39("HELLO-123", at: .inches(0.5, 3.0))
-    .height(.inches(0.4))
-
-// DataMatrix
-DataMatrix("SERIAL123", at: .inches(0.5, 4.0))
+DataMatrix("SERIAL123", at: .inches(2.0, 3.5))
     .size(5)
+
+PDF417("Encoded data here", at: .inches(0.5, 4.5))
+Aztec("More data", at: .inches(2.0, 4.5))
 ```
 
 ### Shapes
 
 ```swift
-// Box
+// Box with border
 Box(at: .inches(0.25, 0.25), width: .inches(2.0), height: .inches(1.0))
     .thickness(3)
     .cornerRadius(2)
@@ -94,9 +127,70 @@ Box(at: .inches(0.25, 0.25), width: .inches(2.0), height: .inches(1.0))
 Box(at: .inches(0.25, 0.25), width: .inches(1.0), height: .inches(0.5))
     .filled()
 
+// Circle
+Circle(at: .inches(1.0, 1.0), diameter: .inches(0.5))
+    .thickness(2)
+
+// Ellipse
+Ellipse(at: .inches(1.0, 2.0), width: .inches(1.0), height: .inches(0.5))
+
 // Lines
 HorizontalLine(at: .inches(0.5, 1.0), length: .inches(3.0), thickness: 2)
 VerticalLine(at: .inches(0.5, 1.0), length: .inches(2.0), thickness: 2)
+DiagonalLine(at: .inches(0.5, 1.0), width: .inches(1.0), height: .inches(1.0))
+    .direction(.leftToRight)
+```
+
+### Graphics
+
+```swift
+// From CGImage (Apple platforms)
+if let cgImage = loadImage() {
+    Graphic(cgImage, at: .inches(0.5, 0.5))
+}
+
+// From raw bitmap data
+Graphic(bitmapData: bytes, bytesPerRow: 10, at: .inches(0.5, 0.5))
+```
+
+### Serial Numbers
+
+```swift
+// Auto-incrementing serial numbers
+ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+    Text("SN: ", at: .inches(0.25, 0.25))
+    SerialNumber("001", at: .inches(0.6, 0.25))
+        .increment(1)
+        .padWithZeros(true)
+}
+.printQuantity(10)  // Prints SN: 001, 002, 003... 010
+```
+
+### Comments
+
+```swift
+Comment("This section is for the header")
+Text("Header Text", at: .inches(0.25, 0.25))
+```
+
+## Templates
+
+Create reusable label templates with variable substitution:
+
+```swift
+let template = ZPLTemplate(width: 4, height: 2, dpi: .dpi203) {
+    Text("{{product_name}}", at: .inches(0.25, 0.25))
+        .font(.default, height: .inches(0.15))
+    Barcode128("{{sku}}", at: .inches(0.25, 0.5))
+        .height(.inches(0.4))
+    Text("${{price}}", at: .inches(0.25, 1.1))
+}
+
+let zpl = template.render(with: [
+    "product_name": "Widget Pro",
+    "sku": "WGT-PRO-001",
+    "price": "29.99"
+])
 ```
 
 ## Units
@@ -104,14 +198,9 @@ VerticalLine(at: .inches(0.5, 1.0), length: .inches(2.0), thickness: 2)
 Position and dimensions support three unit types:
 
 ```swift
-// Dots (printer native)
-Text("Hello", at: .dots(100, 200))
-
-// Inches (converted at render time based on DPI)
-Text("Hello", at: .inches(0.5, 1.0))
-
-// Millimeters
-Text("Hello", at: .mm(12.7, 25.4))
+.dots(100, 200)    // Printer native resolution
+.inches(0.5, 1.0)  // Converted based on DPI
+.mm(12.7, 25.4)    // Millimeters
 ```
 
 Integer literals default to dots:
@@ -129,14 +218,34 @@ let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
 .printQuantity(5)
 .defaultFont(.default, height: 30)
 .printDarkness(15)
+.printSpeed(4)
+.labelHome(x: 10, y: 10)
+.reversePrint(true)  // White on black
+```
+
+## Rendering Previews
+
+On Apple platforms, use ZPLKitRenderer to generate preview images:
+
+```swift
+import ZPLKitRenderer
+
+let renderer = ZPLRenderer()
+let zpl = "^XA^FO50,50^A0N,50,50^FDHello^FS^XZ"
+
+if let image = try? renderer.renderToPNG(zpl, width: 812, height: 1218) {
+    // Use image for preview
+}
 ```
 
 ## Supported DPI
 
-- `.dpi152` (6 dpmm)
-- `.dpi203` (8 dpmm, most common)
-- `.dpi300` (12 dpmm)
-- `.dpi600` (24 dpmm)
+| DPI | Dots per mm | Use case |
+|-----|-------------|----------|
+| `.dpi152` | 6 dpmm | Economy printers |
+| `.dpi203` | 8 dpmm | Most common, standard |
+| `.dpi300` | 12 dpmm | High quality |
+| `.dpi600` | 24 dpmm | Ultra high resolution |
 
 ## Requirements
 

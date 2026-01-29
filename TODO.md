@@ -7,7 +7,6 @@
 - [ ] **Documentation**
   - [ ] DocC documentation
   - [ ] CHANGELOG.md
-  - [ ] Examples/ directory (BasicLabel.swift, ShippingLabel.swift, InventoryTag.swift, PartsBinLabel.swift)
 - [ ] **Renderer validation**
   - [ ] GitHub Actions workflow for Labelary comparison
   - [ ] Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
@@ -17,7 +16,6 @@
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
-  - [ ] Add badges to README (Swift version, platforms, CI status)
 - [ ] Barcode decode verification (scan rendered barcodes to verify encoded data)
 - [ ] Icon support via LiveUI/Awesome (FontAwesome 6, native CGImage, 1,500+ icons)
 
@@ -25,6 +23,8 @@
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
 
 ## Done
+- [x] README badges (Swift version, platforms, CI status)
+- [x] Examples/ directory (BasicLabel, ShippingLabel, InventoryTag, PartsBinLabel, ProductLabel)
 - [x] Core ZPL elements (Text, TextBlock, Box, Barcode128, QRCode, DataMatrix, Code39)
 - [x] Shapes (Box, Circle, Ellipse, HorizontalLine, VerticalLine, DiagonalLine)
 - [x] Additional barcodes (PDF417, Interleaved2of5, EAN13, EAN8, UPCA, UPCE, Aztec, IntelligentMail)
