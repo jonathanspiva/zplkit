@@ -1,7 +1,12 @@
 # ZPLKit TODO
 
 ## Now
-- [ ] Nothing active
+- [ ] **ZPLKitPrinter module** - Network printing and discovery
+  - [ ] `ZPLPrinter` - Send ZPL to printer via TCP (port 9100)
+  - [ ] `ZPLPrinterBrowser` - Bonjour discovery (`_pdl-datastream._tcp`)
+  - [ ] `DiscoveredPrinter` - Name, host, port from mDNS
+  - [ ] Async/await API using Network.framework
+  - [ ] Error types: connectionFailed, sendFailed, timeout
 
 ## Later
 
