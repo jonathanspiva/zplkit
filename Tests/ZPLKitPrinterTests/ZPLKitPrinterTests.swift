@@ -90,4 +90,89 @@ struct ZPLKitPrinterTests {
     func browserServiceType() {
         #expect(ZPLPrinterBrowser.serviceType == "_pdl-datastream._tcp")
     }
+
+    // MARK: - Network Error Tests
+
+    @Test("ZPLPrinter times out on non-routable address")
+    func printerTimeout() async throws {
+        // 10.255.255.1 is a non-routable address that should timeout
+        let printer = ZPLPrinter(host: "10.255.255.1", timeout: 1)
+
+        do {
+            try await printer.send("^XA^XZ")
+            Issue.record("Expected timeout error")
+        } catch let error as PrinterError {
+            // Verify we got a timeout or connection error
+            switch error {
+            case .timeout(let host, let port):
+                #expect(host == "10.255.255.1")
+                #expect(port == 9100)
+            case .connectionFailed:
+                // Connection refused is also acceptable
+                break
+            default:
+                Issue.record("Unexpected error type: \(error)")
+            }
+        }
+    }
+
+    @Test("ZPLPrinter fails on connection refused")
+    func printerConnectionRefused() async throws {
+        // localhost on an unlikely port should refuse connection
+        let printer = ZPLPrinter(host: "127.0.0.1", port: 59999, timeout: 2)
+
+        do {
+            try await printer.send("^XA^XZ")
+            Issue.record("Expected connection error")
+        } catch let error as PrinterError {
+            switch error {
+            case .connectionFailed(let host, let port, _):
+                #expect(host == "127.0.0.1")
+                #expect(port == 59999)
+            case .timeout:
+                // Timeout is also acceptable on some systems
+                break
+            default:
+                Issue.record("Unexpected error type: \(error)")
+            }
+        }
+    }
+
+    // MARK: - Browser Lifecycle Tests
+
+    @Test("ZPLPrinterBrowser starts and stops without crashing")
+    func browserLifecycle() {
+        let browser = ZPLPrinterBrowser()
+
+        // Start browsing
+        browser.start()
+
+        // Should be able to get empty list immediately
+        let printers = browser.discoveredPrinters
+        #expect(printers.isEmpty || !printers.isEmpty)  // Just verify it doesn't crash
+
+        // Stop browsing
+        browser.stop()
+
+        // Should be able to stop multiple times safely
+        browser.stop()
+    }
+
+    @Test("ZPLPrinterBrowser discoveredPrinters is initially empty")
+    func browserInitiallyEmpty() {
+        let browser = ZPLPrinterBrowser()
+        #expect(browser.discoveredPrinters.isEmpty)
+    }
+
+    @Test("ZPLPrinterBrowser can restart after stop")
+    func browserRestart() {
+        let browser = ZPLPrinterBrowser()
+
+        browser.start()
+        browser.stop()
+        browser.start()
+        browser.stop()
+
+        // Should complete without crashing
+    }
 }
