@@ -24,6 +24,20 @@
 - Snapshot tests (pixel-perfect PNG comparison) - ZPLVerifier already validates barcodes scan correctly; snapshot tests are brittle across macOS versions, CI environments, and architectures; thermal printers are forgiving of minor rendering differences
 
 ## Done
+- [x] **Swift best practice conformances** - Protocol conformances across all public types
+  - Codable: All types serializable to JSON/plist (DPI, Dimension, Position, DetectedBarcode, etc.)
+  - Equatable/Hashable: All 22 element types and verification types
+  - @frozen: 8 stable enums (DPI, Rotation, ZPLFont, BarcodeSymbology, etc.)
+  - CustomStringConvertible: Better debug output for key types
+- [x] **Parser refactoring** - Split ZPLParser.swift (611 lines) into focused sub-modules
+  - BarcodeParser, ShapeParser, TextParser, GraphicParser
+  - Added stability warnings to Parsed* types
+- [x] **Richer error handling** - Specific VerifierError cases
+  - barcodeDetectionFailed, textRecognitionFailed with underlying message
+  - Deprecated generic visionError
+- [x] **Documentation split** - README reduced from 328 to 86 lines
+  - DocC articles: GettingStarted.md (full API reference), Fixtures.md (test fixture guide)
+  - Module-level documentation in Documentation.docc/
 - [x] **FontAwesome icon support** - Replaced SF Symbols with LiveUI/Awesome library
   - SF Symbols licensing prohibits redistribution and printed materials
   - FontAwesome 6 Free: 1,500+ icons as native CGImages
