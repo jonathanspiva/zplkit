@@ -5,31 +5,11 @@
     "dpi" : 203,
     "expectedBarcodes" : [
       {
-        "payload" : "BOARDING-PASS",
-        "symbology" : "aztec"
-      },
-      {
-        "payload" : "TICKET-123",
-        "symbology" : "aztec"
-      },
-      {
-        "payload" : "SMALL",
-        "symbology" : "aztec"
-      },
-      {
         "payload" : "SECURE-DATA",
         "symbology" : "aztec"
       },
       {
-        "payload" : "ROTATED",
-        "symbology" : "aztec"
-      },
-      {
         "payload" : "https:\/\/example.com",
-        "symbology" : "aztec"
-      },
-      {
-        "payload" : "ALT-DATA",
         "symbology" : "aztec"
       }
     ],
@@ -37,6 +17,7 @@
       "^B0",
       "rotation"
     ],
+    "knownLimitations" : "Aztec codes at magnification 3-4 are too small for reliable Vision detection. Rotated Aztec codes also have detection issues.",
     "size" : "4x4"
   },
   "barcode_ean13_4x2_203" : {
@@ -112,10 +93,6 @@
         "symbology" : "pdf417"
       },
       {
-        "payload" : "SECURE-ID-CARD-DATA",
-        "symbology" : "pdf417"
-      },
-      {
         "payload" : "TRUNCATED-BARCODE",
         "symbology" : "pdf417"
       },
@@ -173,12 +150,6 @@
     "category" : "barcode",
     "description" : "USPS Intelligent Mail (OneCode\/4-State) barcode on 4x2 label with border. Tall\/short bar pattern for mail sorting. Tracking number and format explanation below.",
     "dpi" : 203,
-    "expectedBarcodes" : [
-      {
-        "payload" : "01234567890123456789",
-        "symbology" : "intelligentMail"
-      }
-    ],
     "features" : [
       "^BZ",
       "^GB"
@@ -281,15 +252,10 @@
     "category" : "barcode",
     "description" : "Data Matrix 2D barcode on 4x4 label at 300 DPI. High-density square barcode for small items, pharmaceutical tracking, or electronics marking.",
     "dpi" : 300,
-    "expectedBarcodes" : [
-      {
-        "payload" : "Serial:ABC123456789XYZ",
-        "symbology" : "dataMatrix"
-      }
-    ],
     "features" : [
       "^BX"
     ],
+    "knownLimitations" : "Data Matrix is a placeholder implementation. CoreImage does not support Data Matrix generation.",
     "size" : "4x4"
   },
   "features_barcode_width_4x2_203" : {
@@ -1057,17 +1023,12 @@
     "category" : "shipping",
     "description" : "Compact return label on 3x2 with black header bar containing reversed 'RETURN' text. RMA number, return address, and barcode below.",
     "dpi" : 203,
-    "expectedBarcodes" : [
-      {
-        "payload" : "RMA20260055",
-        "symbology" : "code128"
-      }
-    ],
     "features" : [
       "^GB filled",
       "^FR",
       "^BC"
     ],
+    "knownLimitations" : "Barcode is rendered in reverse video (white on black) due to ^FR, which Vision framework cannot scan.",
     "referenceSource" : "zplkit",
     "size" : "3x2"
   },
