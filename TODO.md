@@ -1,12 +1,7 @@
 # ZPLKit TODO
 
 ## Now
-- [ ] **ZPLKitPrinter module** - Network printing and discovery
-  - [ ] `ZPLPrinter` - Send ZPL to printer via TCP (port 9100)
-  - [ ] `ZPLPrinterBrowser` - Bonjour discovery (`_pdl-datastream._tcp`)
-  - [ ] `DiscoveredPrinter` - Name, host, port from mDNS
-  - [ ] Async/await API using Network.framework
-  - [ ] Error types: connectionFailed, sendFailed, timeout
+- [ ] Nothing active
 
 ## Later
 
@@ -29,6 +24,11 @@
 - Snapshot tests (pixel-perfect PNG comparison) - ZPLVerifier already validates barcodes scan correctly; snapshot tests are brittle across macOS versions, CI environments, and architectures; thermal printers are forgiving of minor rendering differences
 
 ## Done
+- [x] **ZPLKitPrinter module** - Network printing and discovery
+  - ZPLPrinter: Send ZPL via TCP (async/await, configurable timeout)
+  - ZPLPrinterBrowser: Bonjour discovery (`_pdl-datastream._tcp`)
+  - DiscoveredPrinter: Name, host, port, metadata from mDNS
+  - Uses Network.framework (NWConnection, NWBrowser)
 - [x] **Swift best practice conformances** - Protocol conformances across all public types
   - Codable: All types serializable to JSON/plist (DPI, Dimension, Position, DetectedBarcode, etc.)
   - Equatable/Hashable: All 22 element types and verification types
