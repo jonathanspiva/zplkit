@@ -3,7 +3,7 @@ import { join } from 'path';
 
 const FIXTURES_DIR = './fixtures';
 
-// Commands supported by ZPLKit v1.0
+// Commands supported by ZPLKit v1.1
 const SUPPORTED_COMMANDS = {
     // Label Format
     '^XA': { category: 'Label Format', description: 'Start format', element: 'ZPLLabel' },
@@ -29,10 +29,15 @@ const SUPPORTED_COMMANDS = {
     '^BQ': { category: 'Barcodes', description: 'QR Code', element: 'QRCode' },
     '^B3': { category: 'Barcodes', description: 'Code 39', element: 'Code39' },
     '^BX': { category: 'Barcodes', description: 'DataMatrix', element: 'DataMatrix' },
+    '^B7': { category: 'Barcodes', description: 'PDF417', element: 'PDF417' },
+    '^B2': { category: 'Barcodes', description: 'Interleaved 2 of 5', element: 'Interleaved2of5' },
     '^BY': { category: 'Barcodes', description: 'Barcode defaults', element: 'Barcode128.moduleWidth()' },
 
     // Graphics
     '^GB': { category: 'Graphics', description: 'Graphic box', element: 'Box, Lines' },
+    '^GC': { category: 'Graphics', description: 'Graphic circle', element: 'Circle' },
+    '^GE': { category: 'Graphics', description: 'Graphic ellipse', element: 'Ellipse' },
+    '^GD': { category: 'Graphics', description: 'Graphic diagonal', element: 'DiagonalLine' },
 
     // Print Control
     '^PQ': { category: 'Print Control', description: 'Print quantity', element: 'ZPLLabel.printQuantity()' },
@@ -63,7 +68,13 @@ function extractCommands(zpl) {
     const regex = /\^([A-Z][A-Z0-9]?)/g;
     let match;
     while ((match = regex.exec(zpl)) !== null) {
-        commands.add('^' + match[1]);
+        let cmd = '^' + match[1];
+        // ^A followed by a digit (0-9, A-Z) is the scalable font command
+        // Normalize ^A0, ^AA, etc. to ^A for tracking
+        if (cmd.match(/^\^A[0-9A-Z]$/)) {
+            cmd = '^A';
+        }
+        commands.add(cmd);
     }
     return commands;
 }

@@ -70,8 +70,8 @@ let zpl = label.render()  // "^XA^FO50,50^A0N,30,30^FDM6 Titanium Bolt^FS..."
 
 **Label Elements:**
 - Text fields (`^FD`, `^A`, `^FO`)
-- Barcodes: Code128 (`^BC`), QR Code (`^BQ`), Code39 (`^B3`), DataMatrix (`^BX`)
-- Shapes: Box (`^GB`), Line (via thin box)
+- Barcodes: Code128 (`^BC`), QR Code (`^BQ`), Code39 (`^B3`), DataMatrix (`^BX`), PDF417 (`^B7`), Interleaved 2 of 5 (`^B2`)
+- Shapes: Box (`^GB`), Lines (horizontal/vertical via thin box), Circle (`^GC`), Ellipse (`^GE`), Diagonal Line (`^GD`)
 - Field positioning (`^FO`, `^FT`)
 - Field orientation/rotation
 
@@ -96,9 +96,9 @@ let zpl = label.render()  // "^XA^FO50,50^A0N,30,30^FDM6 Titanium Bolt^FS..."
 
 ### 3.3 Future Consideration (v2.0+)
 
-- Additional barcodes (PDF417, EAN, UPC)
+- Additional barcodes (EAN-13, EAN-8, UPC-A, UPC-E, Aztec)
 - Label templates with variable substitution
-- Circles, ellipses, diagonal lines
+- Advanced serialization (`^SF`, `^SN`)
 
 ### 3.4 Someday (No Commitment)
 
@@ -277,6 +277,28 @@ public struct DataMatrix: ZPLElement {
     public func columns(_ cols: Int) -> Self           // Fixed columns (optional)
     public func rows(_ rows: Int) -> Self              // Fixed rows (optional)
 }
+
+public struct PDF417: ZPLElement {
+    public init(_ data: String, at position: Position)  // Accepts any data
+
+    public func rotated(_ rotation: Rotation) -> Self
+    public func rowHeight(_ height: Dimension) -> Self  // Height of each row
+    public func securityLevel(_ level: Int) -> Self     // 0-8 (0 = auto)
+    public func columns(_ cols: Int) -> Self            // 1-30 (0 = auto)
+    public func rows(_ rowCount: Int) -> Self           // 3-90 (0 = auto)
+    public func truncated() -> Self                     // Truncated PDF417
+}
+
+public struct Interleaved2of5: ZPLElement {
+    public init?(_ data: String, at position: Position)  // Failable: digits only
+
+    public func rotated(_ rotation: Rotation) -> Self
+    public func height(_ height: Dimension) -> Self
+    public func showText(_ show: Bool) -> Self
+    public func textAbove() -> Self
+    public func checkDigit(_ include: Bool) -> Self     // MOD 10 check digit
+    public func moduleWidth(_ width: Int) -> Self       // 1-10
+}
 ```
 
 **Output:**
@@ -284,6 +306,8 @@ public struct DataMatrix: ZPLElement {
 ^FO50,200^BCN,100,Y,N,N^FD123456^FS
 ^FO50,350^BQN,2,5^FDQA,https://example.com^FS
 ^FO50,500^BXN,5,200^FDserial123^FS
+^FO50,600^B7N,8,0,0,0,N^FDPDF417-DATA^FS
+^FO50,700^B2N,80,Y,N,N^FD123456789012^FS
 ```
 
 ### 4.6 Shapes
@@ -306,11 +330,38 @@ public struct HorizontalLine: ZPLElement {
 public struct VerticalLine: ZPLElement {
     public init(at position: Position, length: Dimension, thickness: Dimension = 2)
 }
+
+public struct Circle: ZPLElement {
+    public init(at position: Position, diameter: Dimension)
+
+    public func thickness(_ thickness: Dimension) -> Self
+    public func filled() -> Self
+    public func white() -> Self
+}
+
+public struct Ellipse: ZPLElement {
+    public init(at position: Position, width: Dimension, height: Dimension)
+
+    public func thickness(_ thickness: Dimension) -> Self
+    public func filled() -> Self
+    public func white() -> Self
+}
+
+public struct DiagonalLine: ZPLElement {
+    public init(at position: Position, width: Dimension, height: Dimension)
+
+    public func thickness(_ thickness: Dimension) -> Self
+    public func direction(_ direction: DiagonalDirection) -> Self  // .rightLeaning or .leftLeaning
+    public func white() -> Self
+}
 ```
 
 **Output:**
 ```zpl
 ^FO100,100^GB200,150,3,B,2^FS
+^FO100,100^GC100,2,B^FS
+^FO100,100^GE200,100,3,B^FS
+^FO100,100^GD150,150,2,B,R^FS
 ```
 
 ### 4.7 Result Builder
@@ -407,6 +458,8 @@ Text("Price: $5.00 (~10% off)", at: .dots(0, 0))
 | `Code39` | `init?` | A-Z, 0-9, space, - . $ / + % |
 | `QRCode` | `init` | Any (non-failable) |
 | `DataMatrix` | `init` | Any (non-failable) |
+| `PDF417` | `init` | Any (non-failable) |
+| `Interleaved2of5` | `init?` | Digits 0-9 only |
 
 ### 5.5 Text Handling
 

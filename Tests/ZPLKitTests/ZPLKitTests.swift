@@ -199,4 +199,131 @@ final class ZPLKitTests: XCTestCase {
         XCTAssertFalse(compact.contains("\n"))
         XCTAssertTrue(pretty.contains("\n"))
     }
+
+    // MARK: - Circle Tests
+
+    func testCircleRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Circle(at: .inches(0.5, 0.5), diameter: .inches(1.0))
+                .thickness(3)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GC"))
+    }
+
+    func testFilledCircleRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Circle(at: .inches(0.5, 0.5), diameter: .dots(100))
+                .filled()
+        }
+
+        let zpl = label.render()
+        // Filled circle has thickness equal to diameter
+        XCTAssertTrue(zpl.contains("^GC100,100,B"))
+    }
+
+    // MARK: - Ellipse Tests
+
+    func testEllipseRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Ellipse(at: .inches(0.5, 0.5), width: .inches(1.0), height: .inches(0.5))
+                .thickness(2)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GE"))
+    }
+
+    func testFilledEllipseRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Ellipse(at: .dots(50, 50), width: .dots(200), height: .dots(100))
+                .filled()
+        }
+
+        let zpl = label.render()
+        // Filled ellipse has thickness = min(width, height)
+        XCTAssertTrue(zpl.contains("^GE200,100,100"))
+    }
+
+    // MARK: - Diagonal Line Tests
+
+    func testDiagonalLineRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DiagonalLine(at: .inches(0.25, 0.25), width: .inches(1.0), height: .inches(1.0))
+                .thickness(3)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^GD"))
+    }
+
+    func testDiagonalLineDirections() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DiagonalLine(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .direction(.leftLeaning)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains(",L^FS"))
+    }
+
+    // MARK: - PDF417 Tests
+
+    func testPDF417Renders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            PDF417("SHIPPING-MANIFEST-12345", at: .inches(0.25, 0.25))
+                .rowHeight(.dots(8))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B7"))
+        XCTAssertTrue(zpl.contains("^FDSHIPPING-MANIFEST-12345^FS"))
+    }
+
+    func testPDF417WithOptions() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            PDF417("ID-CARD-DATA", at: .inches(0.25, 0.25))
+                .securityLevel(3)
+                .columns(5)
+                .truncated()
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B7N,10,3,5,0,Y"))
+    }
+
+    // MARK: - Interleaved 2 of 5 Tests
+
+    func testInterleaved2of5Valid() {
+        let barcode = Interleaved2of5("1234567890", at: .inches(0.5, 0.5))
+        XCTAssertNotNil(barcode)
+    }
+
+    func testInterleaved2of5Invalid() {
+        // Should fail with non-numeric characters
+        let barcode = Interleaved2of5("123ABC", at: .inches(0.5, 0.5))
+        XCTAssertNil(barcode)
+    }
+
+    func testInterleaved2of5Renders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Interleaved2of5("123456", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^B2"))
+        XCTAssertTrue(zpl.contains("^FD123456^FS"))
+    }
+
+    func testInterleaved2of5WithCheckDigit() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Interleaved2of5("12345", at: .inches(0.25, 0.25))?
+                .checkDigit(true)
+        }
+
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains(",Y^FD"))  // Check digit flag = Y
+    }
 }
