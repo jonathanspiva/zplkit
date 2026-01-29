@@ -3,7 +3,7 @@
 **Version:** 0.2.0 (Draft)
 **Author:** Jonathan / Anticipate IT
 **Date:** January 2026
-**Swift Version:** 6.0+ (strict concurrency)
+**Swift Version:** 6.2+ (strict concurrency, Swift Testing)
 
 ---
 
@@ -208,7 +208,33 @@ public enum Rotation: String, Sendable {
 ^FO50,100^A0N,30,30^FDHello World^FS
 ```
 
-### 4.4 Barcodes
+### 4.4 Text Block (Word Wrap)
+
+```swift
+public struct TextBlock: ZPLElement {
+    public init(_ text: String, at position: Position, width: Dimension)
+
+    public func font(_ font: ZPLFont, height: Dimension, width: Dimension? = nil) -> Self
+    public func maxLines(_ lines: Int) -> Self           // 0 = unlimited (default)
+    public func lineSpacing(_ spacing: Dimension) -> Self
+    public func alignment(_ alignment: TextAlignment) -> Self
+    public func hangingIndent(_ indent: Dimension) -> Self
+}
+
+public enum TextAlignment: String, Sendable {
+    case left = "L"
+    case center = "C"
+    case right = "R"
+    case justified = "J"
+}
+```
+
+**Output:**
+```zpl
+^FO50,100^FB400,3,0,L,0^A0N,30,30^FDThis is a long text that will wrap to multiple lines^FS
+```
+
+### 4.5 Barcodes
 
 ```swift
 public struct Barcode128: ZPLElement {
@@ -260,7 +286,7 @@ public struct DataMatrix: ZPLElement {
 ^FO50,500^BXN,5,200^FDserial123^FS
 ```
 
-### 4.5 Shapes
+### 4.6 Shapes
 
 ```swift
 public struct Box: ZPLElement {
@@ -287,7 +313,7 @@ public struct VerticalLine: ZPLElement {
 ^FO100,100^GB200,150,3,B,2^FS
 ```
 
-### 4.6 Result Builder
+### 4.7 Result Builder
 
 ```swift
 @resultBuilder
@@ -323,7 +349,7 @@ ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
 }
 ```
 
-### 4.7 Label Configuration
+### 4.8 Label Configuration
 
 ```swift
 public struct ZPLLabel {
@@ -393,12 +419,25 @@ Text("Price: $5.00 (~10% off)", at: .position(0, 0))
 
 ## 6. Testing Strategy
 
-### 6.1 Unit Tests
+### 6.1 Unit Tests (Swift Testing)
 
+Using Swift Testing framework (`@Test`, `#expect`):
 - Every element type has render tests
 - Modifier chains produce expected output
 - Edge cases (empty strings, max values, special characters)
-- Position unit conversions (inches, mm → dots)
+- Position and Dimension unit conversions (inches, mm → dots)
+
+```swift
+import Testing
+@testable import ZPLKit
+
+@Test func textRendersCorrectly() {
+    let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+        Text("Hello", at: .inches(0.5, 0.5))
+    }
+    #expect(label.render().contains("^FDHello^FS"))
+}
+```
 
 ### 6.2 Visual Validation (Zebrash/zpl-renderer-js)
 
@@ -444,6 +483,10 @@ func testBasicLabel() {
 ```
 ZPLKit/
 ├── Package.swift
+├── CHANGELOG.md
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── Sources/
 │   └── ZPLKit/
 │       ├── ZPLLabel.swift           # Main entry point
@@ -452,6 +495,7 @@ ZPLKit/
 │       ├── ZPLRenderContext.swift   # DPI, unit conversion
 │       ├── Elements/
 │       │   ├── Text.swift
+│       │   ├── TextBlock.swift
 │       │   ├── Barcode128.swift
 │       │   ├── QRCode.swift
 │       │   ├── Code39.swift
@@ -499,15 +543,64 @@ ZPLKit/
 
 Separate `Examples/` directory with:
 - BasicLabel.swift
-- ShippingLabel.swift  
+- ShippingLabel.swift
 - InventoryTag.swift
 - PartsBinLabel.swift
 
+### 8.4 CHANGELOG.md
+
+Keep a Changelog format (https://keepachangelog.com):
+- `Added` for new features
+- `Changed` for changes in existing functionality
+- `Deprecated` for soon-to-be removed features
+- `Removed` for now removed features
+- `Fixed` for bug fixes
+- `Security` for vulnerability fixes
+
 ---
 
-## 9. Distribution
+## 9. CI/CD
 
-### 9.1 Swift Package Manager
+### 9.1 GitHub Actions
+
+**On pull request and push to main:**
+- Build on macOS (latest) and Linux (Ubuntu)
+- Run test suite via Swift Testing
+- Check for API breaking changes (`swift package diagnose-api-breaking-changes`)
+
+**On release tag:**
+- Validate package can be resolved
+- Generate DocC documentation
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.2"
+      - run: swift build
+      - run: swift test
+```
+
+---
+
+## 10. Distribution
+
+### 10.1 Swift Package Manager
 
 ```swift
 // Package.swift
@@ -516,7 +609,7 @@ dependencies: [
 ]
 ```
 
-### 9.2 Platform Support
+### 10.2 Platform Support
 
 - iOS 15+
 - macOS 12+
@@ -524,19 +617,19 @@ dependencies: [
 - watchOS 8+ (labels from your wrist!)
 - Linux (server-side label generation)
 
-### 9.3 Versioning
+### 10.3 Versioning
 
 - Semantic versioning
 - Public API stability from 1.0.0
 - Deprecation warnings for one major version before removal
 
-### 9.4 License
+### 10.4 License
 
 MIT
 
 ---
 
-## 10. Non-Goals (Explicit)
+## 11. Non-Goals (Explicit)
 
 Things this library will **never** do:
 
@@ -550,7 +643,7 @@ Things this library will **never** do:
 
 ---
 
-## 11. Success Criteria
+## 12. Success Criteria
 
 The library is successful if:
 
@@ -562,12 +655,12 @@ The library is successful if:
 
 ---
 
-## 12. Resolved Decisions
+## 13. Resolved Decisions
 
 | Question | Decision |
 |----------|----------|
 | Naming | `ZPLKit` |
-| Swift version | Swift 6+ with strict concurrency (`Sendable` all types) |
+| Swift version | Swift 6.2+ with strict concurrency, Swift Testing framework |
 | Barcode scope (v1) | Code128, QR, Code39, DataMatrix |
 | Image support | Someday (no commitment) |
 | `render()` behavior | Non-throwing, clamp with `os_log` in DEBUG |
@@ -579,13 +672,13 @@ The library is successful if:
 | License | MIT |
 | GitHub location | `jonathanspiva/ZPLKit` |
 
-## 13. Open Questions
+## 14. Open Questions
 
 *None at this time.*
 
 ---
 
-## 14. References
+## 15. References
 
 - [ZPL II Programming Guide](https://www.zebra.com/content/dam/support-dam/en/documentation/unrestricted/guide/software/zpl-zbi2-pg-en.pdf)
 - [swift-zpl](https://github.com/scchn/swift-zpl) — Existing Swift ZPL library (command-oriented API)
