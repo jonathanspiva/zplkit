@@ -30,10 +30,14 @@ jobs:
       - name: Run visual tests with Labelary comparison
         run: swift run -c release VisualTests --labelary
 
+      - name: Get timestamp
+        id: timestamp
+        run: echo "time=$(date +'%Y-%m-%d_%H%M')" >> $GITHUB_OUTPUT
+
       - name: Upload visual comparison
         uses: actions/upload-artifact@v4
         with:
-          name: visual-comparison
+          name: visual-comparison-${{ steps.timestamp.outputs.time }}
           path: |
             Tests/VisualTestHarness/comparison.html
             Tests/VisualTestHarness/output-swift/

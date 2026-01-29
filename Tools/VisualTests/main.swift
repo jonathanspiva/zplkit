@@ -11,6 +11,20 @@ import ZPLKitRenderer
 ///   swift run VisualTests --filter graphic     # Only files matching "graphic"
 ///   swift run VisualTests --filter graphic --labelary
 
+enum LabelaryError: Error, CustomStringConvertible {
+    case httpError(statusCode: Int)
+    case rateLimited
+    case noData
+
+    var description: String {
+        switch self {
+        case .httpError(let code): return "HTTP \(code)"
+        case .rateLimited: return "Rate limited (429)"
+        case .noData: return "No data returned"
+        }
+    }
+}
+
 @main
 struct VisualTests {
     static let fixturesDir = "Tests/VisualTestHarness/fixtures"
@@ -96,9 +110,12 @@ struct VisualTests {
         }
 
         // Optionally fetch from Labelary
+        var labelarySuccesses = 0
+        var labelaryFailures: [(file: String, error: String)] = []
+
         if includeLabelary {
             print("\n=== Fetching from Labelary API ===")
-            print("(Rate limited to 2 req/sec)\n")
+            print("(Rate: ~2.8 req/sec, 3 retries on 429)\n")
 
             for file in zplFiles {
                 let zplPath = "\(fixturesPath)/\(file)"
@@ -110,24 +127,29 @@ struct VisualTests {
                     let dpi = parseDPI(from: file)
                     let (width, height) = parseDimensions(from: file)
 
-                    if let data = try await fetchLabelary(zpl: zpl, dpi: dpi, width: width, height: height) {
-                        try data.write(to: URL(fileURLWithPath: pngPath))
-                        print("  ✓ \(file)")
-                    } else {
-                        print("  ✗ \(file): No data returned")
-                    }
-
-                    // Rate limit
-                    try await Task.sleep(nanoseconds: 500_000_000)
+                    let data = try await fetchLabelaryWithRetry(zpl: zpl, dpi: dpi, width: width, height: height)
+                    try data.write(to: URL(fileURLWithPath: pngPath))
+                    print("  ✓ \(file)")
+                    labelarySuccesses += 1
                 } catch {
-                    print("  ✗ \(file): \(error)")
+                    let errorMsg = (error as? LabelaryError)?.description ?? error.localizedDescription
+                    print("  ✗ \(file): \(errorMsg)")
+                    labelaryFailures.append((file, errorMsg))
                 }
+
+                // Rate limit: 350ms = ~2.8 req/sec (under Labelary's 3/sec limit)
+                try await Task.sleep(nanoseconds: 350_000_000)
             }
         }
 
         // Generate HTML
         print("\n=== Generating comparison.html ===")
-        let html = generateHTML(fixtures: zplFiles, results: results, includeLabelary: includeLabelary)
+        let html = generateHTML(
+            fixtures: zplFiles,
+            results: results,
+            includeLabelary: includeLabelary,
+            labelaryFailures: Set(labelaryFailures.map { $0.file })
+        )
         try html.write(toFile: htmlFullPath, atomically: true, encoding: .utf8)
         print("Created \(htmlPath)")
 
@@ -139,6 +161,13 @@ struct VisualTests {
         print("  Total parse time: \(String(format: "%.1f", totalParseMs))ms")
         print("  Total render time: \(String(format: "%.1f", totalRenderMs))ms")
         print("  Average per label: \(String(format: "%.2f", (totalParseMs + totalRenderMs) / Double(results.count)))ms")
+
+        if includeLabelary {
+            print("  Labelary: \(labelarySuccesses)/\(zplFiles.count) succeeded")
+            if !labelaryFailures.isEmpty {
+                print("  ⚠️  \(labelaryFailures.count) Labelary fetches failed (comparison will show Swift renders only)")
+            }
+        }
     }
 
     static func parseDPI(from filename: String) -> DPI {
@@ -163,7 +192,28 @@ struct VisualTests {
         return (4, 6) // Default
     }
 
-    static func fetchLabelary(zpl: String, dpi: DPI, width: Double, height: Double) async throws -> Data? {
+    static func fetchLabelaryWithRetry(zpl: String, dpi: DPI, width: Double, height: Double, maxRetries: Int = 3) async throws -> Data {
+        var lastError: Error = LabelaryError.noData
+
+        for attempt in 0..<maxRetries {
+            do {
+                return try await fetchLabelary(zpl: zpl, dpi: dpi, width: width, height: height)
+            } catch LabelaryError.rateLimited {
+                lastError = LabelaryError.rateLimited
+                if attempt < maxRetries - 1 {
+                    let backoffSeconds = Double(attempt + 1) // 1s, 2s
+                    print("    ↻ Rate limited, retrying in \(Int(backoffSeconds))s...")
+                    try await Task.sleep(nanoseconds: UInt64(backoffSeconds * 1_000_000_000))
+                }
+            } catch {
+                throw error
+            }
+        }
+
+        throw lastError
+    }
+
+    static func fetchLabelary(zpl: String, dpi: DPI, width: Double, height: Double) async throws -> Data {
         // Labelary uses dots per mm (dpmm) not DPI
         let dpmm: String
         switch dpi {
@@ -174,7 +224,7 @@ struct VisualTests {
         }
 
         let urlString = "http://api.labelary.com/v1/printers/\(dpmm)/labels/\(width)x\(height)/0/"
-        guard let url = URL(string: urlString) else { return nil }
+        guard let url = URL(string: urlString) else { throw LabelaryError.noData }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -184,15 +234,22 @@ struct VisualTests {
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            return nil
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LabelaryError.noData
         }
 
-        return data
+        switch httpResponse.statusCode {
+        case 200:
+            if data.isEmpty { throw LabelaryError.noData }
+            return data
+        case 429:
+            throw LabelaryError.rateLimited
+        default:
+            throw LabelaryError.httpError(statusCode: httpResponse.statusCode)
+        }
     }
 
-    static func generateHTML(fixtures: [String], results: [(name: String, dpi: DPI, parseMs: Double, renderMs: Double)], includeLabelary: Bool) -> String {
+    static func generateHTML(fixtures: [String], results: [(name: String, dpi: DPI, parseMs: Double, renderMs: Double)], includeLabelary: Bool, labelaryFailures: Set<String> = []) -> String {
         let resultsDict = Dictionary(uniqueKeysWithValues: results.map { ($0.name, $0) })
 
         var rows = ""
@@ -200,6 +257,7 @@ struct VisualTests {
             let pngName = file.replacingOccurrences(of: ".zpl", with: ".png")
             let result = resultsDict[file]
             let timeStr = result.map { String(format: "%.1fms", $0.parseMs + $0.renderMs) } ?? "—"
+            let labelaryFailed = labelaryFailures.contains(file)
 
             rows += """
             <div class="fixture">
@@ -215,12 +273,21 @@ struct VisualTests {
             """
 
             if includeLabelary {
-                rows += """
+                if labelaryFailed {
+                    rows += """
+                    <div class="render">
+                        <div class="render-label">Labelary</div>
+                        <div class="render-error">Failed to fetch from Labelary</div>
+                    </div>
+            """
+                } else {
+                    rows += """
                     <div class="render">
                         <div class="render-label">Labelary</div>
                         <img src="output-labelary/\(pngName)" alt="\(file)">
                     </div>
             """
+                }
             }
 
             rows += """
@@ -290,6 +357,14 @@ struct VisualTests {
                     max-width: 100%;
                     border: 1px solid #ddd;
                     background: white;
+                }
+                .render-error {
+                    padding: 20px;
+                    background: #fff3cd;
+                    border: 1px solid #ffc107;
+                    border-radius: 4px;
+                    color: #856404;
+                    font-size: 14px;
                 }
                 .filter-bar {
                     margin-bottom: 15px;
