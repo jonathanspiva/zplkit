@@ -3,70 +3,44 @@
 ## Now
 - [ ] Nothing active
 
-## Recently Completed
-- [x] **Comprehensive unit testing** (225 total tests, +134 new)
-  - VerticalLine and HorizontalLine edge cases (15 tests)
-  - Label config: defaultFont, labelHome, printDarkness (15 tests)
-  - Parser command tests for all 24 ZPL commands (35 tests)
-  - Hex decoding edge cases (8 tests)
-  - String escaping tests (12 tests)
-  - Round-trip tests: generate → parse → validate (20 tests)
-  - Barcode validation edge cases (25 tests)
-  - Shape edge cases: zero dimensions, clamping, white color (15 tests)
-
 ## Later
 - [ ] **Open source prep**
-  - [x] Add LICENSE file (MIT)
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
   - [ ] Add badges to README (Swift version, platforms, CI status)
-- [ ] GitHub Actions workflow for Labelary comparison (validates both ZPL output and renderer)
-- [ ] ZPLKitRenderer: Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
-- [x] ZPLKitRenderer: Swift-native test harness (replaces npm for local testing)
+- [ ] **Documentation**
+  - [ ] DocC documentation
+  - [ ] CHANGELOG.md
+  - [ ] Examples/ directory (BasicLabel.swift, ShippingLabel.swift, InventoryTag.swift, PartsBinLabel.swift)
+- [ ] **Renderer validation**
+  - [ ] GitHub Actions workflow for Labelary comparison
+  - [ ] Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
 - [ ] Stored formats (`^DF`, `^XF`)
-- [ ] DocC documentation
-- [ ] CHANGELOG.md
-- [ ] Examples/ directory (BasicLabel.swift, ShippingLabel.swift, InventoryTag.swift, PartsBinLabel.swift)
 
 ## Someday
-- [ ] Barcode decode verification - scan rendered barcodes to verify encoded data
-
-## Graphics Enhancements
-- [ ] **Icon support via LiveUI/Awesome** (FontAwesome 6)
-  - Native UIImage/CGImage support, no SVG parsing needed
-  - SPM: `https://github.com/LiveUI/Awesome` (v2.0.0+)
-  - MIT + OFL licensed, 1,500+ free icons
-  - Usage: `Awesome.Solid.check.asImage(size: 40)` → CGImage → Graphic
-  - SF Symbols cannot be redistributed (Apple licensing), this is the alternative
+- [ ] Barcode decode verification (scan rendered barcodes to verify encoded data)
+- [ ] Icon support via LiveUI/Awesome (FontAwesome 6, native CGImage, 1,500+ icons)
 
 ## Never
 
 ## Done
-
-### v1.0 Scope
 - [x] Core ZPL elements (Text, TextBlock, Box, Barcode128, QRCode, DataMatrix, Code39)
-- [x] Shapes (Box, HorizontalLine, VerticalLine)
-- [x] README with quick start example
-- [x] GitHub Actions CI workflow (build/test on macOS + Linux)
-- [x] Visual test harness with zpl-renderer-js
-
-### v2.0 Scope
-- [x] Additional shapes (Circle, Ellipse, DiagonalLine)
-- [x] Additional barcodes (PDF417, Interleaved2of5, EAN13, UPCA, Aztec)
+- [x] Shapes (Box, Circle, Ellipse, HorizontalLine, VerticalLine, DiagonalLine)
+- [x] Additional barcodes (PDF417, Interleaved2of5, EAN13, EAN8, UPCA, UPCE, Aztec, IntelligentMail)
 - [x] Serial number support (`^SN`)
 - [x] Baseline text positioning (`^FT`)
-- [x] Labelary comparison tool for renderer validation
-- [x] Additional barcodes (EAN8, UPCE, IntelligentMail)
-- [x] **ZPLKitRenderer** - Native Swift ZPL renderer for label previews
-  - [x] ZPL parser (parse ZPL strings into element tree)
-  - [x] CoreGraphics rendering engine (Apple platforms only)
-  - [x] Font handling: configurable mapping, bundled Roboto Condensed Bold for Font 0
-  - [x] Barcode rendering (CoreImage: QR, Code128, Aztec, PDF417, DataMatrix; 1D math: Code39, EAN-13, EAN-8, UPC-A, UPC-E, I2of5)
-  - [x] Performance instrumentation: benchmark parse/render times
 - [x] Label templates with variable substitution (`{{variable}}` syntax)
 - [x] TextBlock enhancements (rotation, reverse print, newline support)
 - [x] Print speed control (`^PR`)
-- [x] Reverse print (`^LRY`) - label-wide white on black
-- [x] Comment support (`^FX`) - non-printing documentation
-- [x] Bundled Roboto Condensed Bold font for accurate Font 0 rendering
+- [x] Reverse print (`^LRY`)
+- [x] Comment support (`^FX`)
+- [x] Graphics support (`^GF`)
+- [x] ZPLKitRenderer (parser, CoreGraphics engine, barcode rendering, font handling)
+- [x] Bundled Roboto Condensed Bold font for Font 0
+- [x] README with quick start example
+- [x] LICENSE file (MIT)
+- [x] GitHub Actions CI workflow (macOS + Linux)
+- [x] Visual test harness (Swift-native, replaces npm)
+- [x] Labelary comparison tool
+- [x] Comprehensive unit testing (268 tests)
