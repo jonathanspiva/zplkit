@@ -29,8 +29,9 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 - **Parse ZPL strings** into structured element trees
 - **Render to PNG** for instant label previews in your app
 - **CoreGraphics engine** for high-quality output
-- **CoreImage barcode generation** for QR, Code128, Aztec, PDF417, DataMatrix
+- **CoreImage barcode generation** for QR, Code128, Aztec, PDF417
 - **Mathematical 1D barcode rendering** for Code39, EAN-13, EAN-8, UPC-A, UPC-E, Interleaved 2 of 5
+- **Placeholder rendering** for Data Matrix, Intelligent Mail (CoreImage doesn't support these)
 - **Bundled Roboto Condensed Bold font** for accurate Font 0 rendering
 
 ### ZPL Test Fixtures
@@ -311,6 +312,8 @@ ZPLKit supports the most commonly used ZPL II commands for label design:
 | **Fields** | `^FO` `^SN` `^FX` |
 
 The renderer (ZPLKitRenderer) parses and renders all commands that ZPLKit generates.
+
+**Renderer notes:** Data Matrix (`^BX`) and Intelligent Mail (`^BZ`) render as placeholders. CoreImage doesn't provide generators for these; mathematical implementation is planned.
 
 **Not covered:** RFID commands, printer configuration/calibration, stored formats, network settings, and some uncommon barcodes (Codabar, Postnet, Planet Code). These are either printer-management functions or legacy formats rarely needed in modern label design.
 
