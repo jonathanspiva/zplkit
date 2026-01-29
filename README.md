@@ -5,9 +5,11 @@
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 [![CI](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml)
 
-A Swift library for generating ZPL (Zebra Programming Language) code with a declarative, type-safe API.
+A Swift library for generating and rendering ZPL (Zebra Programming Language) labels. Build labels with a declarative, type-safe API and preview them instantly without a physical printer.
 
 ## Features
+
+### ZPL Generation
 
 - **Declarative API** using Swift result builders
 - **Text** with fonts, rotation, reverse print, and baseline positioning
@@ -18,15 +20,17 @@ A Swift library for generating ZPL (Zebra Programming Language) code with a decl
 - **Templates**: Variable substitution with `{{variable}}` syntax
 - **Serial numbers**: Auto-incrementing fields with `^SN`
 - **Automatic unit conversion** (inches, mm, dots)
-- **Zero external dependencies** for ZPLKit core
 - **Full Swift 6 concurrency support** (`Sendable` types)
 
-### ZPLKitRenderer
+### ZPL Rendering
 
-- Parse ZPL strings into element trees
-- Render labels to PNG images for previews
-- CoreGraphics-based rendering engine
-- Bundled Roboto Condensed Bold font for accurate Font 0 rendering
+- **Native Swift renderer** with no external dependencies (no Node.js, no npm)
+- **Parse ZPL strings** into structured element trees
+- **Render to PNG** for instant label previews in your app
+- **CoreGraphics engine** for high-quality output
+- **CoreImage barcode generation** for QR, Code128, Aztec, PDF417, DataMatrix
+- **Mathematical 1D barcode rendering** for Code39, EAN-13, EAN-8, UPC-A, UPC-E, Interleaved 2 of 5
+- **Bundled Roboto Condensed Bold font** for accurate Font 0 rendering
 
 ## Installation
 
@@ -225,18 +229,26 @@ let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
 
 ## Rendering Previews
 
-Use ZPLKitRenderer to generate preview images:
+ZPLKitRenderer lets you preview labels without a physical printer. Generate PNG images for display in your app, or use the parser to inspect ZPL structure.
 
 ```swift
 import ZPLKitRenderer
 
+// Render ZPL to PNG
 let renderer = ZPLRenderer()
-let zpl = "^XA^FO50,50^A0N,50,50^FDHello^FS^XZ"
+let zpl = label.render()  // From ZPLKit
 
-if let image = try? renderer.renderToPNG(zpl, width: 812, height: 1218) {
-    // Use image for preview
+if let pngData = try? renderer.renderToPNG(zpl, width: 812, height: 1218) {
+    // Display in UIImageView, save to file, etc.
 }
+
+// Or parse ZPL to inspect elements
+let parsed = try ZPLParser.parse(zpl)
+print("Label size: \(parsed.width) x \(parsed.height) dots")
+print("Elements: \(parsed.elements.count)")
 ```
+
+The renderer handles all ZPL commands that ZPLKit generates, including text, barcodes, shapes, and graphics.
 
 ## Supported DPI
 
