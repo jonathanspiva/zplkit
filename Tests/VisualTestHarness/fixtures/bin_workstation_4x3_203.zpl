@@ -14,6 +14,8 @@
 ^FO50,280^GB712,4,4^FS
 ^FO50,310^A0N,25,25^FDOperator: ________________^FS
 ^FO400,310^A0N,25,25^FDShift: Day^FS
-^FO200,360^BQN,2,7^FDMA,WS-05^FS
-^FO50,550^A0N,20,20^FDSafety Check: Daily | Last: 01/28^FS
+^FO550,360^BQN,2,5^FDMA,WS-05^FS
+^FO50,360^A0N,20,20^FDSafety: Daily^FS
+^FO50,390^A0N,20,20^FDLast: 01/28^FS
+^FO50,550^A0N,20,20^FDScan QR for work instructions^FS
 ^XZ
