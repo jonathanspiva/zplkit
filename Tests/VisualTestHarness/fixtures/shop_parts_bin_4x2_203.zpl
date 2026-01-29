@@ -1,0 +1,15 @@
+^XA
+^PW812
+^LL406
+^FO30,25^A0N,45,45^FDDucati 1299 Panigale^FS
+^FO30,80^GB750,3,3^FS
+^FO30,100^A0N,32,32^FDSubframe & Rear Assembly^FS
+^FO30,145^A0N,24,24^FDRear frame, seat lock, tail section^FS
+^FO30,180^A0N,24,24^FDpassenger pegs, license bracket^FS
+^FO550,240^BQN,2,5^FDMA,1299-SUBFRAME^FS
+^FO30,250^A0N,20,20^FDProject: Full Service^FS
+^FO30,280^A0N,20,20^FDStarted: 2024-01-28^FS
+^FO30,310^A0N,20,20^FDBay 3^FS
+^FO30,360^GB750,3,3^FS
+^FO30,375^A0N,18,18^FD14 bags in this bin^FS
+^XZ

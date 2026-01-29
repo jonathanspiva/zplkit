@@ -12,7 +12,7 @@
   - [ ] Add badges to README (Swift version, platforms, CI status)
 - [ ] GitHub Actions workflow for Labelary comparison (validates both ZPL output and renderer)
 - [ ] ZPLKitRenderer: Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
-- [ ] ZPLKitRenderer: Swift-native test harness (replaces npm for local testing)
+- [x] ZPLKitRenderer: Swift-native test harness (replaces npm for local testing)
 - [ ] Stored formats (`^DF`, `^XF`)
 - [ ] DocC documentation
 - [ ] CHANGELOG.md
@@ -42,7 +42,7 @@
 - [x] **ZPLKitRenderer** - Native Swift ZPL renderer for label previews
   - [x] ZPL parser (parse ZPL strings into element tree)
   - [x] CoreGraphics rendering engine (Apple platforms only)
-  - [x] Font handling: configurable mapping, defaults to system fonts (Helvetica for Font 0)
+  - [x] Font handling: configurable mapping, bundled Roboto Condensed Bold for Font 0
   - [x] Barcode rendering (CoreImage: QR, Code128, Aztec, PDF417, DataMatrix; 1D math: Code39, EAN-13, EAN-8, UPC-A, UPC-E, I2of5)
   - [x] Performance instrumentation: benchmark parse/render times
 - [x] Label templates with variable substitution (`{{variable}}` syntax)
@@ -50,3 +50,4 @@
 - [x] Print speed control (`^PR`)
 - [x] Reverse print (`^LRY`) - label-wide white on black
 - [x] Comment support (`^FX`) - non-printing documentation
+- [x] Bundled Roboto Condensed Bold font for accurate Font 0 rendering

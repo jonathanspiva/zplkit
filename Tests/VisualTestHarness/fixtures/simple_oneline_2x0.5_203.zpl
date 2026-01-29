@@ -1,0 +1,5 @@
+^XA
+^PW406
+^LL101
+^FO20,20^A0N,60,60^FDRear Frame Bolts^FS
+^XZ

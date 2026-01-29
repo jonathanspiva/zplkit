@@ -1,0 +1,5 @@
+^XA
+^PW203
+^LL101
+^FO10,25^A0N,45,45^FDFrame Bolts^FS
+^XZ
