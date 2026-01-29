@@ -6,13 +6,13 @@
 ## Later
 - [ ] **Documentation**
   - [ ] DocC documentation
-  - [ ] CHANGELOG.md
 - [ ] **Renderer validation**
   - [ ] GitHub Actions workflow for Labelary comparison
   - [ ] Multi-renderer validation (compare ZPLKitRenderer output against Labelary as reference)
 
 ## Someday
 - [ ] **Open source release**
+  - [ ] CHANGELOG.md
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
