@@ -49,4 +49,5 @@
 - [x] GitHub Actions CI workflow (macOS, with artifact uploads)
 - [x] Visual test harness (Swift-native, replaces npm)
 - [x] Labelary comparison in CI (retry logic, graceful failure handling)
+- [x] Renderer accuracy scoring (90.5% baseline, reference images committed)
 - [x] Comprehensive unit testing (268 tests)
