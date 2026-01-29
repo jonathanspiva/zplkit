@@ -202,7 +202,7 @@ public final class ZPLVerifier: Sendable {
         do {
             return try scanner.scan(image)
         } catch {
-            throw VerifierError.visionError(error.localizedDescription)
+            throw VerifierError.barcodeDetectionFailed(underlying: error.localizedDescription)
         }
     }
 
@@ -219,7 +219,7 @@ public final class ZPLVerifier: Sendable {
         do {
             return try scanner.scan(image)
         } catch {
-            throw VerifierError.visionError(error.localizedDescription)
+            throw VerifierError.textRecognitionFailed(underlying: error.localizedDescription)
         }
     }
 }

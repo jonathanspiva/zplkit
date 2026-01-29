@@ -21,6 +21,7 @@
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
 - Two-way printer commands (`~HS`, `^HH`) - Require response parsing and network client, out of scope for a generation/rendering library
 - SF Symbols icon support - Apple licensing prohibits redistribution and use in printed materials; FontAwesome is the supported alternative
+- Snapshot tests (pixel-perfect PNG comparison) - ZPLVerifier already validates barcodes scan correctly; snapshot tests are brittle across macOS versions, CI environments, and architectures; thermal printers are forgiving of minor rendering differences
 
 ## Done
 - [x] **FontAwesome icon support** - Replaced SF Symbols with LiveUI/Awesome library

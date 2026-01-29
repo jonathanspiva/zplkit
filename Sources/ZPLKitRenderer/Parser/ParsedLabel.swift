@@ -1,7 +1,18 @@
 import Foundation
 import ZPLKit
 
-/// Represents a parsed ZPL label ready for rendering
+// MARK: - Parsed Types
+//
+// These types represent the internal structure of parsed ZPL commands.
+// They are public to allow advanced use cases (custom renderers, analysis tools)
+// but their structure may change between releases. Avoid tight coupling to
+// specific properties in production code.
+
+/// Represents a parsed ZPL label ready for rendering.
+///
+/// - Important: This type is intended for internal rendering use. Its structure
+///   may change between releases without notice. Avoid depending on specific
+///   properties in production code.
 public struct ParsedLabel: Sendable {
     public let width: Int      // dots
     public let height: Int     // dots
@@ -10,7 +21,10 @@ public struct ParsedLabel: Sendable {
     public let printDarkness: Int?
 }
 
-/// Base protocol for all parsed elements
+/// Enumeration of all parsed element types.
+///
+/// - Important: This type is intended for internal rendering use. Its structure
+///   may change between releases without notice.
 public enum ParsedElement: Sendable {
     case text(ParsedText)
     case textBlock(ParsedTextBlock)

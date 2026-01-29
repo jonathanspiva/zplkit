@@ -1,34 +1,21 @@
 import Foundation
 
-/// Parses ZPL strings into a structured format for rendering
+/// Parses ZPL strings into a structured format for rendering.
+///
+/// The parser extracts label dimensions, elements (text, barcodes, shapes, graphics),
+/// and print settings from ZPL command strings.
+///
+/// - Note: The `Parsed*` types returned by this parser are intended for internal
+///   rendering use. Their structure may change between releases.
 public enum ZPLParser {
 
-    /// Parses a ZPL string into a ParsedLabel
+    /// Parses a ZPL string into a ParsedLabel.
+    ///
+    /// - Parameter zpl: A ZPL command string (typically starting with `^XA` and ending with `^XZ`)
+    /// - Returns: A structured representation of the label
+    /// - Throws: An error if the ZPL cannot be parsed
     public static func parse(_ zpl: String) throws -> ParsedLabel {
-        var width = 812        // Default 4 inches at 203 DPI
-        var height = 1218      // Default 6 inches at 203 DPI
-        var elements: [ParsedElement] = []
-        var printQuantity = 1
-        var printDarkness: Int? = nil
-
-        // Current state during parsing
-        var currentX = 0
-        var currentY = 0
-        let currentFont = "0"
-        var currentFontHeight = 30
-        var currentFontWidth = 30
-        var currentRotation = "N"
-        var useFieldTypeset = false
-        var isReversed = false
-        var moduleWidth = 2
-        var textBlockWidth = 0
-        var textBlockMaxLines = 1
-        var textBlockAlignment = "L"
-        var textBlockLineSpacing = 0
-        var textBlockHangingIndent = 0
-
-        // Pending barcode (barcode commands come before ^FD with the data)
-        var pendingBarcode: ParsedBarcode? = nil
+        var state = ParserState()
 
         // Split into commands - ZPL commands start with ^ or ~
         let pattern = #"(\^[A-Z][A-Z0-9]?[^^\~]*|\~[A-Z][A-Z0-9]?[^^\~]*)"#
@@ -42,558 +29,253 @@ public enum ZPLParser {
 
             guard command.count >= 2 else { continue }
 
-            // Extract command type and parameters
-            // ZPL commands are ^XY where X is a letter, Y is optional letter/number
-            // Examples: ^PW812 -> cmd=^PW, params=812
-            //           ^A0N,30,30 -> cmd=^A0, params=N,30,30
-            //           ^FDHello -> cmd=^FD, params=Hello
-
-            let cmdType: String
-            let params: String
-
-            // Use regex to extract command prefix
-            let cmdPattern = #"^(\^[A-Z][A-Z0-9]?)"#
-            if let cmdRegex = try? NSRegularExpression(pattern: cmdPattern),
-               let cmdMatch = cmdRegex.firstMatch(in: command, range: NSRange(command.startIndex..., in: command)),
-               let cmdMatchRange = Range(cmdMatch.range(at: 1), in: command) {
-                cmdType = String(command[cmdMatchRange])
-                params = String(command[cmdMatchRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-            } else {
-                cmdType = String(command.prefix(2))
-                params = String(command.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-
-            switch cmdType {
-            // Label format
-            case "^PW":
-                width = Int(params) ?? width
-
-            case "^LL":
-                height = Int(params) ?? height
-
-            case "^PQ":
-                let parts = params.split(separator: ",")
-                printQuantity = Int(parts.first ?? "1") ?? 1
-
-            case "^MD":
-                printDarkness = Int(params)
-
-            // Field positioning
-            case "^FO":
-                let coords = params.split(separator: ",")
-                if coords.count >= 2 {
-                    currentX = Int(coords[0]) ?? 0
-                    currentY = Int(coords[1]) ?? 0
-                }
-                useFieldTypeset = false
-
-            case "^FT":
-                let coords = params.split(separator: ",")
-                if coords.count >= 2 {
-                    currentX = Int(coords[0]) ?? 0
-                    currentY = Int(coords[1]) ?? 0
-                }
-                useFieldTypeset = true
-
-            // Font
-            case "^A0", "^A":
-                let fontParams = cmdType == "^A0" ? params : String(command.dropFirst(2))
-                parseFontCommand(fontParams, rotation: &currentRotation, height: &currentFontHeight, width: &currentFontWidth)
-
-            case "^CF":
-                let parts = params.split(separator: ",")
-                if parts.count >= 2 {
-                    currentFontHeight = Int(parts[1]) ?? 30
-                    currentFontWidth = parts.count > 2 ? (Int(parts[2]) ?? currentFontHeight) : currentFontHeight
-                }
-
-            // Field block (text block)
-            case "^FB":
-                let parts = params.split(separator: ",")
-                textBlockWidth = Int(parts[safe: 0] ?? "0") ?? 0
-                textBlockMaxLines = Int(parts[safe: 1] ?? "1") ?? 1
-                textBlockLineSpacing = Int(parts[safe: 2] ?? "0") ?? 0
-                textBlockAlignment = String(parts[safe: 3] ?? "L")
-                textBlockHangingIndent = Int(parts[safe: 4] ?? "0") ?? 0
-
-            case "^FR":
-                isReversed = true
-
-            case "^BY":
-                let parts = params.split(separator: ",")
-                moduleWidth = Int(parts.first ?? "2") ?? 2
-
-            // Field data (text content or barcode data)
-            case "^FD":
-                let text = decodeFieldData(params)
-
-                // Check if this data is for a pending barcode
-                if var barcode = pendingBarcode {
-                    barcode = ParsedBarcode(
-                        type: barcode.type,
-                        data: text,
-                        x: barcode.x,
-                        y: barcode.y,
-                        height: barcode.height,
-                        moduleWidth: barcode.moduleWidth,
-                        rotation: barcode.rotation,
-                        showText: barcode.showText,
-                        textAbove: barcode.textAbove,
-                        magnification: barcode.magnification
-                    )
-                    elements.append(.barcode(barcode))
-                    pendingBarcode = nil
-                } else if textBlockWidth > 0 {
-                    elements.append(.textBlock(ParsedTextBlock(
-                        text: text,
-                        x: currentX,
-                        y: currentY,
-                        blockWidth: textBlockWidth,
-                        font: currentFont,
-                        fontHeight: currentFontHeight,
-                        fontWidth: currentFontWidth,
-                        maxLines: textBlockMaxLines,
-                        lineSpacing: textBlockLineSpacing,
-                        alignment: textBlockAlignment,
-                        hangingIndent: textBlockHangingIndent,
-                        useBaseline: useFieldTypeset
-                    )))
-                    textBlockWidth = 0  // Reset for next field
-                } else {
-                    elements.append(.text(ParsedText(
-                        text: text,
-                        x: currentX,
-                        y: currentY,
-                        font: currentFont,
-                        fontHeight: currentFontHeight,
-                        fontWidth: currentFontWidth,
-                        rotation: currentRotation,
-                        isReversed: isReversed,
-                        useBaseline: useFieldTypeset
-                    )))
-                }
-                isReversed = false
-
-            // Graphics
-            case "^GB":
-                if let box = parseBox(params, x: currentX, y: currentY) {
-                    elements.append(.box(box))
-                }
-
-            case "^GC":
-                if let circle = parseCircle(params, x: currentX, y: currentY) {
-                    elements.append(.circle(circle))
-                }
-
-            case "^GE":
-                if let ellipse = parseEllipse(params, x: currentX, y: currentY) {
-                    elements.append(.ellipse(ellipse))
-                }
-
-            case "^GD":
-                if let diagonal = parseDiagonalLine(params, x: currentX, y: currentY) {
-                    elements.append(.diagonalLine(diagonal))
-                }
-
-            // Barcodes - set as pending, data comes in ^FD
-            case "^BC":
-                pendingBarcode = parseBarcode(.code128, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
-
-            case "^B3":
-                pendingBarcode = parseBarcode(.code39, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
-
-            case "^BQ":
-                pendingBarcode = parseQRCode(params, x: currentX, y: currentY, rotation: currentRotation)
-
-            case "^BX":
-                pendingBarcode = parseDataMatrix(params, x: currentX, y: currentY, rotation: currentRotation)
-
-            case "^B7":
-                pendingBarcode = parsePDF417(params, x: currentX, y: currentY, rotation: currentRotation)
-
-            case "^B2":
-                pendingBarcode = parseBarcode(.interleaved2of5, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
-
-            case "^BE":
-                pendingBarcode = parseBarcode(.ean13, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
-
-            case "^B8":
-                pendingBarcode = parseBarcode(.ean8, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
-
-            case "^BU":
-                pendingBarcode = parseBarcode(.upcA, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
-
-            case "^B9":
-                pendingBarcode = parseBarcode(.upcE, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
-
-            case "^B0":
-                pendingBarcode = parseAztec(params, x: currentX, y: currentY, rotation: currentRotation)
-
-            case "^BZ":
-                pendingBarcode = parseBarcode(.intelligentMail, params: params, x: currentX, y: currentY, moduleWidth: moduleWidth, rotation: currentRotation)
-
-            case "^GF":
-                if let graphic = parseGraphic(params, x: currentX, y: currentY) {
-                    elements.append(.graphic(graphic))
-                }
-
-            default:
-                break  // Ignore unknown commands
-            }
+            let (cmdType, params) = extractCommand(command)
+            processCommand(cmdType, params: params, state: &state)
         }
 
         return ParsedLabel(
-            width: width,
-            height: height,
-            elements: elements,
-            printQuantity: printQuantity,
-            printDarkness: printDarkness
+            width: state.width,
+            height: state.height,
+            elements: state.elements,
+            printQuantity: state.printQuantity,
+            printDarkness: state.printDarkness
         )
     }
 
-    // MARK: - Parse Helpers
+    // MARK: - Command Extraction
 
-    private static func parseFontCommand(_ params: String, rotation: inout String, height: inout Int, width: inout Int) {
-        // Format: ^A0N,height,width or ^A0R,height,width etc.
-        var remaining = params
-
-        // First char might be rotation
-        if let first = remaining.first, "NRIB".contains(first) {
-            rotation = String(first)
-            remaining = String(remaining.dropFirst())
-        }
-
-        // Remove leading comma if present
-        if remaining.hasPrefix(",") {
-            remaining = String(remaining.dropFirst())
-        }
-
-        let parts = remaining.split(separator: ",")
-        if parts.count >= 1, let h = Int(parts[0]) {
-            height = h
-        }
-        if parts.count >= 2, let w = Int(parts[1]) {
-            width = w
+    private static func extractCommand(_ command: String) -> (type: String, params: String) {
+        let cmdPattern = #"^(\^[A-Z][A-Z0-9]?)"#
+        if let cmdRegex = try? NSRegularExpression(pattern: cmdPattern),
+           let cmdMatch = cmdRegex.firstMatch(in: command, range: NSRange(command.startIndex..., in: command)),
+           let cmdMatchRange = Range(cmdMatch.range(at: 1), in: command) {
+            let cmdType = String(command[cmdMatchRange])
+            let params = String(command[cmdMatchRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            return (cmdType, params)
         } else {
-            width = height
+            let cmdType = String(command.prefix(2))
+            let params = String(command.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return (cmdType, params)
         }
     }
 
-    private static func decodeFieldData(_ data: String) -> String {
-        // Handle hex encoding (_XX)
-        var result = data
-        // Remove trailing ^FS if present
-        if result.hasSuffix("^FS") {
-            result = String(result.dropLast(3))
-        }
+    // MARK: - Command Processing
 
-        // Decode hex escapes
-        let hexPattern = #"_([0-9A-Fa-f]{2})"#
-        if let regex = try? NSRegularExpression(pattern: hexPattern) {
-            var decoded = result
-            let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
-            for match in matches.reversed() {
-                if let hexRange = Range(match.range(at: 1), in: result),
-                   let byte = UInt8(result[hexRange], radix: 16) {
-                    let char = Character(UnicodeScalar(byte))
-                    if let fullRange = Range(match.range, in: decoded) {
-                        decoded.replaceSubrange(fullRange, with: String(char))
-                    }
-                }
+    private static func processCommand(_ cmdType: String, params: String, state: inout ParserState) {
+        switch cmdType {
+        // Label format
+        case "^PW":
+            state.width = Int(params) ?? state.width
+
+        case "^LL":
+            state.height = Int(params) ?? state.height
+
+        case "^PQ":
+            let parts = params.split(separator: ",")
+            state.printQuantity = Int(parts.first ?? "1") ?? 1
+
+        case "^MD":
+            state.printDarkness = Int(params)
+
+        // Field positioning
+        case "^FO":
+            let coords = params.split(separator: ",")
+            if coords.count >= 2 {
+                state.currentX = Int(coords[0]) ?? 0
+                state.currentY = Int(coords[1]) ?? 0
             }
-            result = decoded
-        }
+            state.useFieldTypeset = false
 
-        return result
-    }
+        case "^FT":
+            let coords = params.split(separator: ",")
+            if coords.count >= 2 {
+                state.currentX = Int(coords[0]) ?? 0
+                state.currentY = Int(coords[1]) ?? 0
+            }
+            state.useFieldTypeset = true
 
-    private static func parseBox(_ params: String, x: Int, y: Int) -> ParsedBox? {
-        let parts = params.split(separator: ",")
-        guard parts.count >= 2 else { return nil }
+        // Font
+        case "^A0", "^A":
+            let fontParams = cmdType == "^A0" ? params : String(params)
+            TextParser.parseFontCommand(fontParams, rotation: &state.currentRotation, height: &state.currentFontHeight, width: &state.currentFontWidth)
 
-        let width = Int(parts[0]) ?? 0
-        let height = Int(parts[1]) ?? 0
-        let thickness = parts.count > 2 ? (Int(parts[2]) ?? 1) : 1
-        let color = parts.count > 3 ? String(parts[3]) : "B"
-        let cornerRadius = parts.count > 4 ? (Int(parts[4]) ?? 0) : 0
-
-        return ParsedBox(x: x, y: y, width: width, height: height, thickness: thickness, color: color, cornerRadius: cornerRadius)
-    }
-
-    private static func parseCircle(_ params: String, x: Int, y: Int) -> ParsedCircle? {
-        let parts = params.split(separator: ",")
-        guard !parts.isEmpty else { return nil }
-
-        let diameter = Int(parts[0]) ?? 0
-        let thickness = parts.count > 1 ? (Int(parts[1]) ?? 1) : 1
-        let color = parts.count > 2 ? String(parts[2]) : "B"
-
-        return ParsedCircle(x: x, y: y, diameter: diameter, thickness: thickness, color: color)
-    }
-
-    private static func parseEllipse(_ params: String, x: Int, y: Int) -> ParsedEllipse? {
-        let parts = params.split(separator: ",")
-        guard parts.count >= 2 else { return nil }
-
-        let width = Int(parts[0]) ?? 0
-        let height = Int(parts[1]) ?? 0
-        let thickness = parts.count > 2 ? (Int(parts[2]) ?? 1) : 1
-        let color = parts.count > 3 ? String(parts[3]) : "B"
-
-        return ParsedEllipse(x: x, y: y, width: width, height: height, thickness: thickness, color: color)
-    }
-
-    private static func parseDiagonalLine(_ params: String, x: Int, y: Int) -> ParsedDiagonalLine? {
-        let parts = params.split(separator: ",")
-        guard parts.count >= 2 else { return nil }
-
-        let width = Int(parts[0]) ?? 0
-        let height = Int(parts[1]) ?? 0
-        let thickness = parts.count > 2 ? (Int(parts[2]) ?? 1) : 1
-        let color = parts.count > 3 ? String(parts[3]) : "B"
-        let direction = parts.count > 4 ? String(parts[4]) : "R"
-
-        return ParsedDiagonalLine(x: x, y: y, width: width, height: height, thickness: thickness, color: color, direction: direction)
-    }
-
-    private static func parseBarcode(_ type: ParsedBarcode.BarcodeType, params: String, x: Int, y: Int, moduleWidth: Int, rotation: String) -> ParsedBarcode? {
-        var remaining = params
-        var rot = rotation
-        var height = 100
-        var showText = true
-        var textAbove = false
-
-        // First char might be rotation
-        if let first = remaining.first, "NRIB".contains(first) {
-            rot = String(first)
-            remaining = String(remaining.dropFirst())
-        }
-        if remaining.hasPrefix(",") {
-            remaining = String(remaining.dropFirst())
-        }
-
-        let parts = remaining.split(separator: ",")
-        if parts.count >= 1, let h = Int(parts[0]) {
-            height = h
-        }
-        if parts.count >= 2 {
-            showText = String(parts[1]) == "Y"
-        }
-        if parts.count >= 3 {
-            textAbove = String(parts[2]) == "Y"
-        }
-
-        return ParsedBarcode(
-            type: type,
-            data: "",  // Data comes from ^FD
-            x: x, y: y,
-            height: height,
-            moduleWidth: moduleWidth,
-            rotation: rot,
-            showText: showText,
-            textAbove: textAbove,
-            magnification: 1
-        )
-    }
-
-    private static func parseQRCode(_ params: String, x: Int, y: Int, rotation: String) -> ParsedBarcode? {
-        var remaining = params
-        var rot = rotation
-
-        if let first = remaining.first, "NRIB".contains(first) {
-            rot = String(first)
-            remaining = String(remaining.dropFirst())
-        }
-        if remaining.hasPrefix(",") {
-            remaining = String(remaining.dropFirst())
-        }
-
-        let parts = remaining.split(separator: ",")
-        let _ = parts.count >= 1 ? (Int(parts[0]) ?? 2) : 2  // model (1 or 2)
-        let magnification = parts.count >= 2 ? (Int(parts[1]) ?? 3) : 3
-
-        return ParsedBarcode(
-            type: .qrCode,
-            data: "",
-            x: x, y: y,
-            height: magnification * 10,  // Approximate
-            moduleWidth: 2,
-            rotation: rot,
-            showText: false,
-            textAbove: false,
-            magnification: magnification
-        )
-    }
-
-    private static func parseDataMatrix(_ params: String, x: Int, y: Int, rotation: String) -> ParsedBarcode? {
-        var remaining = params
-        var rot = rotation
-
-        if let first = remaining.first, "NRIB".contains(first) {
-            rot = String(first)
-            remaining = String(remaining.dropFirst())
-        }
-        if remaining.hasPrefix(",") {
-            remaining = String(remaining.dropFirst())
-        }
-
-        let parts = remaining.split(separator: ",")
-        let size = parts.count >= 1 ? (Int(parts[0]) ?? 3) : 3
-
-        return ParsedBarcode(
-            type: .dataMatrix,
-            data: "",
-            x: x, y: y,
-            height: size * 10,
-            moduleWidth: 2,
-            rotation: rot,
-            showText: false,
-            textAbove: false,
-            magnification: size
-        )
-    }
-
-    private static func parsePDF417(_ params: String, x: Int, y: Int, rotation: String) -> ParsedBarcode? {
-        var remaining = params
-        var rot = rotation
-
-        if let first = remaining.first, "NRIB".contains(first) {
-            rot = String(first)
-            remaining = String(remaining.dropFirst())
-        }
-        if remaining.hasPrefix(",") {
-            remaining = String(remaining.dropFirst())
-        }
-
-        let parts = remaining.split(separator: ",")
-        let rowHeight = parts.count >= 1 ? (Int(parts[0]) ?? 10) : 10
-
-        return ParsedBarcode(
-            type: .pdf417,
-            data: "",
-            x: x, y: y,
-            height: rowHeight * 10,
-            moduleWidth: 2,
-            rotation: rot,
-            showText: false,
-            textAbove: false,
-            magnification: rowHeight
-        )
-    }
-
-    private static func parseAztec(_ params: String, x: Int, y: Int, rotation: String) -> ParsedBarcode? {
-        var remaining = params
-        var rot = rotation
-
-        if let first = remaining.first, "NRIB".contains(first) {
-            rot = String(first)
-            remaining = String(remaining.dropFirst())
-        }
-        if remaining.hasPrefix(",") {
-            remaining = String(remaining.dropFirst())
-        }
-
-        let parts = remaining.split(separator: ",")
-        let magnification = parts.count >= 1 ? (Int(parts[0]) ?? 3) : 3
-
-        return ParsedBarcode(
-            type: .aztec,
-            data: "",
-            x: x, y: y,
-            height: magnification * 10,
-            moduleWidth: 2,
-            rotation: rot,
-            showText: false,
-            textAbove: false,
-            magnification: magnification
-        )
-    }
-
-    // MARK: - Graphic Parsing
-
-    private static func parseGraphic(_ params: String, x: Int, y: Int) -> ParsedGraphic? {
-        // ^GF format: ^GFa,b,c,d,data
-        // a = format (A=ASCII, B=Binary, C=Compressed)
-        // b = binary byte count
-        // c = graphic field count (total bytes)
-        // d = bytes per row
-        // data = the graphic data
-
-        var remaining = params
-
-        // Get format character
-        guard let formatChar = remaining.first else { return nil }
-        remaining = String(remaining.dropFirst())
-
-        let format: ParsedGraphic.GraphicFormat
-        switch formatChar {
-        case "A": format = .ascii
-        case "B": format = .binary
-        case "C": format = .compressed
-        default: format = .ascii
-        }
-
-        // Skip leading comma if present
-        if remaining.hasPrefix(",") {
-            remaining = String(remaining.dropFirst())
-        }
-
-        // Split the remaining parameters
-        // Format: binaryByteCount,totalBytes,bytesPerRow,data
-        let parts = remaining.split(separator: ",", maxSplits: 3)
-        guard parts.count >= 4 else { return nil }
-
-        guard let totalBytes = Int(parts[1]),
-              let bytesPerRow = Int(parts[2]) else { return nil }
-
-        let hexData = String(parts[3])
-
-        // Decode ASCII hex data to bytes
-        let data: [UInt8]
-        switch format {
-        case .ascii:
-            data = decodeAsciiHex(hexData)
-        case .binary, .compressed:
-            // For now, only support ASCII format
-            // Binary and compressed would need different handling
-            data = []
-        }
-
-        guard !data.isEmpty else { return nil }
-
-        return ParsedGraphic(
-            x: x,
-            y: y,
-            format: format,
-            bytesPerRow: bytesPerRow,
-            totalBytes: totalBytes,
-            data: data
-        )
-    }
-
-    private static func decodeAsciiHex(_ hex: String) -> [UInt8] {
-        var data: [UInt8] = []
-        var chars = hex.uppercased()
-
-        // Remove any whitespace
-        chars = chars.replacingOccurrences(of: " ", with: "")
-        chars = chars.replacingOccurrences(of: "\n", with: "")
-
-        // Convert pairs of hex chars to bytes
-        var index = chars.startIndex
-        while index < chars.endIndex {
-            let nextIndex = chars.index(index, offsetBy: 2, limitedBy: chars.endIndex) ?? chars.endIndex
-            let hexPair = String(chars[index..<nextIndex])
-
-            if let byte = UInt8(hexPair, radix: 16) {
-                data.append(byte)
+        case "^CF":
+            let parts = params.split(separator: ",")
+            if parts.count >= 2 {
+                state.currentFontHeight = Int(parts[1]) ?? 30
+                state.currentFontWidth = parts.count > 2 ? (Int(parts[2]) ?? state.currentFontHeight) : state.currentFontHeight
             }
 
-            index = nextIndex
-        }
+        // Field block (text block)
+        case "^FB":
+            let parts = params.split(separator: ",")
+            state.textBlockWidth = Int(parts[safe: 0] ?? "0") ?? 0
+            state.textBlockMaxLines = Int(parts[safe: 1] ?? "1") ?? 1
+            state.textBlockLineSpacing = Int(parts[safe: 2] ?? "0") ?? 0
+            state.textBlockAlignment = String(parts[safe: 3] ?? "L")
+            state.textBlockHangingIndent = Int(parts[safe: 4] ?? "0") ?? 0
 
-        return data
+        case "^FR":
+            state.isReversed = true
+
+        case "^BY":
+            let parts = params.split(separator: ",")
+            state.moduleWidth = Int(parts.first ?? "2") ?? 2
+
+        // Field data (text content or barcode data)
+        case "^FD":
+            processFieldData(params, state: &state)
+
+        // Shapes
+        case "^GB":
+            if let box = ShapeParser.parseBox(params, x: state.currentX, y: state.currentY) {
+                state.elements.append(.box(box))
+            }
+
+        case "^GC":
+            if let circle = ShapeParser.parseCircle(params, x: state.currentX, y: state.currentY) {
+                state.elements.append(.circle(circle))
+            }
+
+        case "^GE":
+            if let ellipse = ShapeParser.parseEllipse(params, x: state.currentX, y: state.currentY) {
+                state.elements.append(.ellipse(ellipse))
+            }
+
+        case "^GD":
+            if let diagonal = ShapeParser.parseDiagonalLine(params, x: state.currentX, y: state.currentY) {
+                state.elements.append(.diagonalLine(diagonal))
+            }
+
+        // Barcodes
+        case "^BC":
+            state.pendingBarcode = BarcodeParser.parseBarcode(.code128, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation)
+
+        case "^B3":
+            state.pendingBarcode = BarcodeParser.parseBarcode(.code39, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation)
+
+        case "^BQ":
+            state.pendingBarcode = BarcodeParser.parseQRCode(params, x: state.currentX, y: state.currentY, rotation: state.currentRotation)
+
+        case "^BX":
+            state.pendingBarcode = BarcodeParser.parseDataMatrix(params, x: state.currentX, y: state.currentY, rotation: state.currentRotation)
+
+        case "^B7":
+            state.pendingBarcode = BarcodeParser.parsePDF417(params, x: state.currentX, y: state.currentY, rotation: state.currentRotation)
+
+        case "^B2":
+            state.pendingBarcode = BarcodeParser.parseBarcode(.interleaved2of5, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation)
+
+        case "^BE":
+            state.pendingBarcode = BarcodeParser.parseBarcode(.ean13, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation)
+
+        case "^B8":
+            state.pendingBarcode = BarcodeParser.parseBarcode(.ean8, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation)
+
+        case "^BU":
+            state.pendingBarcode = BarcodeParser.parseBarcode(.upcA, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation)
+
+        case "^B9":
+            state.pendingBarcode = BarcodeParser.parseBarcode(.upcE, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation)
+
+        case "^B0":
+            state.pendingBarcode = BarcodeParser.parseAztec(params, x: state.currentX, y: state.currentY, rotation: state.currentRotation)
+
+        case "^BZ":
+            state.pendingBarcode = BarcodeParser.parseBarcode(.intelligentMail, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation)
+
+        // Graphics
+        case "^GF":
+            if let graphic = GraphicParser.parseGraphic(params, x: state.currentX, y: state.currentY) {
+                state.elements.append(.graphic(graphic))
+            }
+
+        default:
+            break  // Ignore unknown commands
+        }
     }
+
+    // MARK: - Field Data Processing
+
+    private static func processFieldData(_ params: String, state: inout ParserState) {
+        let text = TextParser.decodeFieldData(params)
+
+        // Check if this data is for a pending barcode
+        if var barcode = state.pendingBarcode {
+            barcode = ParsedBarcode(
+                type: barcode.type,
+                data: text,
+                x: barcode.x,
+                y: barcode.y,
+                height: barcode.height,
+                moduleWidth: barcode.moduleWidth,
+                rotation: barcode.rotation,
+                showText: barcode.showText,
+                textAbove: barcode.textAbove,
+                magnification: barcode.magnification
+            )
+            state.elements.append(.barcode(barcode))
+            state.pendingBarcode = nil
+        } else if state.textBlockWidth > 0 {
+            state.elements.append(.textBlock(ParsedTextBlock(
+                text: text,
+                x: state.currentX,
+                y: state.currentY,
+                blockWidth: state.textBlockWidth,
+                font: state.currentFont,
+                fontHeight: state.currentFontHeight,
+                fontWidth: state.currentFontWidth,
+                maxLines: state.textBlockMaxLines,
+                lineSpacing: state.textBlockLineSpacing,
+                alignment: state.textBlockAlignment,
+                hangingIndent: state.textBlockHangingIndent,
+                useBaseline: state.useFieldTypeset
+            )))
+            state.textBlockWidth = 0  // Reset for next field
+        } else {
+            state.elements.append(.text(ParsedText(
+                text: text,
+                x: state.currentX,
+                y: state.currentY,
+                font: state.currentFont,
+                fontHeight: state.currentFontHeight,
+                fontWidth: state.currentFontWidth,
+                rotation: state.currentRotation,
+                isReversed: state.isReversed,
+                useBaseline: state.useFieldTypeset
+            )))
+        }
+        state.isReversed = false
+    }
+}
+
+// MARK: - Parser State
+
+private struct ParserState {
+    var width = 812        // Default 4 inches at 203 DPI
+    var height = 1218      // Default 6 inches at 203 DPI
+    var elements: [ParsedElement] = []
+    var printQuantity = 1
+    var printDarkness: Int? = nil
+
+    // Current state during parsing
+    var currentX = 0
+    var currentY = 0
+    let currentFont = "0"
+    var currentFontHeight = 30
+    var currentFontWidth = 30
+    var currentRotation = "N"
+    var useFieldTypeset = false
+    var isReversed = false
+    var moduleWidth = 2
+    var textBlockWidth = 0
+    var textBlockMaxLines = 1
+    var textBlockAlignment = "L"
+    var textBlockLineSpacing = 0
+    var textBlockHangingIndent = 0
+
+    // Pending barcode (barcode commands come before ^FD with the data)
+    var pendingBarcode: ParsedBarcode? = nil
 }
 
 // MARK: - Array Safe Subscript
