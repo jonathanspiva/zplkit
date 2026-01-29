@@ -281,6 +281,8 @@ ZPLKit supports the most commonly used ZPL II commands for label design:
 
 The renderer (ZPLKitRenderer) parses and renders all commands that ZPLKit generates.
 
+**Not covered:** RFID commands, printer configuration/calibration, stored formats, network settings, and some uncommon barcodes (Codabar, Postnet, Planet Code). These are either printer-management functions or legacy formats rarely needed in modern label design.
+
 ## Resources
 
 - [Zebra ZPL Programming Guide](https://www.zebra.com/content/dam/zebra/manuals/printers/common/programming/zpl-zbi2-pm-en.pdf) - Official ZPL command reference
