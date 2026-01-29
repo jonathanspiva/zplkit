@@ -59,7 +59,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "VisualTests",
-            dependencies: ["ZPLKitRenderer"],
+            dependencies: ["ZPLKitRenderer", "ZPLVerifier"],
             path: "Tools/VisualTests"
         ),
         .executableTarget(

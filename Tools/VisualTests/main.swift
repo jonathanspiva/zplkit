@@ -1,6 +1,7 @@
 import Foundation
 import ZPLKit
 import ZPLKitRenderer
+import ZPLVerifier
 import CoreGraphics
 import ImageIO
 
@@ -16,6 +17,8 @@ import UniformTypeIdentifiers
 ///   swift run VisualTests --labelary           # Also fetch Labelary renders
 ///   swift run VisualTests --score              # Score against reference images
 ///   swift run VisualTests --filter graphic     # Only files matching "graphic"
+///   swift run VisualTests --extract            # Extract expected barcodes from ZPL to fixtures.json
+///   swift run VisualTests --verify             # Verify rendered barcodes decode correctly
 
 enum LabelaryError: Error, CustomStringConvertible {
     case httpError(statusCode: Int)
@@ -39,6 +42,19 @@ struct ScoreResult {
     let hasDiff: Bool
 }
 
+struct VerificationSummary {
+    let detectedBarcodes: Int
+    let detectedText: Int
+    let expectedBarcodes: Int
+    let passedExpectations: Int
+    let failedExpectations: [String]
+    let hasEdgeContent: Bool
+
+    var allPassed: Bool {
+        expectedBarcodes == 0 || failedExpectations.isEmpty
+    }
+}
+
 struct FixtureMetadata: Codable {
     let description: String
     let category: String
@@ -46,6 +62,12 @@ struct FixtureMetadata: Codable {
     let size: String
     let dpi: Int
     let referenceSource: String?
+    var expectedBarcodes: [ExpectedBarcode]?
+}
+
+struct ExpectedBarcode: Codable {
+    let symbology: String
+    let payload: String
 }
 
 @main
@@ -62,6 +84,8 @@ struct VisualTests {
         let args = CommandLine.arguments
         let includeLabelary = args.contains("--labelary")
         let includeScore = args.contains("--score")
+        let extractExpectations = args.contains("--extract")
+        let verifyBarcodes = args.contains("--verify")
 
         // Parse filter option
         var filterPattern: String? = nil
@@ -98,6 +122,29 @@ struct VisualTests {
             print("Loaded metadata for \(metadata.count) fixtures")
         } else {
             print("Warning: Could not load fixtures.json, filtering will be limited")
+        }
+
+        // Extract expectations from ZPL files if requested
+        if extractExpectations {
+            print("\n=== Extracting barcode expectations from ZPL files ===")
+            fixturesMetadata = try extractExpectationsFromZPL(
+                fixturesPath: fixturesPath,
+                metadata: fixturesMetadata,
+                fileManager: fileManager
+            )
+
+            // Save updated metadata
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let jsonData = try encoder.encode(fixturesMetadata)
+            try jsonData.write(to: URL(fileURLWithPath: fixturesJsonFullPath))
+            print("Updated \(fixturesJsonFullPath)")
+            print("Extracted expectations for \(fixturesMetadata.count) fixtures")
+
+            // If only extracting, exit early
+            if !includeLabelary && !includeScore && !verifyBarcodes && filterPattern == nil {
+                return
+            }
         }
 
         // Create output directories
@@ -149,6 +196,69 @@ struct VisualTests {
                 print("  ✓ \(file) (\(String(format: "%.1f", parseMs + renderMs))ms)")
             } catch {
                 print("  ✗ \(file): \(error)")
+            }
+        }
+
+        // Verify barcodes if requested
+        var verificationResults: [String: VerificationSummary] = [:]
+
+        if verifyBarcodes {
+            print("\n=== Verifying rendered barcodes with ZPLVerifier ===")
+            let verifier = ZPLVerifier()
+
+            for file in zplFiles {
+                let pngName = file.replacingOccurrences(of: ".zpl", with: ".png")
+                let pngPath = "\(outputPath)/\(pngName)"
+                let name = file.replacingOccurrences(of: ".zpl", with: "")
+
+                guard let image = loadCGImage(from: pngPath) else {
+                    print("  ⊘ \(file): Could not load rendered image")
+                    continue
+                }
+
+                // Get expected barcodes from metadata
+                let expectedBarcodes = fixturesMetadata[name]?.expectedBarcodes ?? []
+
+                do {
+                    // Discovery mode - find all barcodes
+                    let analysis = try verifier.analyze(image)
+
+                    // Check expectations if we have them
+                    var passedExpectations = 0
+                    var failedExpectations: [String] = []
+
+                    for expected in expectedBarcodes {
+                        let found = analysis.barcodes.contains { barcode in
+                            barcode.symbology.rawValue == expected.symbology &&
+                            (barcode.payload == expected.payload || barcode.payload.contains(expected.payload))
+                        }
+                        if found {
+                            passedExpectations += 1
+                        } else {
+                            failedExpectations.append("\(expected.symbology): \(expected.payload)")
+                        }
+                    }
+
+                    let summary = VerificationSummary(
+                        detectedBarcodes: analysis.barcodes.count,
+                        detectedText: analysis.textRegions.count,
+                        expectedBarcodes: expectedBarcodes.count,
+                        passedExpectations: passedExpectations,
+                        failedExpectations: failedExpectations,
+                        hasEdgeContent: analysis.boundsInfo.hasEdgeContent
+                    )
+                    verificationResults[file] = summary
+
+                    if expectedBarcodes.isEmpty {
+                        print("  ○ \(file): \(analysis.barcodes.count) barcodes, \(analysis.textRegions.count) text regions (no expectations)")
+                    } else if failedExpectations.isEmpty {
+                        print("  ✓ \(file): \(passedExpectations)/\(expectedBarcodes.count) barcodes verified")
+                    } else {
+                        print("  ✗ \(file): \(passedExpectations)/\(expectedBarcodes.count) passed, missing: \(failedExpectations.joined(separator: ", "))")
+                    }
+                } catch {
+                    print("  ✗ \(file): Verification error - \(error.localizedDescription)")
+                }
             }
         }
 
@@ -271,6 +381,31 @@ struct VisualTests {
                 print("\n  Needs improvement:")
                 for score in worstScores where score.matchPercentage < 95.0 {
                     print("    • \(score.fixture): \(String(format: "%.1f", score.matchPercentage))%")
+                }
+            }
+        }
+
+        if verifyBarcodes && !verificationResults.isEmpty {
+            let withExpectations = verificationResults.filter { $0.value.expectedBarcodes > 0 }
+            let allPassed = withExpectations.filter { $0.value.allPassed }
+            let totalExpected = withExpectations.values.reduce(0) { $0 + $1.expectedBarcodes }
+            let totalPassed = withExpectations.values.reduce(0) { $0 + $1.passedExpectations }
+            let totalDetected = verificationResults.values.reduce(0) { $0 + $1.detectedBarcodes }
+
+            print("\n  ═══════════════════════════════════")
+            print("  BARCODE VERIFICATION")
+            print("  ═══════════════════════════════════")
+            print("  Total barcodes detected: \(totalDetected)")
+            print("  Fixtures with expectations: \(withExpectations.count)")
+            print("  Expectations passed: \(totalPassed)/\(totalExpected)")
+            print("  Fixtures fully verified: \(allPassed.count)/\(withExpectations.count)")
+
+            // Show failures
+            let failures = withExpectations.filter { !$0.value.allPassed }
+            if !failures.isEmpty {
+                print("\n  Failed verifications:")
+                for (file, summary) in failures.sorted(by: { $0.key < $1.key }) {
+                    print("    • \(file): missing \(summary.failedExpectations.joined(separator: ", "))")
                 }
             }
         }
@@ -499,6 +634,94 @@ struct VisualTests {
 
         CGImageDestinationAddImage(destination, cgImage, nil)
         CGImageDestinationFinalize(destination)
+    }
+
+    // MARK: - Expectation Extraction
+
+    static func extractExpectationsFromZPL(
+        fixturesPath: String,
+        metadata: [String: FixtureMetadata],
+        fileManager: FileManager
+    ) throws -> [String: FixtureMetadata] {
+        var updatedMetadata = metadata
+
+        guard let files = try? fileManager.contentsOfDirectory(atPath: fixturesPath) else {
+            return metadata
+        }
+
+        let zplFiles = files.filter { $0.hasSuffix(".zpl") }.sorted()
+
+        for file in zplFiles {
+            let zplPath = "\(fixturesPath)/\(file)"
+            let name = file.replacingOccurrences(of: ".zpl", with: "")
+
+            guard let zpl = try? String(contentsOfFile: zplPath, encoding: .utf8) else {
+                continue
+            }
+
+            do {
+                let parsed = try ZPLParser.parse(zpl)
+                var expectedBarcodes: [ExpectedBarcode] = []
+
+                for element in parsed.elements {
+                    if case .barcode(let barcode) = element {
+                        let symbology = mapBarcodeTypeToSymbology(barcode.type)
+                        let payload = cleanBarcodePayload(barcode.data, type: barcode.type)
+
+                        // Skip empty payloads
+                        guard !payload.isEmpty else { continue }
+
+                        expectedBarcodes.append(ExpectedBarcode(
+                            symbology: symbology,
+                            payload: payload
+                        ))
+                    }
+                }
+
+                // Update metadata
+                if var meta = updatedMetadata[name] {
+                    meta.expectedBarcodes = expectedBarcodes.isEmpty ? nil : expectedBarcodes
+                    updatedMetadata[name] = meta
+                    if !expectedBarcodes.isEmpty {
+                        print("  \(file): \(expectedBarcodes.count) barcodes")
+                    }
+                }
+            } catch {
+                print("  ⊘ \(file): Parse error - \(error.localizedDescription)")
+            }
+        }
+
+        return updatedMetadata
+    }
+
+    static func mapBarcodeTypeToSymbology(_ type: ParsedBarcode.BarcodeType) -> String {
+        switch type {
+        case .code128: return "code128"
+        case .code39: return "code39"
+        case .qrCode: return "qr"
+        case .dataMatrix: return "dataMatrix"
+        case .pdf417: return "pdf417"
+        case .interleaved2of5: return "i2of5"
+        case .ean13: return "ean13"
+        case .ean8: return "ean8"
+        case .upcA: return "ean13"  // UPC-A often decoded as EAN-13
+        case .upcE: return "upce"
+        case .aztec: return "aztec"
+        case .intelligentMail: return "intelligentMail"
+        }
+    }
+
+    static func cleanBarcodePayload(_ data: String, type: ParsedBarcode.BarcodeType) -> String {
+        var payload = data
+
+        // QR codes have mode prefix like "MA," or "HA,"
+        if type == .qrCode {
+            if payload.count > 3 && payload.dropFirst(2).first == "," {
+                payload = String(payload.dropFirst(3))
+            }
+        }
+
+        return payload
     }
 
     // MARK: - HTML Generation
