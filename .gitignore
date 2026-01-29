@@ -24,8 +24,12 @@ DerivedData/
 # Visual Test Harness
 Tests/VisualTestHarness/node_modules/
 Tests/VisualTestHarness/output/
-# Generated fixtures are kept - they're our test cases
-# Tests/VisualTestHarness/fixtures/*.zpl
+Tests/VisualTestHarness/output-swift/
+Tests/VisualTestHarness/output-labelary/
+Tests/VisualTestHarness/comparison.html
+
+# Font Comparison (generated output)
+Tests/FontComparison/
 
 # Keep baselines (golden images)
 !Tests/VisualTestHarness/baselines/
