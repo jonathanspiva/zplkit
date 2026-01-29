@@ -27,6 +27,7 @@
 - [ ] Stored formats (`^DF`, `^XF`)
 - [ ] DocC documentation
 - [ ] CHANGELOG.md
+- [ ] Examples/ directory (BasicLabel.swift, ShippingLabel.swift, InventoryTag.swift, PartsBinLabel.swift)
 
 ## Someday
 - [ ] Barcode decode verification - scan rendered barcodes to verify encoded data
