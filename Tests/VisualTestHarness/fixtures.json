@@ -1,4 +1,154 @@
 {
+  "canonical_aztec_4x4_203" : {
+    "category" : "canonical",
+    "description" : "Canonical Aztec barcode test. Single large barcode for baseline verification that Aztec renders correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "CANONICAL-AZTEC-TEST",
+        "symbology" : "aztec"
+      }
+    ],
+    "features" : [
+      "^B0"
+    ],
+    "size" : "4x4"
+  },
+  "canonical_code128_4x2_203" : {
+    "category" : "canonical",
+    "description" : "Canonical Code 128 barcode test. Single large barcode for baseline verification that Code 128 renders correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "CODE128-TEST",
+        "symbology" : "code128"
+      }
+    ],
+    "features" : [
+      "^BC"
+    ],
+    "size" : "4x2"
+  },
+  "canonical_code39_4x2_203" : {
+    "category" : "canonical",
+    "description" : "Canonical Code 39 barcode test. Single large barcode for baseline verification that Code 39 renders correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "CODE39TEST",
+        "symbology" : "code39"
+      }
+    ],
+    "features" : [
+      "^B3"
+    ],
+    "size" : "4x2"
+  },
+  "canonical_ean13_4x2_203" : {
+    "category" : "canonical",
+    "description" : "Canonical EAN-13 barcode test. Single large barcode for baseline verification that EAN-13 renders correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "5901234123457",
+        "symbology" : "ean13"
+      }
+    ],
+    "features" : [
+      "^BE"
+    ],
+    "size" : "4x2"
+  },
+  "canonical_ean8_4x2_203" : {
+    "category" : "canonical",
+    "description" : "Canonical EAN-8 barcode test. Single large barcode for baseline verification that EAN-8 renders correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "12345670",
+        "symbology" : "ean8"
+      }
+    ],
+    "features" : [
+      "^B8"
+    ],
+    "size" : "4x2"
+  },
+  "canonical_i2of5_4x2_203" : {
+    "category" : "canonical",
+    "description" : "Canonical Interleaved 2 of 5 barcode test. Single large barcode for baseline verification that I2of5 renders correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "123456789012",
+        "symbology" : "i2of5"
+      }
+    ],
+    "features" : [
+      "^B2"
+    ],
+    "size" : "4x2"
+  },
+  "canonical_pdf417_4x4_203" : {
+    "category" : "canonical",
+    "description" : "Canonical PDF417 barcode test. Single large barcode for baseline verification that PDF417 renders correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "CANONICAL-PDF417-TEST-DATA",
+        "symbology" : "pdf417"
+      }
+    ],
+    "features" : [
+      "^B7"
+    ],
+    "size" : "4x4"
+  },
+  "canonical_qr_4x4_203" : {
+    "category" : "canonical",
+    "description" : "Canonical QR code test. Single large QR code for baseline verification that QR codes render correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "QA,CANONICAL-QR-TEST-DATA",
+        "symbology" : "qr"
+      }
+    ],
+    "features" : [
+      "^BQ"
+    ],
+    "size" : "4x4"
+  },
+  "canonical_upca_4x2_203" : {
+    "category" : "canonical",
+    "description" : "Canonical UPC-A barcode test. Single large barcode for baseline verification that UPC-A renders correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "0012345678905",
+        "symbology" : "ean13"
+      }
+    ],
+    "features" : [
+      "^BU"
+    ],
+    "size" : "4x2"
+  },
+  "canonical_upce_4x2_203" : {
+    "category" : "canonical",
+    "description" : "Canonical UPC-E barcode test. Single large barcode for baseline verification that UPC-E renders correctly.",
+    "dpi" : 203,
+    "expectedBarcodes" : [
+      {
+        "payload" : "01234565",
+        "symbology" : "upce"
+      }
+    ],
+    "features" : [
+      "^B9"
+    ],
+    "size" : "4x2"
+  },
   "barcode_aztec_4x4_203" : {
     "category" : "barcode",
     "description" : "Aztec barcode showcase on 4x4 label. Multiple Aztec codes at different magnifications (3-6), including rotated 90 degrees. Shows ECI mode, error correction, and URL encoding. Labels beneath each barcode.",
