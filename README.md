@@ -25,6 +25,12 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 - **Render to PNG** for instant label previews
 - **Bundled Roboto Condensed Bold font** for accurate Font 0 rendering
 
+### ZPLKitPrinter (Network Printing)
+
+- **Send ZPL to printers** over TCP (port 9100)
+- **Bonjour discovery** to find printers on the local network
+- **Async/await API** with configurable timeout
+
 ### ZPLVerifier (Testing)
 
 - **Barcode verification** using Vision framework
@@ -48,6 +54,9 @@ Then add the products to your target:
 
 // For rendering support:
 .target(name: "YourTarget", dependencies: ["ZPLKit", "ZPLKitRenderer"])
+
+// For network printing:
+.target(name: "YourTarget", dependencies: ["ZPLKit", "ZPLKitPrinter"])
 ```
 
 ## Quick Start
@@ -79,6 +88,23 @@ import ZPLKitRenderer
 let renderer = ZPLRenderer()
 if let pngData = try? renderer.renderToPNG(zpl, width: 812, height: 1218) {
     // Display in UIImageView, save to file, etc.
+}
+```
+
+## Printing
+
+```swift
+import ZPLKitPrinter
+
+// Send to a known printer
+let printer = ZPLPrinter(host: "192.168.1.100")
+try await printer.send(label.render())
+
+// Or discover printers on the network
+let browser = ZPLPrinterBrowser()
+for await discovered in browser.printers {
+    try await ZPLPrinter.send(zpl, to: discovered)
+    break
 }
 ```
 
