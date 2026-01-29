@@ -6,8 +6,11 @@
 ## Later
 
 ## Someday
-- [ ] Data Matrix renderer (CoreImage doesn't support it, needs mathematical implementation)
-- [ ] Intelligent Mail renderer (also uses placeholder currently)
+- [ ] **Public barcode generation API** - Expose barcode encoding as a module
+  - Most encoders already implemented internally (Code128, Code39, EAN-13/8, UPC-A/E, I2of5)
+  - QR, Aztec, PDF417 use CoreImage (available on Apple platforms)
+  - [ ] Data Matrix encoder (CoreImage doesn't support it, needs mathematical implementation)
+  - [ ] Intelligent Mail encoder (uses placeholder currently)
 - [ ] **Open source release**
   - [ ] CHANGELOG.md
   - [ ] Tag v1.0.0 release
