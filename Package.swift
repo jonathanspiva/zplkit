@@ -20,6 +20,10 @@ let package = Package(
             name: "ZPLKitRenderer",
             targets: ["ZPLKitRenderer"]
         ),
+        .library(
+            name: "ZPLVerifier",
+            targets: ["ZPLVerifier"]
+        ),
     ],
     targets: [
         .target(
@@ -39,7 +43,14 @@ let package = Package(
         ),
         .testTarget(
             name: "ZPLKitRendererTests",
-            dependencies: ["ZPLKitRenderer"]
+            dependencies: ["ZPLKitRenderer", "ZPLVerifier"]
+        ),
+        .target(
+            name: "ZPLVerifier"
+        ),
+        .testTarget(
+            name: "ZPLVerifierTests",
+            dependencies: ["ZPLVerifier", "ZPLKit", "ZPLKitRenderer"]
         ),
         .executableTarget(
             name: "RenderFixtures",

@@ -4,12 +4,6 @@
 - [ ] Nothing active
 
 ## Later
-- [ ] **ZPLVerifier public API** - Verification framework for rendered labels
-  - [ ] Promote barcode verification from tests to public API
-  - [ ] Text OCR via `VNRecognizeTextRequest` - extract text from rendered image
-  - [ ] Bounds/clipping detection - detect if text or elements are cut off at label edges
-  - [ ] Layout assertions - "label should contain 'chicken stock'" style verification
-  - [ ] Return structured results (missing text, clipped elements, confidence scores)
 
 ## Someday
 - [ ] Data Matrix renderer (CoreImage doesn't support it, needs mathematical implementation)
@@ -30,6 +24,14 @@
 - SF Symbols icon support - Apple licensing prohibits redistribution and use in printed materials; FontAwesome is the supported alternative
 
 ## Done
+- [x] **ZPLVerifier public API** - Verification framework for rendered labels
+  - [x] Barcode detection via Vision framework (Code128, QR, Code39, EAN-13, Aztec, PDF417, etc.)
+  - [x] Text OCR via `VNRecognizeTextRequest`
+  - [x] Bounds/clipping detection for edge content
+  - [x] Discovery mode (analyze) and assertion mode (verify)
+  - [x] Declarative DSL with `Barcode(...)` and `Text(...)` expectations
+  - [x] Vision hints optimization for faster detection
+  - [x] 37 unit and integration tests
 - [x] Fixture metadata JSON with descriptions, categories, features, size, DPI
 - [x] ^FX DESCRIPTION comments in all 114 ZPL fixtures
 - [x] HTML comparison with filtering (category chips, size/DPI dropdowns, text search)

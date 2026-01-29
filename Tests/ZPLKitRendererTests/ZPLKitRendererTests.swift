@@ -1,5 +1,5 @@
 import XCTest
-import Vision
+import ZPLVerifier
 @testable import ZPLKitRenderer
 @testable import ZPLKit
 
@@ -1200,28 +1200,7 @@ final class ZPLKitRendererTests: XCTestCase {
         XCTAssertEqual(dataBytes, pngMagic)
     }
 
-    // MARK: - Barcode Decode Verification
-
-    /// Decode barcodes from a rendered image using Vision framework
-    private func decodeBarcodes(from image: CGImage) throws -> [String] {
-        var results: [String] = []
-
-        let request = VNDetectBarcodesRequest { request, error in
-            guard error == nil else { return }
-            guard let observations = request.results as? [VNBarcodeObservation] else { return }
-
-            for observation in observations {
-                if let payload = observation.payloadStringValue {
-                    results.append(payload)
-                }
-            }
-        }
-
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try handler.perform([request])
-
-        return results
-    }
+    // MARK: - Barcode Decode Verification (using ZPLVerifier)
 
     func testBarcodeVerificationQRCode() throws {
         let testData = "https://zplkit.example.com"
@@ -1232,13 +1211,14 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let zpl = label.render()
         let renderer = ZPLRenderer()
-        let result = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
-        let decoded = try decodeBarcodes(from: result.image)
+        let verifier = ZPLVerifier()
+        let result = try verifier.verify(renderResult.image) {
+            Barcode(.qr, containing: testData)
+        }
 
-        // QR code data may include "MA," prefix from ZPL format
-        let matches = decoded.contains(where: { $0.contains(testData) })
-        XCTAssertTrue(matches, "QR code should decode to '\(testData)', got: \(decoded)")
+        XCTAssertTrue(result.passed, result.summary)
     }
 
     func testBarcodeVerificationCode128() throws {
@@ -1251,11 +1231,14 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let zpl = label.render()
         let renderer = ZPLRenderer()
-        let result = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
-        let decoded = try decodeBarcodes(from: result.image)
+        let verifier = ZPLVerifier()
+        let result = try verifier.verify(renderResult.image) {
+            Barcode(.code128, exactly: testData)
+        }
 
-        XCTAssertTrue(decoded.contains(testData), "Code 128 should decode to '\(testData)', got: \(decoded)")
+        XCTAssertTrue(result.passed, result.summary)
     }
 
     func testBarcodeVerificationCode39() throws {
@@ -1267,11 +1250,14 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let zpl = label.render()
         let renderer = ZPLRenderer()
-        let result = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
-        let decoded = try decodeBarcodes(from: result.image)
+        let verifier = ZPLVerifier()
+        let result = try verifier.verify(renderResult.image) {
+            Barcode(.code39, exactly: testData)
+        }
 
-        XCTAssertTrue(decoded.contains(testData), "Code 39 should decode to '\(testData)', got: \(decoded)")
+        XCTAssertTrue(result.passed, result.summary)
     }
 
     func testBarcodeVerificationEAN13() throws {
@@ -1283,11 +1269,14 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let zpl = label.render()
         let renderer = ZPLRenderer()
-        let result = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
-        let decoded = try decodeBarcodes(from: result.image)
+        let verifier = ZPLVerifier()
+        let result = try verifier.verify(renderResult.image) {
+            Barcode(.ean13, exactly: testData)
+        }
 
-        XCTAssertTrue(decoded.contains(testData), "EAN-13 should decode to '\(testData)', got: \(decoded)")
+        XCTAssertTrue(result.passed, result.summary)
     }
 
     func testBarcodeVerificationUPCA() throws {
@@ -1299,17 +1288,19 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let zpl = label.render()
         let renderer = ZPLRenderer()
-        let result = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
-        let decoded = try decodeBarcodes(from: result.image)
+        let verifier = ZPLVerifier()
+        // UPC-A may decode as EAN-13 with leading zero, so check for containing
+        let result = try verifier.verify(renderResult.image) {
+            Barcode(.ean13, containing: testData)
+        }
 
-        // UPC-A may decode as full 12 digits or with leading zero trimmed
-        let matches = decoded.contains(testData) || decoded.contains("0" + testData)
-        XCTAssertTrue(matches, "UPC-A should decode to '\(testData)', got: \(decoded)")
+        XCTAssertTrue(result.passed, result.summary)
     }
 
     /// Data Matrix decode verification
-    /// Note: Skipped - CoreImage doesn't have a Data Matrix generator (CIDataMatrixCodeGenerator doesn't exist)
+    /// Note: Skipped - CoreImage doesn't have a Data Matrix generator
     /// ZPLKitRenderer uses a placeholder for Data Matrix until we implement it mathematically
     func SKIPtestBarcodeVerificationDataMatrix() throws {
         let testData = "DM123"
@@ -1320,11 +1311,14 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let zpl = label.render()
         let renderer = ZPLRenderer()
-        let result = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
-        let decoded = try decodeBarcodes(from: result.image)
+        let verifier = ZPLVerifier()
+        let result = try verifier.verify(renderResult.image) {
+            Barcode(.dataMatrix, exactly: testData)
+        }
 
-        XCTAssertTrue(decoded.contains(testData), "Data Matrix should decode to '\(testData)', got: \(decoded)")
+        XCTAssertTrue(result.passed, result.summary)
     }
 
     func testBarcodeVerificationAztec() throws {
@@ -1336,11 +1330,14 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let zpl = label.render()
         let renderer = ZPLRenderer()
-        let result = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
-        let decoded = try decodeBarcodes(from: result.image)
+        let verifier = ZPLVerifier()
+        let result = try verifier.verify(renderResult.image) {
+            Barcode(.aztec, exactly: testData)
+        }
 
-        XCTAssertTrue(decoded.contains(testData), "Aztec should decode to '\(testData)', got: \(decoded)")
+        XCTAssertTrue(result.passed, result.summary)
     }
 
     func testBarcodeVerificationPDF417() throws {
@@ -1353,11 +1350,14 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let zpl = label.render()
         let renderer = ZPLRenderer()
-        let result = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
-        let decoded = try decodeBarcodes(from: result.image)
+        let verifier = ZPLVerifier()
+        let result = try verifier.verify(renderResult.image) {
+            Barcode(.pdf417, exactly: testData)
+        }
 
-        XCTAssertTrue(decoded.contains(testData), "PDF417 should decode to '\(testData)', got: \(decoded)")
+        XCTAssertTrue(result.passed, result.summary)
     }
 
     func testBarcodeVerificationInterleaved2of5() throws {
@@ -1369,10 +1369,13 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let zpl = label.render()
         let renderer = ZPLRenderer()
-        let result = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
-        let decoded = try decodeBarcodes(from: result.image)
+        let verifier = ZPLVerifier()
+        let result = try verifier.verify(renderResult.image) {
+            Barcode(.i2of5, exactly: testData)
+        }
 
-        XCTAssertTrue(decoded.contains(testData), "Interleaved 2 of 5 should decode to '\(testData)', got: \(decoded)")
+        XCTAssertTrue(result.passed, result.summary)
     }
 }
