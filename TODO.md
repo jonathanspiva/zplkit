@@ -4,9 +4,7 @@
 - [ ] Nothing active
 
 ## Later
-- [ ] **ZPL test suite as standalone resource**
-  - [ ] Package fixtures with descriptions as reusable test suite
-  - [ ] Could be valuable to other ZPL tools/renderers
+- [ ] Nothing planned
 
 ## Someday
 - [ ] **Open source release**
@@ -33,6 +31,7 @@
 - [x] HTML comparison with filtering (category chips, size/DPI dropdowns, text search)
 - [x] Curated reference images (ZPLKitRenderer for ^FR cases where Labelary is wrong)
 - [x] Renderer validation (scoring, diff images, reference comparison)
+- [x] ZPL test fixtures documented in README as reusable resource
 - [x] DocC documentation (ZPLLabel, types, core elements)
 - [x] README badges (Swift version, platforms, CI status)
 - [x] Examples/ directory (BasicLabel, ShippingLabel, InventoryTag, PartsBinLabel, ProductLabel)

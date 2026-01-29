@@ -283,6 +283,16 @@ The renderer (ZPLKitRenderer) parses and renders all commands that ZPLKit genera
 
 **Not covered:** RFID commands, printer configuration/calibration, stored formats, network settings, and some uncommon barcodes (Codabar, Postnet, Planet Code). These are either printer-management functions or legacy formats rarely needed in modern label design.
 
+## ZPL Test Fixtures
+
+This repository includes **114 real-world ZPL test fixtures** in `Tests/VisualTestHarness/fixtures/`. These are useful for testing any ZPL parser or renderer.
+
+Each fixture includes:
+- **`^FX DESCRIPTION:`** comments explaining what the label contains
+- **Metadata** in `fixtures.json` with category, features, size, and DPI
+
+Categories include shipping labels, retail tags, warehouse bins, barcodes, shapes, graphics, and more. Fixtures range from simple one-line labels to complex multi-element shipping labels with barcodes.
+
 ## Resources
 
 - [Zebra ZPL Programming Guide](https://www.zebra.com/content/dam/zebra/manuals/printers/common/programming/zpl-zbi2-pm-en.pdf) - Official ZPL command reference
