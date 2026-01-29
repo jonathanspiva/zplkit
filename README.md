@@ -9,11 +9,27 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 
 ## Features
 
+### ZPLKit (Generation)
+
 - **Declarative API** using Swift result builders
-- **Text, barcodes, shapes, graphics** with full ZPL command coverage
-- **Native Swift renderer** with no external dependencies
-- **114 test fixtures** for validating ZPL parsers and renderers
+- **Text** with fonts, rotation, reverse print, and baseline positioning
+- **Barcodes**: Code128, Code39, QR, DataMatrix, PDF417, Aztec, EAN-13, EAN-8, UPC-A, UPC-E, Interleaved 2 of 5
+- **Shapes**: Box, Circle, Ellipse, Horizontal/Vertical/Diagonal lines
+- **Graphics**, templates, serial numbers, printer commands
 - **Full Swift 6 concurrency support** (`Sendable` types)
+
+### ZPLKitRenderer (Previews)
+
+- **Native Swift renderer** with no external dependencies
+- **Parse ZPL strings** into structured element trees
+- **Render to PNG** for instant label previews
+- **Bundled Roboto Condensed Bold font** for accurate Font 0 rendering
+
+### ZPLVerifier (Testing)
+
+- **Barcode verification** using Vision framework
+- **Text OCR** to verify label content
+- **114 test fixtures** for validating ZPL parsers and renderers
 
 ## Installation
 
