@@ -13,12 +13,10 @@ import UniformTypeIdentifiers
 /// Renders all fixtures and generates HTML comparison
 ///
 /// Usage:
-///   swift run VisualTests                      # Render all (fast, local)
+///   swift run VisualTests                      # Render all with verification
 ///   swift run VisualTests --labelary           # Also fetch Labelary renders
 ///   swift run VisualTests --score              # Score against reference images
 ///   swift run VisualTests --filter graphic     # Only files matching "graphic"
-///   swift run VisualTests --extract            # Extract expected barcodes from ZPL to fixtures.json
-///   swift run VisualTests --verify             # Verify rendered barcodes decode correctly
 
 enum LabelaryError: Error, CustomStringConvertible {
     case httpError(statusCode: Int)
@@ -48,10 +46,16 @@ struct VerificationSummary {
     let expectedBarcodes: Int
     let passedExpectations: Int
     let failedExpectations: [String]
+    let detectedBarcodesList: [String]
+    let detectedTextList: [String]
     let hasEdgeContent: Bool
 
     var allPassed: Bool {
         expectedBarcodes == 0 || failedExpectations.isEmpty
+    }
+
+    var hasExpectations: Bool {
+        expectedBarcodes > 0
     }
 }
 
@@ -84,8 +88,6 @@ struct VisualTests {
         let args = CommandLine.arguments
         let includeLabelary = args.contains("--labelary")
         let includeScore = args.contains("--score")
-        let extractExpectations = args.contains("--extract")
-        let verifyBarcodes = args.contains("--verify")
 
         // Parse filter option
         var filterPattern: String? = nil
@@ -122,29 +124,6 @@ struct VisualTests {
             print("Loaded metadata for \(metadata.count) fixtures")
         } else {
             print("Warning: Could not load fixtures.json, filtering will be limited")
-        }
-
-        // Extract expectations from ZPL files if requested
-        if extractExpectations {
-            print("\n=== Extracting barcode expectations from ZPL files ===")
-            fixturesMetadata = try extractExpectationsFromZPL(
-                fixturesPath: fixturesPath,
-                metadata: fixturesMetadata,
-                fileManager: fileManager
-            )
-
-            // Save updated metadata
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let jsonData = try encoder.encode(fixturesMetadata)
-            try jsonData.write(to: URL(fileURLWithPath: fixturesJsonFullPath))
-            print("Updated \(fixturesJsonFullPath)")
-            print("Extracted expectations for \(fixturesMetadata.count) fixtures")
-
-            // If only extracting, exit early
-            if !includeLabelary && !includeScore && !verifyBarcodes && filterPattern == nil {
-                return
-            }
         }
 
         // Create output directories
@@ -199,66 +178,69 @@ struct VisualTests {
             }
         }
 
-        // Verify barcodes if requested
+        // Verify all rendered images with ZPLVerifier
         var verificationResults: [String: VerificationSummary] = [:]
+        print("\n=== Verifying with ZPLVerifier ===")
+        let verifier = ZPLVerifier()
 
-        if verifyBarcodes {
-            print("\n=== Verifying rendered barcodes with ZPLVerifier ===")
-            let verifier = ZPLVerifier()
+        for file in zplFiles {
+            let pngName = file.replacingOccurrences(of: ".zpl", with: ".png")
+            let pngPath = "\(outputPath)/\(pngName)"
+            let name = file.replacingOccurrences(of: ".zpl", with: "")
 
-            for file in zplFiles {
-                let pngName = file.replacingOccurrences(of: ".zpl", with: ".png")
-                let pngPath = "\(outputPath)/\(pngName)"
-                let name = file.replacingOccurrences(of: ".zpl", with: "")
+            guard let image = loadCGImage(from: pngPath) else {
+                print("  ⊘ \(file): Could not load rendered image")
+                continue
+            }
 
-                guard let image = loadCGImage(from: pngPath) else {
-                    print("  ⊘ \(file): Could not load rendered image")
-                    continue
-                }
+            // Get expected barcodes from metadata
+            let expectedBarcodes = fixturesMetadata[name]?.expectedBarcodes ?? []
 
-                // Get expected barcodes from metadata
-                let expectedBarcodes = fixturesMetadata[name]?.expectedBarcodes ?? []
+            do {
+                // Discovery mode - find all barcodes and text
+                let analysis = try verifier.analyze(image)
 
-                do {
-                    // Discovery mode - find all barcodes
-                    let analysis = try verifier.analyze(image)
+                // Check expectations if we have them
+                var passedExpectations = 0
+                var failedExpectations: [String] = []
 
-                    // Check expectations if we have them
-                    var passedExpectations = 0
-                    var failedExpectations: [String] = []
-
-                    for expected in expectedBarcodes {
-                        let found = analysis.barcodes.contains { barcode in
-                            barcode.symbology.rawValue == expected.symbology &&
-                            (barcode.payload == expected.payload || barcode.payload.contains(expected.payload))
-                        }
-                        if found {
-                            passedExpectations += 1
-                        } else {
-                            failedExpectations.append("\(expected.symbology): \(expected.payload)")
-                        }
+                for expected in expectedBarcodes {
+                    let found = analysis.barcodes.contains { barcode in
+                        barcode.symbology.rawValue == expected.symbology &&
+                        (barcode.payload == expected.payload || barcode.payload.contains(expected.payload))
                     }
-
-                    let summary = VerificationSummary(
-                        detectedBarcodes: analysis.barcodes.count,
-                        detectedText: analysis.textRegions.count,
-                        expectedBarcodes: expectedBarcodes.count,
-                        passedExpectations: passedExpectations,
-                        failedExpectations: failedExpectations,
-                        hasEdgeContent: analysis.boundsInfo.hasEdgeContent
-                    )
-                    verificationResults[file] = summary
-
-                    if expectedBarcodes.isEmpty {
-                        print("  ○ \(file): \(analysis.barcodes.count) barcodes, \(analysis.textRegions.count) text regions (no expectations)")
-                    } else if failedExpectations.isEmpty {
-                        print("  ✓ \(file): \(passedExpectations)/\(expectedBarcodes.count) barcodes verified")
+                    if found {
+                        passedExpectations += 1
                     } else {
-                        print("  ✗ \(file): \(passedExpectations)/\(expectedBarcodes.count) passed, missing: \(failedExpectations.joined(separator: ", "))")
+                        failedExpectations.append("\(expected.symbology): \(expected.payload)")
                     }
-                } catch {
-                    print("  ✗ \(file): Verification error - \(error.localizedDescription)")
                 }
+
+                // Build detected items lists
+                let detectedBarcodesList = analysis.barcodes.map { "\($0.symbology.rawValue): \($0.payload)" }
+                let detectedTextList = analysis.textRegions.map { $0.text }
+
+                let summary = VerificationSummary(
+                    detectedBarcodes: analysis.barcodes.count,
+                    detectedText: analysis.textRegions.count,
+                    expectedBarcodes: expectedBarcodes.count,
+                    passedExpectations: passedExpectations,
+                    failedExpectations: failedExpectations,
+                    detectedBarcodesList: detectedBarcodesList,
+                    detectedTextList: detectedTextList,
+                    hasEdgeContent: analysis.boundsInfo.hasEdgeContent
+                )
+                verificationResults[file] = summary
+
+                if expectedBarcodes.isEmpty {
+                    print("  ○ \(file): \(analysis.barcodes.count) barcodes, \(analysis.textRegions.count) text regions")
+                } else if failedExpectations.isEmpty {
+                    print("  ✓ \(file): \(passedExpectations)/\(expectedBarcodes.count) barcodes verified")
+                } else {
+                    print("  ✗ \(file): \(passedExpectations)/\(expectedBarcodes.count) passed")
+                }
+            } catch {
+                print("  ✗ \(file): Verification error - \(error.localizedDescription)")
             }
         }
 
@@ -343,7 +325,8 @@ struct VisualTests {
             labelaryFailures: Set(labelaryFailures.map { $0.file }),
             includeScore: includeScore,
             scores: scores,
-            metadata: fixturesMetadata
+            metadata: fixturesMetadata,
+            verification: verificationResults
         )
         try html.write(toFile: htmlFullPath, atomically: true, encoding: .utf8)
         print("Created \(htmlPath)")
@@ -385,27 +368,35 @@ struct VisualTests {
             }
         }
 
-        if verifyBarcodes && !verificationResults.isEmpty {
-            let withExpectations = verificationResults.filter { $0.value.expectedBarcodes > 0 }
+        if !verificationResults.isEmpty {
+            let withExpectations = verificationResults.filter { $0.value.hasExpectations }
             let allPassed = withExpectations.filter { $0.value.allPassed }
             let totalExpected = withExpectations.values.reduce(0) { $0 + $1.expectedBarcodes }
             let totalPassed = withExpectations.values.reduce(0) { $0 + $1.passedExpectations }
             let totalDetected = verificationResults.values.reduce(0) { $0 + $1.detectedBarcodes }
+            let totalTextRegions = verificationResults.values.reduce(0) { $0 + $1.detectedText }
 
             print("\n  ═══════════════════════════════════")
-            print("  BARCODE VERIFICATION")
+            print("  VERIFICATION SUMMARY")
             print("  ═══════════════════════════════════")
-            print("  Total barcodes detected: \(totalDetected)")
+            print("  Barcodes detected: \(totalDetected)")
+            print("  Text regions detected: \(totalTextRegions)")
             print("  Fixtures with expectations: \(withExpectations.count)")
-            print("  Expectations passed: \(totalPassed)/\(totalExpected)")
-            print("  Fixtures fully verified: \(allPassed.count)/\(withExpectations.count)")
+            if !withExpectations.isEmpty {
+                let passRate = Double(totalPassed) / Double(totalExpected) * 100
+                print("  Expectations passed: \(totalPassed)/\(totalExpected) (\(String(format: "%.0f", passRate))%)")
+                print("  Fixtures fully verified: \(allPassed.count)/\(withExpectations.count)")
+            }
 
             // Show failures
             let failures = withExpectations.filter { !$0.value.allPassed }
             if !failures.isEmpty {
                 print("\n  Failed verifications:")
-                for (file, summary) in failures.sorted(by: { $0.key < $1.key }) {
+                for (file, summary) in failures.sorted(by: { $0.key < $1.key }).prefix(10) {
                     print("    • \(file): missing \(summary.failedExpectations.joined(separator: ", "))")
+                }
+                if failures.count > 10 {
+                    print("    ... and \(failures.count - 10) more")
                 }
             }
         }
@@ -726,7 +717,7 @@ struct VisualTests {
 
     // MARK: - HTML Generation
 
-    static func generateHTML(fixtures: [String], results: [(name: String, dpi: DPI, parseMs: Double, renderMs: Double)], includeLabelary: Bool, labelaryFailures: Set<String> = [], includeScore: Bool = false, scores: [ScoreResult] = [], metadata: [String: FixtureMetadata] = [:]) -> String {
+    static func generateHTML(fixtures: [String], results: [(name: String, dpi: DPI, parseMs: Double, renderMs: Double)], includeLabelary: Bool, labelaryFailures: Set<String> = [], includeScore: Bool = false, scores: [ScoreResult] = [], metadata: [String: FixtureMetadata] = [:], verification: [String: VerificationSummary] = [:]) -> String {
         let resultsDict = Dictionary(uniqueKeysWithValues: results.map { ($0.name, $0) })
         let scoresDict = Dictionary(uniqueKeysWithValues: scores.map { ($0.fixture, $0) })
 
@@ -753,6 +744,7 @@ struct VisualTests {
             let result = resultsDict[file]
             let score = scoresDict[file]
             let meta = metadata[name]
+            let verify = verification[file]
             let timeStr = result.map { String(format: "%.1fms", $0.parseMs + $0.renderMs) } ?? "—"
             let labelaryFailed = labelaryFailures.contains(file)
 
@@ -771,8 +763,60 @@ struct VisualTests {
                 scoreHtml = ""
             }
 
+            // Verification badge
+            let verifyBadge: String
+            if let v = verify {
+                if v.hasExpectations {
+                    if v.allPassed {
+                        verifyBadge = "<span class=\"verify-badge verify-pass\">✓ \(v.passedExpectations)/\(v.expectedBarcodes)</span>"
+                    } else {
+                        verifyBadge = "<span class=\"verify-badge verify-fail\">✗ \(v.passedExpectations)/\(v.expectedBarcodes)</span>"
+                    }
+                } else {
+                    verifyBadge = "<span class=\"verify-badge verify-none\">\(v.detectedBarcodes)bc/\(v.detectedText)txt</span>"
+                }
+            } else {
+                verifyBadge = ""
+            }
+
             // Category badge
             let categoryBadge = "<span class=\"category-badge cat-\(category)\">\(category)</span>"
+
+            // Verification panel HTML
+            let verificationPanelHtml: String
+            if let v = verify {
+                var panelContent = ""
+
+                // Status line
+                if v.hasExpectations {
+                    if v.allPassed {
+                        panelContent += "<div class=\"verify-status verify-pass\">✓ All \(v.expectedBarcodes) expected barcode(s) verified</div>"
+                    } else {
+                        panelContent += "<div class=\"verify-status verify-fail\">✗ \(v.passedExpectations)/\(v.expectedBarcodes) expected barcodes found</div>"
+                        panelContent += "<div class=\"verify-missing\"><strong>Missing:</strong> \(v.failedExpectations.joined(separator: ", "))</div>"
+                    }
+                }
+
+                // Detected barcodes
+                if !v.detectedBarcodesList.isEmpty {
+                    panelContent += "<div class=\"verify-detected\"><strong>Detected barcodes:</strong> \(v.detectedBarcodesList.joined(separator: ", "))</div>"
+                }
+
+                // Detected text (collapsible if long)
+                if !v.detectedTextList.isEmpty {
+                    let textPreview = v.detectedTextList.prefix(5).joined(separator: " | ")
+                    let moreText = v.detectedTextList.count > 5 ? " ... +\(v.detectedTextList.count - 5) more" : ""
+                    panelContent += "<div class=\"verify-detected\"><strong>Detected text:</strong> \(textPreview)\(moreText)</div>"
+                }
+
+                if v.hasEdgeContent {
+                    panelContent += "<div class=\"verify-warning\">⚠ Content near edge (may be clipped)</div>"
+                }
+
+                verificationPanelHtml = "<div class=\"verification-panel\">\(panelContent)</div>"
+            } else {
+                verificationPanelHtml = ""
+            }
 
             rows += """
             <div class="fixture" data-category="\(category)" data-size="\(size)" data-dpi="\(dpi)" data-features="\(features)">
@@ -781,9 +825,10 @@ struct VisualTests {
                         <span class="fixture-name">\(file)</span>
                         \(categoryBadge)
                     </div>
-                    <span class="fixture-meta">\(scoreHtml) \(timeStr)</span>
+                    <span class="fixture-meta">\(verifyBadge) \(scoreHtml) \(timeStr)</span>
                 </div>
                 <div class="fixture-description">\(description)</div>
+                \(verificationPanelHtml)
                 <div class="renders">
                     <div class="render">
                         <div class="render-label">ZPLKitRenderer</div>
@@ -1013,6 +1058,44 @@ struct VisualTests {
                 .score-good { background: #28a745; color: white; }
                 .score-ok { background: #ffc107; color: #333; }
                 .score-bad { background: #dc3545; color: white; }
+                .verify-badge {
+                    padding: 2px 8px;
+                    border-radius: 3px;
+                    font-weight: 600;
+                    font-size: 11px;
+                }
+                .verify-pass { background: #28a745; color: white; }
+                .verify-fail { background: #dc3545; color: white; }
+                .verify-none { background: #6c757d; color: white; }
+                .verification-panel {
+                    padding: 10px 15px;
+                    background: #e9ecef;
+                    border-top: 1px solid #ccc;
+                    font-size: 12px;
+                }
+                .verify-status {
+                    font-weight: 600;
+                    margin-bottom: 5px;
+                }
+                .verify-status.verify-pass { color: #28a745; }
+                .verify-status.verify-fail { color: #dc3545; }
+                .verify-missing {
+                    color: #dc3545;
+                    margin-bottom: 5px;
+                }
+                .verify-detected {
+                    color: #495057;
+                    margin-bottom: 3px;
+                    word-break: break-word;
+                }
+                .verify-warning {
+                    color: #856404;
+                    background: #fff3cd;
+                    padding: 3px 8px;
+                    border-radius: 3px;
+                    display: inline-block;
+                    margin-top: 5px;
+                }
                 .renders {
                     display: flex;
                     gap: 20px;
