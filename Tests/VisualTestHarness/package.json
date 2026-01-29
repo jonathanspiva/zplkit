@@ -1,0 +1,17 @@
+{
+  "name": "zplkit-visual-tests",
+  "version": "1.0.0",
+  "description": "Visual regression testing for ZPLKit",
+  "type": "module",
+  "scripts": {
+    "render": "node render.js",
+    "compare": "node compare.js",
+    "test": "npm run render && npm run compare",
+    "update-baselines": "cp output/*.png baselines/"
+  },
+  "dependencies": {
+    "zpl-renderer-js": "^2.2.1",
+    "pixelmatch": "^6.0.0",
+    "pngjs": "^7.0.0"
+  }
+}

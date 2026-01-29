@@ -3,7 +3,7 @@
 **Version:** 0.2.0 (Draft)
 **Author:** Jonathan / Anticipate IT
 **Date:** January 2026
-**Swift Version:** 6.2+ (strict concurrency, Swift Testing)
+**Swift Version:** 6.0+ (strict concurrency, XCTest)
 
 ---
 
@@ -457,23 +457,25 @@ During development with Claude Code, the following feedback loop is available:
 
 This enables rapid prototyping and validation without requiring manual inspection at every step. Claude can verify that labels render correctly, catch visual regressions, and suggest fixes based on what the rendered output actually looks like.
 
-### 6.1 Unit Tests (Swift Testing)
+### 6.1 Unit Tests (XCTest)
 
-Using Swift Testing framework (`@Test`, `#expect`):
+Using XCTest framework:
 - Every element type has render tests
 - Modifier chains produce expected output
 - Edge cases (empty strings, max values, special characters)
 - Position and Dimension unit conversions (inches, mm → dots)
 
 ```swift
-import Testing
+import XCTest
 @testable import ZPLKit
 
-@Test func textRendersCorrectly() {
-    let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-        Text("Hello", at: .inches(0.5, 0.5))
+final class ZPLKitTests: XCTestCase {
+    func testTextRendersCorrectly() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Hello", at: .inches(0.5, 0.5))
+        }
+        XCTAssertTrue(label.render().contains("^FDHello^FS"))
     }
-    #expect(label.render().contains("^FDHello^FS"))
 }
 ```
 
@@ -508,6 +510,18 @@ Tests/
 | Modifiers | rotation (0°, 90°, 180°, 270°), reversed, font sizes |
 | Units | dots, inches, mm |
 | Edge cases | empty text, max barcode length, special characters, boundary positions |
+
+**Standard label sizes for testing:**
+
+| Size | Use Case |
+|------|----------|
+| 4" x 6" | Shipping labels (UPS, FedEx, USPS, Amazon) |
+| 2" x 1" | Barcodes, SKUs, product labels, small asset tags |
+| 4" x 2" | Shipping manifest lines, inventory, price marking |
+| 4" x 3" | Warehouse bins, medium asset tags, pallet labels |
+| 4" x 4" | QR codes, square labels, bin identification |
+
+Each element type should have visual tests at multiple label sizes to verify correct positioning and scaling.
 
 **Workflow:**
 
@@ -565,7 +579,7 @@ visual-tests:
 ### 6.3 Golden File Tests (ZPL String)
 
 ```swift
-@Test func basicLabel() {
+func testBasicLabel() {
     let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
         Text("Test", at: .dots(50, 50))
     }
@@ -578,7 +592,7 @@ visual-tests:
     ^XZ
     """
 
-    #expect(label.render(prettyPrint: true) == expected)
+    XCTAssertEqual(label.render(prettyPrint: true), expected)
 }
 ```
 
@@ -776,7 +790,7 @@ The library is successful if:
 | Question | Decision |
 |----------|----------|
 | Naming | `ZPLKit` |
-| Swift version | Swift 6.2+ with strict concurrency, Swift Testing framework |
+| Swift version | Swift 6.0+ with strict concurrency, XCTest framework |
 | Barcode scope (v1) | Code128, QR, Code39, DataMatrix |
 | Image support | Someday (no commitment) |
 | `render()` behavior | Non-throwing, clamp with `os_log` in DEBUG |

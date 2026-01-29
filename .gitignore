@@ -1,0 +1,30 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Visual Test Harness
+Tests/VisualTestHarness/node_modules/
+Tests/VisualTestHarness/output/
+Tests/VisualTestHarness/fixtures/*.zpl
+
+# Keep baselines (golden images)
+!Tests/VisualTestHarness/baselines/
