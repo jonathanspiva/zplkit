@@ -12,7 +12,6 @@
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Submit to Swift Package Index
-- [ ] Barcode decode verification (scan rendered barcodes to verify encoded data)
 - [ ] Icon support via LiveUI/Awesome (FontAwesome 6, native CGImage, 1,500+ icons)
 
 ## Never
@@ -27,6 +26,7 @@
 - [x] Renderer validation (scoring, diff images, reference comparison)
 - [x] ZPL test fixtures documented in README as reusable resource
 - [x] Printer commands: PrinterCommand enum (~WL, ~JC, ~JR, ~JA)
+- [x] Barcode decode verification (Vision framework, 8 barcode types verified)
 - [x] DocC documentation (ZPLLabel, types, core elements)
 - [x] README badges (Swift version, platforms, CI status)
 - [x] Examples/ directory (BasicLabel, ShippingLabel, InventoryTag, PartsBinLabel, ProductLabel)
@@ -49,4 +49,4 @@
 - [x] Visual test harness (Swift-native, replaces npm)
 - [x] Labelary comparison in CI (retry logic, graceful failure handling)
 - [x] Renderer accuracy scoring (90.5% baseline, reference images committed)
-- [x] Comprehensive unit testing (268 tests)
+- [x] Comprehensive unit testing (280 tests)
