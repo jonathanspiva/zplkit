@@ -25,6 +25,9 @@ let package = Package(
             targets: ["ZPLVerifier"]
         ),
     ],
+    dependencies: [
+        .package(url: "https://github.com/LiveUI/Awesome", from: "2.0.0"),
+    ],
     targets: [
         .target(
             name: "ZPLKit"
@@ -64,7 +67,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "GraphicsTest",
-            dependencies: ["ZPLKit"],
+            dependencies: ["ZPLKit", "Awesome"],
             path: "Tools/GraphicsTest"
         ),
     ]
