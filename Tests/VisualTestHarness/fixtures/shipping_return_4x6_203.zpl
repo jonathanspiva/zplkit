@@ -1,4 +1,7 @@
 ^XA
+^FX DESCRIPTION: Return shipping label with solid black header bar containing
+^FX reversed white text 'RETURN LABEL' and RMA number. Normal black text for
+^FX addresses below. Code 128 barcode near bottom. Fill-in lines for customer.
 ^PW812
 ^LL1218
 ^FO30,30^GB752,150,752,B^FS

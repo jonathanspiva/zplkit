@@ -7,6 +7,12 @@
 - [ ] **Renderer validation**
   - [ ] Automated diff detection (flag visual regressions in CI)
   - [ ] Baseline management (approve/reject render changes)
+  - [ ] Add ^FX DESCRIPTION comments to all fixtures
+  - [ ] Display descriptions in HTML comparison
+  - [ ] Curate reference images (use ZPLKitRenderer when it's more correct than Labelary)
+- [ ] **ZPL test suite as standalone resource**
+  - [ ] Package fixtures with descriptions as reusable test suite
+  - [ ] Could be valuable to other ZPL tools/renderers
 
 ## Someday
 - [ ] **Open source release**
