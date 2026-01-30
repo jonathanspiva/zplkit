@@ -13,9 +13,15 @@
   - [ ] Intelligent Mail encoder (uses placeholder currently)
 - [ ] **Open source release**
   - [ ] CHANGELOG.md
+  - [ ] CONTRIBUTING.md (code style, PR process, development setup)
+  - [ ] GitHub repo description and topics (swift, zpl, zebra, label-printing, barcode)
+  - [ ] Issue templates (bug report, feature request)
+  - [ ] Verify `swift package dump-package` outputs valid JSON
+  - [ ] .spi.yml with documentation_targets for DocC hosting on Swift Package Index
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
-  - [ ] Submit to Swift Package Index
+  - [ ] Add package to Swift Package Index (PR to SwiftPackageIndex/PackageList)
+  - [ ] Update README badges to use Swift Package Index badges
 
 ## Never
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
