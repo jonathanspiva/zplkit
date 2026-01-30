@@ -31,11 +31,16 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 - **Bonjour discovery** to find printers on the local network
 - **Async/await API** with configurable timeout
 
-### ZPLVerifier (Testing)
+### ZPLVerifier (Validation)
 
 - **Barcode verification** using Vision framework
 - **Text OCR** to verify label content
-- **114 test fixtures** for validating ZPL parsers and renderers
+
+### Test Fixtures
+
+- **114 ZPL files** covering text, barcodes, shapes, and graphics
+- **Reusable test suite** for validating any ZPL parser or renderer
+- **Reference images** from Labelary for comparison
 
 ## Installation
 
