@@ -1,52 +1,7 @@
 # ZPLKit TODO
 
 ## Now
-
-### ZPLKitPrinter: Two-way printer communication
-Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with response handling using ZPL control commands. These work on all Zebra printers including older models like the ZM400.
-
-#### Concerns and Considerations
-- **~HS silent on errors**: Printer will NOT respond to ~HS if in MEDIA OUT, RIBBON OUT, HEAD OPEN, REWINDER FULL, or HEAD OVER-TEMP state. Must treat timeout as potential error condition, not just network failure.
-- **Response framing**: Each response string starts with STX (0x02), ends with ETX CR LF (0x03 0x0D 0x0A). ~HS returns 3 strings; must buffer and parse all three.
-- **Interlocking risk**: Sending ZPL then immediately querying status on same connection can interlock. Options: (a) close connection between operations, (b) use separate connections, (c) Link-OS printers have port 9200 for status (but ZM400 doesn't fully support this).
-- **Port 9200 status channel**: Link-OS feature for JSON-based status queries. ZM400 has "limited admin features" so stick with port 9100 + ZPL control commands.
-- **Alternative command**: `~HQES` (Host Query ES) may provide more reliable status on some printers. Worth investigating as fallback.
-- **Binary response fields**: Some ~HS fields are "three-digit decimal representation of eight-bit binary number" requiring bit parsing.
-
-#### Foundation
-- [x] **Bidirectional connection support**
-  - Added `QueryState` actor to track send + receive states with response buffering
-  - New `query(_ command:responseTimeout:)` method keeps connection open for response
-  - Recursive `receiveResponse` collects data until ETX detected or timeout
-  - Separate timeouts: connection timeout vs response timeout
-  - Static convenience: `ZPLPrinter.query(_:from:timeout:responseTimeout:)`
-- [x] **Response parsing infrastructure**
-  - Detects ETX (0x03) + CR LF framing for ZPL control responses
-  - New error cases: `receiveFailed`, `responseTimeout`, `invalidResponse`
-  - `responseTimeout` error description notes printer may be in error state
-
-#### ZPL Control Commands
-- [x] **Printer status** (`~HS` Host Status)
-  - `PrinterStatus` struct with all fields (Sendable, Equatable, Codable, CustomStringConvertible)
-  - Fields: isPaperOut, isRibbonOut, isHeadOpen, isHeadTooHot, isHeadCold, isPaused, isReceiveBufferFull, isPartialFormatInProgress, formatsInBuffer, labelsRemainingInBatch, labelLengthInDots
-  - Computed: `isReadyToPrint`, `hasError`
-  - Parser handles STX/ETX framing and comma-separated fields
-  - `ZPLPrinter.queryStatus()` convenience method
-- [x] **Printer identification** (`~HI` Host Identification)
-  - `PrinterInfo` struct (Sendable, Equatable, Codable, CustomStringConvertible)
-  - Fields: model, firmwareVersion, dotsPerMillimeter, memoryKB, options
-  - Computed: `dpi` (from dpm), `memoryFormatted` (KB/MB)
-  - Parser handles STX/ETX framing with fallback for unframed responses
-  - `ZPLPrinter.queryInfo()` convenience method
-- [x] **Memory status** (`~HM` Host Memory)
-  - `MemoryStatus` struct (Sendable, Equatable, Codable, CustomStringConvertible)
-  - Fields: total, maximum, available (bytes)
-  - Computed: used, usagePercent, totalFormatted, availableFormatted, usedFormatted
-  - `ZPLPrinter.queryMemory()` convenience method
-  - Note: Head temperature requires SGD commands (deferred to Someday)
-- [x] **Test page commands** (fire-and-forget, no response)
-  - `printConfigurationLabel()` sends `~JC`
-  - `printNetworkConfigLabel()` sends `~WC`
+- [ ] Nothing active
 
 ## Later
 - [ ] Nothing planned
@@ -81,6 +36,14 @@ Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with re
 - Snapshot tests (pixel-perfect PNG comparison) - ZPLVerifier already validates barcodes scan correctly; snapshot tests are brittle across macOS versions, CI environments, and architectures; thermal printers are forgiving of minor rendering differences
 
 ## Done
+- [x] **Two-way printer communication** - ZPL control command queries
+  - Bidirectional connection: `query()` method with `QueryState` actor, STX/ETX framing detection
+  - `~HS` Host Status: `PrinterStatus` struct (isPaperOut, isRibbonOut, isHeadOpen, isPaused, etc.)
+  - `~HI` Host Identification: `PrinterInfo` struct (model, firmware, dpi, memory, options)
+  - `~HM` Host Memory: `MemoryStatus` struct (total, available, usage percent)
+  - Test pages: `printConfigurationLabel()` (~JC), `printNetworkConfigLabel()` (~WC)
+  - New errors: receiveFailed, responseTimeout, invalidResponse
+  - 43 tests for printer communication
 - [x] **ZPLKitPrinter module** - Network printing and discovery
   - ZPLPrinter: Send ZPL via TCP (async/await, configurable timeout)
   - ZPLPrinterBrowser: Bonjour discovery (`_pdl-datastream._tcp`)
