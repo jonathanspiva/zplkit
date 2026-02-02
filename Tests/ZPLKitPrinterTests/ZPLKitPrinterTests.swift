@@ -95,6 +95,14 @@ struct ZPLKitPrinterTests {
 
         let invalidResponseError = PrinterError.invalidResponse("Unexpected format")
         #expect(invalidResponseError.errorDescription?.contains("Invalid response") == true)
+
+        let sendError = PrinterError.sendFailed(underlying: "Broken pipe")
+        #expect(sendError.errorDescription?.contains("send") == true)
+        #expect(sendError.errorDescription?.contains("Broken pipe") == true)
+
+        let configError = PrinterError.invalidConfiguration("Port must be positive")
+        #expect(configError.errorDescription?.contains("Invalid configuration") == true)
+        #expect(configError.errorDescription?.contains("Port must be positive") == true)
     }
 
     @Test("ZPLPrinterBrowser service type is correct")
@@ -372,6 +380,63 @@ struct ZPLKitPrinterTests {
         #expect(status.hasError == true)
     }
 
+    @Test("PrinterStatus parses head cold condition")
+    func printerStatusParsesHeadCold() throws {
+        let response = buildHSResponse(
+            string1: "000,0,0,0799,000,0,0,0,000,0,1,0",  // temp=1 (under temp)
+            string2: "0,0,0,1,0,0,0,0000"
+        )
+
+        let status = try PrinterStatus.parse(from: response)
+
+        #expect(status.isHeadCold == true)
+        #expect(status.isHeadTooHot == false)
+        // Note: isHeadCold is a warning, not an error that prevents printing
+        #expect(status.hasError == false)
+    }
+
+    @Test("PrinterStatus parses receive buffer full")
+    func printerStatusParsesReceiveBufferFull() throws {
+        let response = buildHSResponse(
+            string1: "000,0,0,0799,000,1,0,0,000,0,0,0",  // buffer_full=1
+            string2: "0,0,0,1,0,0,0,0000"
+        )
+
+        let status = try PrinterStatus.parse(from: response)
+
+        #expect(status.isReceiveBufferFull == true)
+    }
+
+    @Test("PrinterStatus parses partial format in progress")
+    func printerStatusParsesPartialFormat() throws {
+        let response = buildHSResponse(
+            string1: "000,0,0,0799,000,0,0,1,000,0,0,0",  // partial=1
+            string2: "0,0,0,1,0,0,0,0000"
+        )
+
+        let status = try PrinterStatus.parse(from: response)
+
+        #expect(status.isPartialFormatInProgress == true)
+    }
+
+    @Test("PrinterStatus parses multiple combined errors")
+    func printerStatusParsesMultipleErrors() throws {
+        let response = buildHSResponse(
+            string1: "000,1,1,0799,000,0,0,0,000,0,2,0",  // paper_out=1, pause=1, temp=2
+            string2: "0,1,1,1,0,0,0,0000"  // head_up=1, ribbon_out=1
+        )
+
+        let status = try PrinterStatus.parse(from: response)
+
+        #expect(status.isPaperOut == true)
+        #expect(status.isPaused == true)
+        #expect(status.isHeadTooHot == true)
+        #expect(status.isHeadOpen == true)
+        #expect(status.isRibbonOut == true)
+        #expect(status.isReadyToPrint == false)
+        #expect(status.hasError == true)
+    }
+
     @Test("PrinterStatus throws on invalid response")
     func printerStatusThrowsOnInvalidResponse() throws {
         // Only one string instead of two
@@ -504,6 +569,15 @@ struct ZPLKitPrinterTests {
     @Test("PrinterInfo throws on invalid DPM")
     func printerInfoThrowsOnInvalidDPM() throws {
         let response = buildHIResponse("ZT410-203dpi,V53.17.14Z,invalid,49152KB,NONE")
+
+        #expect(throws: PrinterError.self) {
+            _ = try PrinterInfo.parse(from: response)
+        }
+    }
+
+    @Test("PrinterInfo throws on invalid memory value")
+    func printerInfoThrowsOnInvalidMemory() throws {
+        let response = buildHIResponse("ZT410-203dpi,V53.17.14Z,8,invalid,NONE")
 
         #expect(throws: PrinterError.self) {
             _ = try PrinterInfo.parse(from: response)
