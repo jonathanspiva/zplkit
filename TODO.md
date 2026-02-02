@@ -43,7 +43,7 @@
   - `~HM` Host Memory: `MemoryStatus` struct (total, available, usage percent)
   - Test pages: `printConfigurationLabel()` (~JC), `printNetworkConfigLabel()` (~WC)
   - New errors: receiveFailed, responseTimeout, invalidResponse
-  - 43 tests for printer communication
+  - 48 tests for printer communication
 - [x] **ZPLKitPrinter module** - Network printing and discovery
   - ZPLPrinter: Send ZPL via TCP (async/await, configurable timeout)
   - ZPLPrinterBrowser: Bonjour discovery (`_pdl-datastream._tcp`)
@@ -80,7 +80,7 @@
   - [x] Discovery mode (analyze) and assertion mode (verify)
   - [x] Declarative DSL with `Barcode(...)` and `Text(...)` expectations
   - [x] Vision hints optimization for faster detection
-  - [x] 37 unit and integration tests
+  - [x] 44 unit and integration tests
   - [x] Visual test harness integration with verification and discovery display
   - [x] fixtures.json populated with expectedBarcodes for 54 barcode fixtures
 - [x] Fixture metadata JSON with descriptions, categories, features, size, DPI
@@ -113,4 +113,4 @@
 - [x] Visual test harness (Swift-native, replaces npm)
 - [x] Labelary comparison in CI (retry logic, graceful failure handling)
 - [x] Renderer accuracy scoring (90.5% baseline, reference images committed)
-- [x] Comprehensive unit testing (280 tests)
+- [x] Comprehensive unit testing (374 tests)
