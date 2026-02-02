@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: ZPL Programming Guide
+    url: https://www.zebra.com/content/dam/zebra/manuals/printers/common/programming/zpl-zbi2-pm-en.pdf
+    about: Official Zebra ZPL documentation
+  - name: Labelary Viewer
+    url: http://labelary.com/viewer.html
+    about: Online ZPL preview tool for testing labels
