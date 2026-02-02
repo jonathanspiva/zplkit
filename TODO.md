@@ -32,7 +32,7 @@
 - [ ] **Open source release**
   - [x] CHANGELOG.md
   - [x] CONTRIBUTING.md (code style, PR process, development setup)
-  - [ ] GitHub repo description and topics (swift, zpl, zebra, label-printing, barcode)
+  - [x] GitHub repo description and topics (swift, zpl, zebra, label-printing, barcode)
   - [x] Issue templates (bug report, feature request)
   - [x] Verify `swift package dump-package` outputs valid JSON
   - [x] .spi.yml with documentation_targets for DocC hosting on Swift Package Index
