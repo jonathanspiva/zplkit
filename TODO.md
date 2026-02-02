@@ -7,6 +7,13 @@
 - [ ] Nothing planned
 
 ## Someday
+- [ ] **Physical print verification** - End-to-end testing with real printers
+  - V1: MacBook camera capture + ZPLVerifier (hold label in front of camera)
+  - AVFoundation `AVCaptureSession` for FaceTime camera frame capture
+  - ZPLVerifier already handles barcode/text detection from captured image
+  - V2: Network camera support (HTTP snapshot endpoints like `/snapshot.jpg`)
+  - V3: Automated test fixture (camera mount, consistent lighting, label positioning)
+  - Consider: timing (wait for print), print quality grading (ISO 15415), thermal artifacts
 - [ ] **SGD (Set-Get-Do) commands** - Modern Link-OS protocol for newer printers
   - `! U1 getvar/setvar/do` syntax, more granular than ZPL control commands
   - `odometer.total_label_count` for precise print verification (count before/after)
