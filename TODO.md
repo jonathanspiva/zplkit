@@ -5,6 +5,27 @@
 
 ## Later
 
+### ZPLKitPrinter: Two-way printer communication
+Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with response handling.
+
+- [ ] **Printer status query** (`~HS` Host Status)
+  - Parse response into `PrinterStatus` struct
+  - Fields: paper out, head open, ribbon out, paused, buffer full, labels remaining
+  - Keep connection open to read response after sending command
+- [ ] **Printer identification** (`~HI` Host Identification)
+  - Returns: model, firmware version, serial number, DPI, memory
+  - Could auto-populate printer info on discovery
+- [ ] **Print confirmation**
+  - Query `~HS` after sending ZPL to verify receipt/completion
+  - Detect if label printed vs queued vs failed
+- [ ] **Test page commands**
+  - `~JC` - Print configuration label
+  - `~WC` - Print network configuration label
+  - Useful for printer setup verification
+- [ ] **Maintenance info** (`~HM` Head Diagnostic)
+  - Head temperature, printhead status, maintenance counters
+- [ ] **Label counter** - Query odometer/total labels printed
+
 ## Someday
 - [ ] **Public barcode generation API** - Expose barcode encoding as a module
   - Most encoders already implemented internally (Code128, Code39, EAN-13/8, UPC-A/E, I2of5)
@@ -25,7 +46,6 @@
 
 ## Never
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
-- Two-way printer commands (`~HS`, `^HH`) - Require response parsing and network client, out of scope for a generation/rendering library
 - SF Symbols icon support - Apple licensing prohibits redistribution and use in printed materials; FontAwesome is the supported alternative
 - Snapshot tests (pixel-perfect PNG comparison) - ZPLVerifier already validates barcodes scan correctly; snapshot tests are brittle across macOS versions, CI environments, and architectures; thermal printers are forgiving of minor rendering differences
 
