@@ -14,6 +14,10 @@
   - V2: Network camera support (HTTP snapshot endpoints like `/snapshot.jpg`)
   - V3: Automated test fixture (camera mount, consistent lighting, label positioning)
   - Consider: timing (wait for print), print quality grading (ISO 15415), thermal artifacts
+- [ ] **Additional font support** - Currently only Font 0 (Roboto Condensed Bold) is bundled
+  - Font A-F mappings to open source equivalents
+  - Scalable font loading from system or bundled TTF files
+  - `^CW` custom font command support
 - [ ] **SGD (Set-Get-Do) commands** - Modern Link-OS protocol for newer printers
   - `! U1 getvar/setvar/do` syntax, more granular than ZPL control commands
   - `odometer.total_label_count` for precise print verification (count before/after)
