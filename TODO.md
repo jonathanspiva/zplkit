@@ -32,10 +32,12 @@ Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with re
   - Computed: `isReadyToPrint`, `hasError`
   - Parser handles STX/ETX framing and comma-separated fields
   - `ZPLPrinter.queryStatus()` convenience method
-- [ ] **Printer identification** (`~HI` Host Identification)
-  - Parse into `PrinterInfo` struct
-  - Returns: model, firmware version, serial number, DPI, memory
-  - Could auto-populate printer info on Bonjour discovery
+- [x] **Printer identification** (`~HI` Host Identification)
+  - `PrinterInfo` struct (Sendable, Equatable, Codable, CustomStringConvertible)
+  - Fields: model, firmwareVersion, dotsPerMillimeter, memoryKB, options
+  - Computed: `dpi` (from dpm), `memoryFormatted` (KB/MB)
+  - Parser handles STX/ETX framing with fallback for unframed responses
+  - `ZPLPrinter.queryInfo()` convenience method
 - [ ] **Head diagnostic** (`~HM`)
   - Head temperature, printhead status
 - [ ] **Test page commands** (fire-and-forget, no response)

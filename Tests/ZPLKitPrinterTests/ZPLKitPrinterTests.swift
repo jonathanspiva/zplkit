@@ -414,4 +414,147 @@ struct ZPLKitPrinterTests {
 
         #expect(decoded == status)
     }
+
+    // MARK: - PrinterInfo Tests
+
+    /// Helper to build ~HI response data with proper framing.
+    private func buildHIResponse(_ content: String) -> Data {
+        var data = Data()
+        data.append(0x02)  // STX
+        data.append(contentsOf: content.utf8)
+        data.append(contentsOf: [0x03, 0x0D, 0x0A] as [UInt8])  // ETX CR LF
+        return data
+    }
+
+    @Test("PrinterInfo parses valid ~HI response")
+    func printerInfoParsesValidResponse() throws {
+        let response = buildHIResponse("ZT410-203dpi,V53.17.14Z,8,49152KB,NONE")
+
+        let info = try PrinterInfo.parse(from: response)
+
+        #expect(info.model == "ZT410-203dpi")
+        #expect(info.firmwareVersion == "V53.17.14Z")
+        #expect(info.dotsPerMillimeter == 8)
+        #expect(info.dpi == 203)
+        #expect(info.memoryKB == 49152)
+        #expect(info.options.isEmpty)
+    }
+
+    @Test("PrinterInfo parses ZM400 response")
+    func printerInfoParsesZM400() throws {
+        let response = buildHIResponse("ZM400-200dpi,V48.18.2Z,8,9984KB,NONE")
+
+        let info = try PrinterInfo.parse(from: response)
+
+        #expect(info.model == "ZM400-200dpi")
+        #expect(info.firmwareVersion == "V48.18.2Z")
+        #expect(info.dotsPerMillimeter == 8)
+        #expect(info.memoryKB == 9984)
+    }
+
+    @Test("PrinterInfo parses 300dpi printer")
+    func printerInfoParses300dpi() throws {
+        let response = buildHIResponse("ZT410-300dpi,V75.20.15Z,12,65536KB,NONE")
+
+        let info = try PrinterInfo.parse(from: response)
+
+        #expect(info.dotsPerMillimeter == 12)
+        #expect(info.dpi == 304)  // 12 * 25.4 = 304.8
+    }
+
+    @Test("PrinterInfo parses with options")
+    func printerInfoParsesWithOptions() throws {
+        let response = buildHIResponse("ZT410-203dpi,V53.17.14Z,8,49152KB,CUTTER")
+
+        let info = try PrinterInfo.parse(from: response)
+
+        #expect(info.options.count == 1)
+        #expect(info.options.contains("CUTTER"))
+    }
+
+    @Test("PrinterInfo memory formatting")
+    func printerInfoMemoryFormatting() {
+        let smallMemory = PrinterInfo(
+            model: "Test",
+            firmwareVersion: "V1.0",
+            dotsPerMillimeter: 8,
+            memoryKB: 512
+        )
+        #expect(smallMemory.memoryFormatted == "512KB")
+
+        let largeMemory = PrinterInfo(
+            model: "Test",
+            firmwareVersion: "V1.0",
+            dotsPerMillimeter: 8,
+            memoryKB: 65536
+        )
+        #expect(largeMemory.memoryFormatted == "64MB")
+    }
+
+    @Test("PrinterInfo throws on invalid response")
+    func printerInfoThrowsOnInvalidResponse() throws {
+        // Too few fields
+        let response = buildHIResponse("ZT410,V53.17.14Z")
+
+        #expect(throws: PrinterError.self) {
+            _ = try PrinterInfo.parse(from: response)
+        }
+    }
+
+    @Test("PrinterInfo throws on invalid DPM")
+    func printerInfoThrowsOnInvalidDPM() throws {
+        let response = buildHIResponse("ZT410-203dpi,V53.17.14Z,invalid,49152KB,NONE")
+
+        #expect(throws: PrinterError.self) {
+            _ = try PrinterInfo.parse(from: response)
+        }
+    }
+
+    @Test("PrinterInfo description is readable")
+    func printerInfoDescription() {
+        let info = PrinterInfo(
+            model: "ZT410-203dpi",
+            firmwareVersion: "V53.17.14Z",
+            dotsPerMillimeter: 8,
+            memoryKB: 49152,
+            options: ["CUTTER"]
+        )
+
+        let desc = info.description
+        #expect(desc.contains("ZT410-203dpi"))
+        #expect(desc.contains("V53.17.14Z"))
+        #expect(desc.contains("203dpi"))
+        #expect(desc.contains("48MB"))
+        #expect(desc.contains("CUTTER"))
+    }
+
+    @Test("PrinterInfo is Codable")
+    func printerInfoCodable() throws {
+        let info = PrinterInfo(
+            model: "ZT410-203dpi",
+            firmwareVersion: "V53.17.14Z",
+            dotsPerMillimeter: 8,
+            memoryKB: 49152,
+            options: ["CUTTER", "REWIND"]
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(info)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(PrinterInfo.self, from: data)
+
+        #expect(decoded == info)
+    }
+
+    @Test("PrinterInfo parses without STX/ETX framing")
+    func printerInfoParsesWithoutFraming() throws {
+        // Some printers or connections may strip framing
+        let response = Data("ZT410-203dpi,V53.17.14Z,8,49152KB,NONE".utf8)
+
+        let info = try PrinterInfo.parse(from: response)
+
+        #expect(info.model == "ZT410-203dpi")
+        #expect(info.firmwareVersion == "V53.17.14Z")
+    }
 }

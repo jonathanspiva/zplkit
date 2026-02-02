@@ -477,4 +477,46 @@ public struct ZPLPrinter: Sendable {
         let connection = ZPLPrinter(printer, timeout: timeout)
         return try await connection.queryStatus(responseTimeout: responseTimeout)
     }
+
+    /// Queries the printer's identification using the `~HI` command.
+    ///
+    /// Returns a `PrinterInfo` object containing:
+    /// - Model name (e.g., "ZT410-203dpi")
+    /// - Firmware version
+    /// - Resolution (dots per millimeter / DPI)
+    /// - Available memory
+    /// - Installed options
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let printer = ZPLPrinter(host: "192.168.1.100")
+    /// let info = try await printer.queryInfo()
+    /// print("Connected to \(info.model) at \(info.dpi) dpi")
+    /// ```
+    ///
+    /// - Parameter responseTimeout: Time to wait for response. Defaults to 5 seconds.
+    /// - Returns: The printer's identification info.
+    /// - Throws: `PrinterError` if the query fails or response cannot be parsed.
+    public func queryInfo(responseTimeout: TimeInterval = 5) async throws -> PrinterInfo {
+        let data = try await query("~HI", responseTimeout: responseTimeout)
+        return try PrinterInfo.parse(from: data)
+    }
+
+    /// Queries identification from a discovered printer.
+    ///
+    /// - Parameters:
+    ///   - printer: The discovered printer to query.
+    ///   - timeout: Connection timeout in seconds.
+    ///   - responseTimeout: Time to wait for response after sending.
+    /// - Returns: The printer's identification info.
+    /// - Throws: `PrinterError` if the query fails or response cannot be parsed.
+    public static func queryInfo(
+        from printer: DiscoveredPrinter,
+        timeout: TimeInterval = defaultTimeout,
+        responseTimeout: TimeInterval = 5
+    ) async throws -> PrinterInfo {
+        let connection = ZPLPrinter(printer, timeout: timeout)
+        return try await connection.queryInfo(responseTimeout: responseTimeout)
+    }
 }
