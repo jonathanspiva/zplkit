@@ -30,12 +30,12 @@
   - [ ] Data Matrix encoder (CoreImage doesn't support it, needs mathematical implementation)
   - [ ] Intelligent Mail encoder (uses placeholder currently)
 - [ ] **Open source release**
-  - [ ] CHANGELOG.md
-  - [ ] CONTRIBUTING.md (code style, PR process, development setup)
+  - [x] CHANGELOG.md
+  - [x] CONTRIBUTING.md (code style, PR process, development setup)
   - [ ] GitHub repo description and topics (swift, zpl, zebra, label-printing, barcode)
-  - [ ] Issue templates (bug report, feature request)
-  - [ ] Verify `swift package dump-package` outputs valid JSON
-  - [ ] .spi.yml with documentation_targets for DocC hosting on Swift Package Index
+  - [x] Issue templates (bug report, feature request)
+  - [x] Verify `swift package dump-package` outputs valid JSON
+  - [x] .spi.yml with documentation_targets for DocC hosting on Swift Package Index
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
   - [ ] Add package to Swift Package Index (PR to SwiftPackageIndex/PackageList)
