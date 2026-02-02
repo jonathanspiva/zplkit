@@ -381,6 +381,96 @@ final class ZPLVerifierTests: XCTestCase {
         XCTAssertEqual(expectations.count, 3)
     }
 
+    // MARK: - VerifierError Tests
+
+    func testVerifierErrorDescriptions() {
+        let invalidImage = VerifierError.invalidImage
+        XCTAssertEqual(invalidImage.errorDescription, "The provided image could not be processed")
+        XCTAssertNil(invalidImage.underlyingMessage)
+
+        let barcodeError = VerifierError.barcodeDetectionFailed(underlying: "No barcodes found")
+        XCTAssertTrue(barcodeError.errorDescription?.contains("Barcode detection failed") ?? false)
+        XCTAssertEqual(barcodeError.underlyingMessage, "No barcodes found")
+
+        let textError = VerifierError.textRecognitionFailed(underlying: "OCR failed")
+        XCTAssertTrue(textError.errorDescription?.contains("Text recognition failed") ?? false)
+        XCTAssertEqual(textError.underlyingMessage, "OCR failed")
+
+        let unexpectedError = VerifierError.unexpected("Something went wrong")
+        XCTAssertTrue(unexpectedError.errorDescription?.contains("Unexpected error") ?? false)
+        XCTAssertEqual(unexpectedError.underlyingMessage, "Something went wrong")
+    }
+
+    // MARK: - BarcodeSymbology Tests
+
+    func testBarcodeSymbologyDescriptions() {
+        XCTAssertEqual(BarcodeSymbology.qr.description, "QR Code")
+        XCTAssertEqual(BarcodeSymbology.code128.description, "Code 128")
+        XCTAssertEqual(BarcodeSymbology.ean13.description, "EAN-13")
+        XCTAssertEqual(BarcodeSymbology.aztec.description, "Aztec")
+        XCTAssertEqual(BarcodeSymbology.pdf417.description, "PDF417")
+        XCTAssertEqual(BarcodeSymbology.dataMatrix.description, "Data Matrix")
+        XCTAssertEqual(BarcodeSymbology.i2of5.description, "Interleaved 2 of 5")
+    }
+
+    func testBarcodeSymbologyRawValues() {
+        XCTAssertEqual(BarcodeSymbology.qr.rawValue, "qr")
+        XCTAssertEqual(BarcodeSymbology.code128.rawValue, "code128")
+        XCTAssertEqual(BarcodeSymbology.ean13.rawValue, "ean13")
+    }
+
+    func testBarcodeSymbologyCodable() throws {
+        let symbology = BarcodeSymbology.code128
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(symbology)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(BarcodeSymbology.self, from: data)
+        XCTAssertEqual(decoded, symbology)
+    }
+
+    func testBarcodeSymbologyCaseIterable() {
+        // Verify CaseIterable works and has expected count
+        XCTAssertGreaterThan(BarcodeSymbology.allCases.count, 10)
+        XCTAssertTrue(BarcodeSymbology.allCases.contains(.qr))
+        XCTAssertTrue(BarcodeSymbology.allCases.contains(.code128))
+    }
+
+    // MARK: - DetectedBarcode/DetectedText Codable Tests
+
+    func testDetectedBarcodeCodable() throws {
+        let barcode = DetectedBarcode(
+            symbology: .code128,
+            payload: "TEST123",
+            boundingBox: CGRect(x: 0.1, y: 0.2, width: 0.5, height: 0.3),
+            confidence: 0.95
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(barcode)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(DetectedBarcode.self, from: data)
+
+        XCTAssertEqual(decoded.symbology, barcode.symbology)
+        XCTAssertEqual(decoded.payload, barcode.payload)
+        XCTAssertEqual(decoded.confidence, barcode.confidence)
+    }
+
+    func testDetectedTextCodable() throws {
+        let text = DetectedText(
+            text: "HELLO WORLD",
+            boundingBox: CGRect(x: 0.1, y: 0.5, width: 0.8, height: 0.1),
+            confidence: 0.9
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(text)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(DetectedText.self, from: data)
+
+        XCTAssertEqual(decoded.text, text.text)
+        XCTAssertEqual(decoded.confidence, text.confidence)
+    }
+
     // MARK: - Integration Tests
 
     func testVerifierAnalyzeQRCode() throws {
