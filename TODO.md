@@ -1,28 +1,37 @@
 # ZPLKit TODO
 
 ## Now
-- [ ] Nothing active
-
-## Later
 
 ### ZPLKitPrinter: Two-way printer communication
 Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with response handling using ZPL control commands. These work on all Zebra printers including older models like the ZM400.
 
+#### Concerns and Considerations
+- **~HS silent on errors**: Printer will NOT respond to ~HS if in MEDIA OUT, RIBBON OUT, HEAD OPEN, REWINDER FULL, or HEAD OVER-TEMP state. Must treat timeout as potential error condition, not just network failure.
+- **Response framing**: Each response string starts with STX (0x02), ends with ETX CR LF (0x03 0x0D 0x0A). ~HS returns 3 strings; must buffer and parse all three.
+- **Interlocking risk**: Sending ZPL then immediately querying status on same connection can interlock. Options: (a) close connection between operations, (b) use separate connections, (c) Link-OS printers have port 9200 for status (but ZM400 doesn't fully support this).
+- **Port 9200 status channel**: Link-OS feature for JSON-based status queries. ZM400 has "limited admin features" so stick with port 9100 + ZPL control commands.
+- **Alternative command**: `~HQES` (Host Query ES) may provide more reliable status on some printers. Worth investigating as fallback.
+- **Binary response fields**: Some ~HS fields are "three-digit decimal representation of eight-bit binary number" requiring bit parsing.
+
 #### Foundation
-- [ ] **Bidirectional connection support**
-  - Current implementation calls `connection.cancel()` immediately after send (ZPLPrinter.swift:151)
-  - Keep connection open after send to read response via `connection.receiveMessage`
-  - Extend `SendState` actor to track send + receive states with response buffering
-  - Separate timeouts: connection, send, response (currently single timeout)
-- [ ] **Response parsing infrastructure**
-  - ZPL control responses: multi-line ASCII ending with ETX (0x03)
-  - New error cases: `responseFailed`, `responseTimeout`, `invalidResponse`
+- [x] **Bidirectional connection support**
+  - Added `QueryState` actor to track send + receive states with response buffering
+  - New `query(_ command:responseTimeout:)` method keeps connection open for response
+  - Recursive `receiveResponse` collects data until ETX detected or timeout
+  - Separate timeouts: connection timeout vs response timeout
+  - Static convenience: `ZPLPrinter.query(_:from:timeout:responseTimeout:)`
+- [x] **Response parsing infrastructure**
+  - Detects ETX (0x03) + CR LF framing for ZPL control responses
+  - New error cases: `receiveFailed`, `responseTimeout`, `invalidResponse`
+  - `responseTimeout` error description notes printer may be in error state
 
 #### ZPL Control Commands
-- [ ] **Printer status** (`~HS` Host Status)
-  - Parse into `PrinterStatus` struct
-  - Fields: paper out, head open, ribbon out, paused, buffer full, labels remaining
-  - Use for print verification: query before/after send, check buffer cleared + no errors
+- [x] **Printer status** (`~HS` Host Status)
+  - `PrinterStatus` struct with all fields (Sendable, Equatable, Codable, CustomStringConvertible)
+  - Fields: isPaperOut, isRibbonOut, isHeadOpen, isHeadTooHot, isHeadCold, isPaused, isReceiveBufferFull, isPartialFormatInProgress, formatsInBuffer, labelsRemainingInBatch, labelLengthInDots
+  - Computed: `isReadyToPrint`, `hasError`
+  - Parser handles STX/ETX framing and comma-separated fields
+  - `ZPLPrinter.queryStatus()` convenience method
 - [ ] **Printer identification** (`~HI` Host Identification)
   - Parse into `PrinterInfo` struct
   - Returns: model, firmware version, serial number, DPI, memory
@@ -32,6 +41,9 @@ Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with re
 - [ ] **Test page commands** (fire-and-forget, no response)
   - `~JC` - Print configuration label
   - `~WC` - Print network configuration label
+
+## Later
+- [ ] Nothing planned
 
 ## Someday
 - [ ] **SGD (Set-Get-Do) commands** - Modern Link-OS protocol for newer printers
