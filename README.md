@@ -1,5 +1,7 @@
 # ZPLKit
 
+<img src="logo.svg" width="128" height="128" alt="ZPLKit logo">
+
 ![Swift 6.0+](https://img.shields.io/badge/Swift-6.0+-orange.svg)
 ![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)

@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="roundedSquare">
+      <rect x="0" y="0" width="512" height="512" rx="115" ry="115"/>
+    </clipPath>
+  </defs>
+
+  <!-- Rounded square background -->
+  <g clip-path="url(#roundedSquare)">
+    <!-- White base -->
+    <rect width="512" height="512" fill="#FFFFFF"/>
+
+    <!-- Bright yellow - 45 degree diagonal split -->
+    <polygon points="0,0 0,512 512,512" fill="#FFD700"/>
+
+    <!-- Zebra stripes - 45 degree angle, varying widths -->
+    <rect x="-200" y="-300" width="70" height="1200" fill="black" transform="rotate(45 256 256)"/>
+    <rect x="-80" y="-300" width="50" height="1200" fill="black" transform="rotate(45 256 256)"/>
+    <rect x="30" y="-300" width="65" height="1200" fill="black" transform="rotate(45 256 256)"/>
+    <rect x="150" y="-300" width="45" height="1200" fill="black" transform="rotate(45 256 256)"/>
+    <rect x="250" y="-300" width="70" height="1200" fill="black" transform="rotate(45 256 256)"/>
+    <rect x="375" y="-300" width="55" height="1200" fill="black" transform="rotate(45 256 256)"/>
+    <rect x="485" y="-300" width="60" height="1200" fill="black" transform="rotate(45 256 256)"/>
+    <rect x="600" y="-300" width="48" height="1200" fill="black" transform="rotate(45 256 256)"/>
+  </g>
+</svg>

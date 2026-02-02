@@ -6,27 +6,39 @@
 ## Later
 
 ### ZPLKitPrinter: Two-way printer communication
-Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with response handling.
+Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with response handling using ZPL control commands. These work on all Zebra printers including older models like the ZM400.
 
-- [ ] **Printer status query** (`~HS` Host Status)
-  - Parse response into `PrinterStatus` struct
+#### Foundation
+- [ ] **Bidirectional connection support**
+  - Current implementation calls `connection.cancel()` immediately after send (ZPLPrinter.swift:151)
+  - Keep connection open after send to read response via `connection.receiveMessage`
+  - Extend `SendState` actor to track send + receive states with response buffering
+  - Separate timeouts: connection, send, response (currently single timeout)
+- [ ] **Response parsing infrastructure**
+  - ZPL control responses: multi-line ASCII ending with ETX (0x03)
+  - New error cases: `responseFailed`, `responseTimeout`, `invalidResponse`
+
+#### ZPL Control Commands
+- [ ] **Printer status** (`~HS` Host Status)
+  - Parse into `PrinterStatus` struct
   - Fields: paper out, head open, ribbon out, paused, buffer full, labels remaining
-  - Keep connection open to read response after sending command
+  - Use for print verification: query before/after send, check buffer cleared + no errors
 - [ ] **Printer identification** (`~HI` Host Identification)
+  - Parse into `PrinterInfo` struct
   - Returns: model, firmware version, serial number, DPI, memory
-  - Could auto-populate printer info on discovery
-- [ ] **Print confirmation**
-  - Query `~HS` after sending ZPL to verify receipt/completion
-  - Detect if label printed vs queued vs failed
-- [ ] **Test page commands**
+  - Could auto-populate printer info on Bonjour discovery
+- [ ] **Head diagnostic** (`~HM`)
+  - Head temperature, printhead status
+- [ ] **Test page commands** (fire-and-forget, no response)
   - `~JC` - Print configuration label
   - `~WC` - Print network configuration label
-  - Useful for printer setup verification
-- [ ] **Maintenance info** (`~HM` Head Diagnostic)
-  - Head temperature, printhead status, maintenance counters
-- [ ] **Label counter** - Query odometer/total labels printed
 
 ## Someday
+- [ ] **SGD (Set-Get-Do) commands** - Modern Link-OS protocol for newer printers
+  - `! U1 getvar/setvar/do` syntax, more granular than ZPL control commands
+  - `odometer.total_label_count` for precise print verification (count before/after)
+  - `device.*` namespace for identification, `odometer.*` for maintenance info
+  - Full support on Link-OS printers; reduced set on older printers (ZM400 era)
 - [ ] **Public barcode generation API** - Expose barcode encoding as a module
   - Most encoders already implemented internally (Code128, Code39, EAN-13/8, UPC-A/E, I2of5)
   - QR, Aztec, PDF417 use CoreImage (available on Apple platforms)
