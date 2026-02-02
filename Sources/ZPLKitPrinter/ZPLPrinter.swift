@@ -519,4 +519,81 @@ public struct ZPLPrinter: Sendable {
         let connection = ZPLPrinter(printer, timeout: timeout)
         return try await connection.queryInfo(responseTimeout: responseTimeout)
     }
+
+    /// Queries the printer's RAM memory status using the `~HM` command.
+    ///
+    /// Returns a `MemoryStatus` object containing:
+    /// - Total RAM
+    /// - Maximum usable RAM
+    /// - Currently available (free) RAM
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let printer = ZPLPrinter(host: "192.168.1.100")
+    /// let memory = try await printer.queryMemory()
+    ///
+    /// if memory.usagePercent > 90 {
+    ///     print("Warning: Memory usage at \(memory.usagePercent)%")
+    /// }
+    /// ```
+    ///
+    /// - Parameter responseTimeout: Time to wait for response. Defaults to 5 seconds.
+    /// - Returns: The printer's memory status.
+    /// - Throws: `PrinterError` if the query fails or response cannot be parsed.
+    public func queryMemory(responseTimeout: TimeInterval = 5) async throws -> MemoryStatus {
+        let data = try await query("~HM", responseTimeout: responseTimeout)
+        return try MemoryStatus.parse(from: data)
+    }
+
+    /// Queries memory status from a discovered printer.
+    ///
+    /// - Parameters:
+    ///   - printer: The discovered printer to query.
+    ///   - timeout: Connection timeout in seconds.
+    ///   - responseTimeout: Time to wait for response after sending.
+    /// - Returns: The printer's memory status.
+    /// - Throws: `PrinterError` if the query fails or response cannot be parsed.
+    public static func queryMemory(
+        from printer: DiscoveredPrinter,
+        timeout: TimeInterval = defaultTimeout,
+        responseTimeout: TimeInterval = 5
+    ) async throws -> MemoryStatus {
+        let connection = ZPLPrinter(printer, timeout: timeout)
+        return try await connection.queryMemory(responseTimeout: responseTimeout)
+    }
+
+    // MARK: - Test Page Commands
+
+    /// Prints a configuration label showing current printer settings.
+    ///
+    /// The `~JC` command causes the printer to print a label with its current
+    /// configuration, including:
+    /// - Firmware version
+    /// - Print speed and darkness
+    /// - Label dimensions
+    /// - Sensor calibration values
+    /// - Network settings (if applicable)
+    ///
+    /// This is useful for verifying printer setup and troubleshooting.
+    ///
+    /// - Throws: `PrinterError` if the command cannot be sent.
+    public func printConfigurationLabel() async throws {
+        try await send("~JC")
+    }
+
+    /// Prints a network configuration label (if printer has network capability).
+    ///
+    /// The `~WC` command causes the printer to print a label with its current
+    /// network configuration, including:
+    /// - IP address
+    /// - Subnet mask
+    /// - Gateway
+    /// - MAC address
+    /// - DHCP/static settings
+    ///
+    /// - Throws: `PrinterError` if the command cannot be sent.
+    public func printNetworkConfigLabel() async throws {
+        try await send("~WC")
+    }
 }

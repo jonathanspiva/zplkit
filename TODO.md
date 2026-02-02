@@ -38,11 +38,15 @@ Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with re
   - Computed: `dpi` (from dpm), `memoryFormatted` (KB/MB)
   - Parser handles STX/ETX framing with fallback for unframed responses
   - `ZPLPrinter.queryInfo()` convenience method
-- [ ] **Head diagnostic** (`~HM`)
-  - Head temperature, printhead status
-- [ ] **Test page commands** (fire-and-forget, no response)
-  - `~JC` - Print configuration label
-  - `~WC` - Print network configuration label
+- [x] **Memory status** (`~HM` Host Memory)
+  - `MemoryStatus` struct (Sendable, Equatable, Codable, CustomStringConvertible)
+  - Fields: total, maximum, available (bytes)
+  - Computed: used, usagePercent, totalFormatted, availableFormatted, usedFormatted
+  - `ZPLPrinter.queryMemory()` convenience method
+  - Note: Head temperature requires SGD commands (deferred to Someday)
+- [x] **Test page commands** (fire-and-forget, no response)
+  - `printConfigurationLabel()` sends `~JC`
+  - `printNetworkConfigLabel()` sends `~WC`
 
 ## Later
 - [ ] Nothing planned
@@ -52,6 +56,7 @@ Extend ZPLKitPrinter module (already has TCP send and Bonjour discovery) with re
   - `! U1 getvar/setvar/do` syntax, more granular than ZPL control commands
   - `odometer.total_label_count` for precise print verification (count before/after)
   - `device.*` namespace for identification, `odometer.*` for maintenance info
+  - `sensor.head.temp` for head temperature (not available via ZPL control commands)
   - Full support on Link-OS printers; reduced set on older printers (ZM400 era)
 - [ ] **Public barcode generation API** - Expose barcode encoding as a module
   - Most encoders already implemented internally (Code128, Code39, EAN-13/8, UPC-A/E, I2of5)

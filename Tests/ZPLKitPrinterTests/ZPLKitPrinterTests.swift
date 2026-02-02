@@ -557,4 +557,104 @@ struct ZPLKitPrinterTests {
         #expect(info.model == "ZT410-203dpi")
         #expect(info.firmwareVersion == "V53.17.14Z")
     }
+
+    // MARK: - MemoryStatus Tests
+
+    /// Helper to build ~HM response data with proper framing.
+    private func buildHMResponse(_ content: String) -> Data {
+        var data = Data()
+        data.append(0x02)  // STX
+        data.append(contentsOf: content.utf8)
+        data.append(contentsOf: [0x03, 0x0D, 0x0A] as [UInt8])  // ETX CR LF
+        return data
+    }
+
+    @Test("MemoryStatus parses valid ~HM response")
+    func memoryStatusParsesValidResponse() throws {
+        // 2MB total, 2MB max, ~1.76MB available
+        let response = buildHMResponse("2097152,2097152,1847296")
+
+        let memory = try MemoryStatus.parse(from: response)
+
+        #expect(memory.total == 2097152)
+        #expect(memory.maximum == 2097152)
+        #expect(memory.available == 1847296)
+        #expect(memory.used == 249856)
+    }
+
+    @Test("MemoryStatus calculates usage percent")
+    func memoryStatusUsagePercent() {
+        let memory = MemoryStatus(total: 1000, maximum: 1000, available: 250)
+
+        #expect(memory.usagePercent == 75)
+    }
+
+    @Test("MemoryStatus formats bytes correctly")
+    func memoryStatusFormatting() {
+        // Small memory (bytes)
+        let small = MemoryStatus(total: 512, maximum: 512, available: 256)
+        #expect(small.totalFormatted == "512B")
+
+        // Medium memory (KB)
+        let medium = MemoryStatus(total: 65536, maximum: 65536, available: 32768)
+        #expect(medium.totalFormatted == "64KB")
+        #expect(medium.availableFormatted == "32KB")
+
+        // Large memory (MB)
+        let large = MemoryStatus(total: 2097152, maximum: 2097152, available: 1048576)
+        #expect(large.totalFormatted == "2MB")
+        #expect(large.availableFormatted == "1MB")
+    }
+
+    @Test("MemoryStatus throws on invalid response")
+    func memoryStatusThrowsOnInvalidResponse() throws {
+        // Too few fields
+        let response = buildHMResponse("2097152,2097152")
+
+        #expect(throws: PrinterError.self) {
+            _ = try MemoryStatus.parse(from: response)
+        }
+    }
+
+    @Test("MemoryStatus throws on non-numeric value")
+    func memoryStatusThrowsOnNonNumeric() throws {
+        let response = buildHMResponse("2097152,invalid,1847296")
+
+        #expect(throws: PrinterError.self) {
+            _ = try MemoryStatus.parse(from: response)
+        }
+    }
+
+    @Test("MemoryStatus description is readable")
+    func memoryStatusDescription() {
+        let memory = MemoryStatus(total: 2097152, maximum: 2097152, available: 1048576)
+
+        let desc = memory.description
+        #expect(desc.contains("1MB available"))
+        #expect(desc.contains("2MB"))
+        #expect(desc.contains("50% used"))
+    }
+
+    @Test("MemoryStatus is Codable")
+    func memoryStatusCodable() throws {
+        let memory = MemoryStatus(total: 2097152, maximum: 2097152, available: 1048576)
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(memory)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(MemoryStatus.self, from: data)
+
+        #expect(decoded == memory)
+    }
+
+    @Test("MemoryStatus parses without STX/ETX framing")
+    func memoryStatusParsesWithoutFraming() throws {
+        let response = Data("2097152,2097152,1847296".utf8)
+
+        let memory = try MemoryStatus.parse(from: response)
+
+        #expect(memory.total == 2097152)
+        #expect(memory.available == 1847296)
+    }
 }
