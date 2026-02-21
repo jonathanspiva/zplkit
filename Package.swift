@@ -93,7 +93,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "StatusCheck",
-            dependencies: ["ZPLKitPrinter"],
+            dependencies: ["ZPLKit", "ZPLKitPrinter"],
             path: "Tools/StatusCheck"
         ),
     ]

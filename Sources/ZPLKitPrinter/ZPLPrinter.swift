@@ -1,27 +1,6 @@
 import Foundation
 import Network
 
-/// Actor to safely manage send state across async callbacks.
-private actor SendState {
-    private var continuation: CheckedContinuation<Void, Error>?
-    private var hasCompleted = false
-
-    func setContinuation(_ continuation: CheckedContinuation<Void, Error>) {
-        self.continuation = continuation
-    }
-
-    func complete(with result: Result<Void, Error>) {
-        guard !hasCompleted, let continuation = continuation else { return }
-        hasCompleted = true
-        switch result {
-        case .success:
-            continuation.resume()
-        case .failure(let error):
-            continuation.resume(throwing: error)
-        }
-    }
-}
-
 /// Actor to safely manage query (send + receive) state across async callbacks.
 private actor QueryState {
     private var continuation: CheckedContinuation<Data, Error>?
@@ -149,78 +128,110 @@ public struct ZPLPrinter: Sendable {
 
     /// Sends raw data to the printer.
     ///
+    /// Uses POSIX sockets for reliable delivery. NWConnection's cancel() sends
+    /// TCP RST which causes printers to discard buffered data, and its
+    /// .finalMessage mode has issues with subsequent connections from the same
+    /// process. POSIX close() sends a clean TCP FIN that printers handle correctly.
+    ///
     /// - Parameter data: The data to send.
     /// - Throws: `PrinterError` if the connection or send fails.
     public func send(_ data: Data) async throws {
         let host = self.host
         let port = self.port
+        let timeout = self.timeout
 
-        let connection = NWConnection(
-            host: NWEndpoint.Host(host),
-            port: NWEndpoint.Port(rawValue: port)!,
-            using: .tcp
-        )
-
-        let state = SendState()
-
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                Task { await state.setContinuation(continuation) }
-
-                // Timeout
-                Task {
-                    try? await Task.sleep(nanoseconds: UInt64(self.timeout * 1_000_000_000))
-                    await state.complete(with: .failure(PrinterError.timeout(host: host, port: port)))
-                    connection.cancel()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue.global().async {
+                let sock = socket(AF_INET, SOCK_STREAM, 0)
+                guard sock >= 0 else {
+                    continuation.resume(throwing: PrinterError.connectionFailed(
+                        host: host, port: port, underlying: "Failed to create socket"))
+                    return
                 }
 
-                connection.stateUpdateHandler = { connectionState in
-                    switch connectionState {
-                    case .ready:
-                        // Send data as the final message, which queues a TCP FIN
-                        // after the payload for graceful close. This avoids the
-                        // RST that cancel() sends, which causes printers to
-                        // discard buffered data.
-                        connection.send(
-                            content: data,
-                            contentContext: .finalMessage,
-                            isComplete: true,
-                            completion: .contentProcessed { error in
-                                if let error = error {
-                                    Task {
-                                        await state.complete(with: .failure(PrinterError.sendFailed(
-                                            underlying: error.localizedDescription)))
-                                    }
-                                    connection.cancel()
-                                }
-                                // Don't complete yet - wait for the connection to
-                                // transition to .cancelled after the FIN handshake.
-                            }
-                        )
+                // Set send timeout
+                var tv = timeval(tv_sec: Int(timeout), tv_usec: 0)
+                setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
-                    case .cancelled:
-                        // Normal completion path: connection closed after FIN.
-                        Task { await state.complete(with: .success(())) }
+                // Non-blocking connect with poll() for connect timeout
+                var flags = fcntl(sock, F_GETFL, 0)
+                fcntl(sock, F_SETFL, flags | O_NONBLOCK)
 
-                    case .failed(let error):
-                        Task {
-                            await state.complete(with: .failure(PrinterError.connectionFailed(
-                                host: host,
-                                port: port,
-                                underlying: error.localizedDescription
-                            )))
-                        }
-                        connection.cancel()
+                var addr = sockaddr_in()
+                addr.sin_family = sa_family_t(AF_INET)
+                addr.sin_port = port.bigEndian
+                addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
 
-                    default:
-                        break
+                guard host.withCString({ inet_pton(AF_INET, $0, &addr.sin_addr) }) == 1 else {
+                    Darwin.close(sock)
+                    continuation.resume(throwing: PrinterError.connectionFailed(
+                        host: host, port: port, underlying: "Invalid IP address"))
+                    return
+                }
+
+                let connectResult = withUnsafePointer(to: &addr) { ptr in
+                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                        Darwin.connect(sock, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
                     }
                 }
 
-                connection.start(queue: .global())
+                if connectResult != 0 && errno != EINPROGRESS {
+                    let err = String(cString: strerror(errno))
+                    Darwin.close(sock)
+                    continuation.resume(throwing: PrinterError.connectionFailed(
+                        host: host, port: port, underlying: err))
+                    return
+                }
+
+                if connectResult != 0 {
+                    var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
+                    let pollResult = poll(&pfd, 1, Int32(timeout) * 1000)
+                    if pollResult <= 0 {
+                        Darwin.close(sock)
+                        continuation.resume(throwing: PrinterError.timeout(host: host, port: port))
+                        return
+                    }
+
+                    var soError: Int32 = 0
+                    var soLen = socklen_t(MemoryLayout<Int32>.size)
+                    getsockopt(sock, SOL_SOCKET, SO_ERROR, &soError, &soLen)
+                    if soError != 0 {
+                        Darwin.close(sock)
+                        if soError == ETIMEDOUT {
+                            continuation.resume(throwing: PrinterError.timeout(host: host, port: port))
+                        } else if soError == ECONNREFUSED {
+                            continuation.resume(throwing: PrinterError.connectionFailed(
+                                host: host, port: port, underlying: "Connection refused"))
+                        } else {
+                            let err = String(cString: strerror(soError))
+                            continuation.resume(throwing: PrinterError.connectionFailed(
+                                host: host, port: port, underlying: err))
+                        }
+                        return
+                    }
+                }
+
+                // Restore blocking mode for write
+                flags = fcntl(sock, F_GETFL, 0)
+                fcntl(sock, F_SETFL, flags & ~O_NONBLOCK)
+
+                let writeResult = data.withUnsafeBytes { buffer in
+                    Darwin.write(sock, buffer.baseAddress!, buffer.count)
+                }
+
+                // close() sends TCP FIN for graceful shutdown.
+                Darwin.close(sock)
+
+                if writeResult < 0 {
+                    let err = String(cString: strerror(errno))
+                    continuation.resume(throwing: PrinterError.sendFailed(underlying: err))
+                } else if writeResult != data.count {
+                    continuation.resume(throwing: PrinterError.sendFailed(
+                        underlying: "Partial write: \(writeResult) of \(data.count) bytes"))
+                } else {
+                    continuation.resume()
+                }
             }
-        } onCancel: {
-            connection.cancel()
         }
     }
 
