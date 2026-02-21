@@ -1556,6 +1556,20 @@ final class ZPLKitTests: XCTestCase {
         XCTAssertTrue(zpl.contains("^FO152,152"))
     }
 
+    func testDPI200Conversion() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi200) {
+            Text("Test", at: .inches(1.0, 1.0))
+        }
+
+        let zpl = label.render()
+        // 4 inches * 200 DPI = 800 dots
+        XCTAssertTrue(zpl.contains("^PW800"))
+        // 2 inches * 200 DPI = 400 dots
+        XCTAssertTrue(zpl.contains("^LL400"))
+        // Position: 1 inch * 200 = 200 dots
+        XCTAssertTrue(zpl.contains("^FO200,200"))
+    }
+
     func testDPI203Conversion() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(1.0, 1.0))
@@ -1634,7 +1648,7 @@ final class ZPLKitTests: XCTestCase {
 
     func testDPIAllBarcodeTypes() {
         // Test that barcodes render at different DPIs
-        for dpi in [DPI.dpi152, .dpi203, .dpi300, .dpi600] {
+        for dpi in [DPI.dpi152, .dpi200, .dpi203, .dpi300, .dpi600] {
             let label = ZPLLabel(width: 4, height: 4, dpi: dpi) {
                 Barcode128("TEST", at: .inches(0.5, 0.5))
                 QRCode("TEST", at: .inches(0.5, 1.5))
@@ -1646,7 +1660,7 @@ final class ZPLKitTests: XCTestCase {
     }
 
     func testDPIShapesAtAllResolutions() {
-        for dpi in [DPI.dpi152, .dpi203, .dpi300, .dpi600] {
+        for dpi in [DPI.dpi152, .dpi200, .dpi203, .dpi300, .dpi600] {
             let label = ZPLLabel(width: 4, height: 4, dpi: dpi) {
                 Box(at: .inches(0.25, 0.25), width: .inches(0.5), height: .inches(0.5))
                 Circle(at: .inches(1.0, 0.25), diameter: .inches(0.5))

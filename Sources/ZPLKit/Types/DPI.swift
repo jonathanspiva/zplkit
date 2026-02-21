@@ -12,6 +12,7 @@
 /// | DPI | Dots/mm | Common Use |
 /// |-----|---------|------------|
 /// | 152 | 6 | Economy desktop printers |
+/// | 200 | ~8 | Older industrial printers (e.g., ZM400) |
 /// | 203 | 8 | Standard desktop and industrial |
 /// | 300 | 12 | High-quality printing |
 /// | 600 | 24 | Ultra-fine detail |
@@ -28,6 +29,9 @@
 public enum DPI: Int, Sendable, Codable, Hashable, CustomStringConvertible {
     /// 152 DPI (6 dots/mm) - Economy desktop printers.
     case dpi152 = 152
+
+    /// 200 DPI (~8 dots/mm) - Older industrial printers like the ZM400.
+    case dpi200 = 200
 
     /// 203 DPI (8 dots/mm) - Most common, standard resolution.
     case dpi203 = 203
