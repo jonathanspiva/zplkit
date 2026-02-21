@@ -164,6 +164,14 @@ if status.isReadyToPrint {
 - **[Getting Started](Sources/ZPLKit/Documentation.docc/Articles/GettingStarted.md)** - Full API reference with examples for all elements
 - **[Test Fixtures](Sources/ZPLKit/Documentation.docc/Articles/Fixtures.md)** - 114 ZPL files for testing parsers and renderers
 
+## Known Issues
+
+### NWConnection and Zebra printers
+
+`ZPLPrinter.send()` uses POSIX sockets instead of Apple's `NWConnection` for TCP communication. `NWConnection.cancel()` sends a TCP RST (reset) which causes Zebra printers to discard buffered data, dropping small payloads like single labels. The alternative, `.finalMessage` mode, intermittently fails with `ENETDOWN` errors and corrupts subsequent connections from the same process.
+
+POSIX `close()` sends a proper TCP FIN (graceful shutdown) that printers handle correctly. This works reliably across all payload sizes and on all Apple platforms. `query()` still uses `NWConnection` for bidirectional communication, where the connection stays open for the response and RST is not an issue.
+
 ## Requirements
 
 - Swift 6.0+
