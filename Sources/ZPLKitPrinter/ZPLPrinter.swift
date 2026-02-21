@@ -154,7 +154,6 @@ public struct ZPLPrinter: Sendable {
     public func send(_ data: Data) async throws {
         let host = self.host
         let port = self.port
-        let timeoutNanoseconds = UInt64(timeout * 1_000_000_000)
 
         let connection = NWConnection(
             host: NWEndpoint.Host(host),
@@ -162,19 +161,15 @@ public struct ZPLPrinter: Sendable {
             using: .tcp
         )
 
-        // Use actor to safely track state across callbacks
         let state = SendState()
 
-        try await withTaskCancellationHandler {
+        return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                // Store continuation in actor
-                Task {
-                    await state.setContinuation(continuation)
-                }
+                Task { await state.setContinuation(continuation) }
 
-                // Set up timeout
+                // Timeout
                 Task {
-                    try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                    try? await Task.sleep(nanoseconds: UInt64(self.timeout * 1_000_000_000))
                     await state.complete(with: .failure(PrinterError.timeout(host: host, port: port)))
                     connection.cancel()
                 }
@@ -182,17 +177,30 @@ public struct ZPLPrinter: Sendable {
                 connection.stateUpdateHandler = { connectionState in
                     switch connectionState {
                     case .ready:
-                        // Connection established, send data
-                        connection.send(content: data, completion: .contentProcessed { error in
-                            Task {
+                        // Send data as the final message, which queues a TCP FIN
+                        // after the payload for graceful close. This avoids the
+                        // RST that cancel() sends, which causes printers to
+                        // discard buffered data.
+                        connection.send(
+                            content: data,
+                            contentContext: .finalMessage,
+                            isComplete: true,
+                            completion: .contentProcessed { error in
                                 if let error = error {
-                                    await state.complete(with: .failure(PrinterError.sendFailed(underlying: error.localizedDescription)))
-                                } else {
-                                    await state.complete(with: .success(()))
+                                    Task {
+                                        await state.complete(with: .failure(PrinterError.sendFailed(
+                                            underlying: error.localizedDescription)))
+                                    }
+                                    connection.cancel()
                                 }
+                                // Don't complete yet - wait for the connection to
+                                // transition to .cancelled after the FIN handshake.
                             }
-                            connection.cancel()
-                        })
+                        )
+
+                    case .cancelled:
+                        // Normal completion path: connection closed after FIN.
+                        Task { await state.complete(with: .success(())) }
 
                     case .failed(let error):
                         Task {
@@ -203,9 +211,6 @@ public struct ZPLPrinter: Sendable {
                             )))
                         }
                         connection.cancel()
-
-                    case .cancelled:
-                        break
 
                     default:
                         break

@@ -86,5 +86,15 @@ let package = Package(
             dependencies: ["ZPLKit", "ZPLKitPrinter"],
             path: "Tools/PrinterTests"
         ),
+        .executableTarget(
+            name: "GraphicPrintTest",
+            dependencies: ["ZPLKit", "ZPLKitPrinter"],
+            path: "Tools/GraphicPrintTest"
+        ),
+        .executableTarget(
+            name: "StatusCheck",
+            dependencies: ["ZPLKitPrinter"],
+            path: "Tools/StatusCheck"
+        ),
     ]
 )

@@ -523,6 +523,108 @@ func testBonjourDiscovery(hosts: [String]) async -> [TestResult] {
     return results
 }
 
+// MARK: - Configuration Tests
+
+/// Tests applying a configuration and verifying the printer accepted it.
+func testApplyConfiguration(printer: ZPLPrinter, host: String) async -> TestResult {
+    await runTest(name: "applyConfiguration", printer: host) {
+        let info = try await printer.queryInfo()
+        let dpmm = info.dotsPerMillimeter
+
+        // Build a conservative config based on the printer's actual resolution
+        let config = PrinterConfiguration.directThermal(
+            widthDots: dpmm * 102,  // ~4 inches
+            lengthDots: dpmm * 51   // ~2 inches
+        )
+        .printerName("ZPLKit-Test")
+
+        // Apply the configuration
+        try await printer.apply(config)
+
+        // Verify printer is still responsive and accepted the config
+        let status = try await printer.queryStatus()
+        try assert(!status.isHeadOpen, "Head should be closed after config apply")
+
+        // Verify the label length changed (within a reasonable tolerance)
+        let expectedLength = dpmm * 51
+        let tolerance = dpmm * 5  // Allow some tolerance for printer rounding
+        try assert(
+            abs(status.labelLengthInDots - expectedLength) <= tolerance,
+            "Label length \(status.labelLengthInDots) not within \(tolerance) dots of expected \(expectedLength)"
+        )
+
+        return "Applied config (\(dpmm * 102)x\(dpmm * 51) dots), label now \(status.labelLengthInDots) dots"
+    }
+}
+
+/// Tests save and restore of configuration.
+func testSaveAndRestore(printer: ZPLPrinter, host: String) async -> TestResult {
+    await runTest(name: "saveAndRestore", printer: host) {
+        // Get the current status as our baseline
+        let originalStatus = try await printer.queryStatus()
+        let originalLength = originalStatus.labelLengthInDots
+
+        let info = try await printer.queryInfo()
+        let dpmm = info.dotsPerMillimeter
+
+        // Apply a different label length
+        let testLength = dpmm * 76  // ~3 inches
+        let testConfig = PrinterConfiguration().labelLengthDots(testLength)
+        try await printer.apply(testConfig)
+
+        // Save it
+        try await printer.saveConfiguration()
+
+        // Verify it took effect
+        let changedStatus = try await printer.queryStatus()
+        let tolerance = dpmm * 5
+        try assert(
+            abs(changedStatus.labelLengthInDots - testLength) <= tolerance,
+            "After save, label length \(changedStatus.labelLengthInDots) not near \(testLength)"
+        )
+
+        // Restore to the original length
+        let restoreConfig = PrinterConfiguration().labelLengthDots(originalLength)
+        try await printer.apply(restoreConfig)
+        try await printer.saveConfiguration()
+
+        // Verify restoration
+        let restoredStatus = try await printer.queryStatus()
+        try assert(
+            abs(restoredStatus.labelLengthInDots - originalLength) <= tolerance,
+            "After restore, label length \(restoredStatus.labelLengthInDots) not near original \(originalLength)"
+        )
+
+        return "Saved (\(testLength) dots), restored to original (\(originalLength) dots)"
+    }
+}
+
+/// Tests the full setup() workflow (apply + save + calibrate).
+func testCalibrateAfterSetup(printer: ZPLPrinter, host: String) async -> TestResult {
+    await runTest(name: "calibrateAfterSetup", printer: host) {
+        let info = try await printer.queryInfo()
+        let dpmm = info.dotsPerMillimeter
+
+        let config = PrinterConfiguration.directThermal(
+            widthDots: dpmm * 102,  // ~4 inches
+            lengthDots: dpmm * 51   // ~2 inches
+        )
+
+        // Run the full setup workflow
+        try await printer.setup(config)
+
+        // Wait a moment for calibration to complete
+        try await Task.sleep(nanoseconds: 2_000_000_000)
+
+        // Verify printer is ready after setup
+        let status = try await printer.queryStatus()
+        try assert(status.isReadyToPrint,
+                   "Printer should be ready after setup, got: \(status)")
+
+        return "setup() completed, printer ready: \(status.isReadyToPrint)"
+    }
+}
+
 // MARK: - Runner
 
 func parseArgs() -> (hosts: [String], timeout: TimeInterval) {
@@ -621,8 +723,15 @@ func runTestsForPrinter(host: String, timeout: TimeInterval) async -> [TestResul
         testTimeoutDifferentiation,
     ]
 
+    // Configuration tests
+    let configTests: [(ZPLPrinter, String) async -> TestResult] = [
+        testApplyConfiguration,
+        testSaveAndRestore,
+        testCalibrateAfterSetup,
+    ]
+
     let allTests = coreTests + validationTests + descriptionTests
-        + codableTests + commandTests + networkTests + errorTests
+        + codableTests + commandTests + networkTests + errorTests + configTests
 
     for test in allTests {
         let result = await test(printer, host)

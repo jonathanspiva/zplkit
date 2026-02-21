@@ -32,6 +32,8 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 
 - **Send ZPL to printers** over TCP (port 9100)
 - **Bonjour discovery** to find printers on the local network
+- **Printer configuration** with type-safe enums, presets, and zero-touch setup
+- **Query printer status**, identification, and memory
 - **Async/await API** with configurable timeout
 
 ### ZPLVerifier (Validation)
@@ -113,6 +115,47 @@ let browser = ZPLPrinterBrowser()
 for await discovered in browser.printers {
     try await ZPLPrinter.send(zpl, to: discovered)
     break
+}
+```
+
+## Printer Configuration
+
+Configure a new or factory-reset printer entirely through code:
+
+```swift
+import ZPLKitPrinter
+
+let printer = ZPLPrinter(host: "192.168.1.100")
+let info = try await printer.queryInfo()
+
+let dpmm = info.dotsPerMillimeter
+let config = PrinterConfiguration.directThermal(
+    widthDots: dpmm * 102,    // 4 inches
+    lengthDots: dpmm * 51     // 2 inches
+)
+.printerName("Warehouse-01")
+.darkness(20)
+
+try await printer.setup(config)  // apply + save + calibrate
+```
+
+Use presets for common setups, or configure individual settings:
+
+```swift
+// Only change what you need (other settings are left alone)
+let darkConfig = PrinterConfiguration()
+    .darkness(25)
+    .printSpeedIPS(6)
+
+try await printer.apply(darkConfig)
+```
+
+Query printer status before printing:
+
+```swift
+let status = try await printer.queryStatus()
+if status.isReadyToPrint {
+    try await printer.send(label.render())
 }
 ```
 

@@ -450,6 +450,7 @@ struct VisualTests {
         let dpmm: String
         switch dpi {
         case .dpi152: dpmm = "6dpmm"
+        case .dpi200: dpmm = "8dpmm"
         case .dpi203: dpmm = "8dpmm"
         case .dpi300: dpmm = "12dpmm"
         case .dpi600: dpmm = "24dpmm"
