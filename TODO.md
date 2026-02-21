@@ -1,7 +1,7 @@
 # ZPLKit TODO
 
 ## Now
-- [ ] Nothing active
+- [ ] **Clean up StatusCheck** - Remove `~FF` from feed command (not a valid ZPL command), remove `GraphicPrintTest/status.swift` placeholder
 
 ## Later
 - [ ] **Open source release**
@@ -48,6 +48,8 @@
 ## Done
 - [x] **Zero-touch printer configuration API** - `PrinterConfiguration` struct with type-safe enums, ZPL generation, presets, and `apply`/`setup` methods on `ZPLPrinter`. Validated on ZM400-200dpi and GX420t-200dpi (x2). 82/82 integration tests pass.
 - [x] **Update README with printer configuration docs** - Added configuration examples, status query example, and updated feature list
+- [x] **Fix TCP send for reliable delivery** - POSIX sockets for send(), NWConnection .finalMessage has issues (documented in README Known Issues)
+- [x] **Merge feature/printer-configuration to master**
 
 ## Never
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
