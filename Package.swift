@@ -81,5 +81,10 @@ let package = Package(
             dependencies: ["ZPLKit", "Awesome"],
             path: "Tools/GraphicsTest"
         ),
+        .executableTarget(
+            name: "PrinterTests",
+            dependencies: ["ZPLKit", "ZPLKitPrinter"],
+            path: "Tools/PrinterTests"
+        ),
     ]
 )

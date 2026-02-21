@@ -12,10 +12,19 @@
 /// | DPI | Dots/mm | Common Use |
 /// |-----|---------|------------|
 /// | 152 | 6 | Economy desktop printers |
-/// | 200 | ~8 | Older industrial printers (e.g., ZM400) |
+/// | 200 | ~8 | Compatibility alias (see note below) |
 /// | 203 | 8 | Standard desktop and industrial |
 /// | 300 | 12 | High-quality printing |
 /// | 600 | 24 | Ultra-fine detail |
+///
+/// ## Note on 200 vs 203 DPI
+///
+/// Zebra printheads are manufactured to metric specs. The standard "low resolution"
+/// head has exactly 8 dots per millimeter, which converts to 203.2 DPI. Many printer
+/// models display "200dpi" in their name (e.g., ZM400-200dpi, GX420t-200dpi), but
+/// the actual printhead is 8 dpmm / 203 DPI. Use ``dpi200`` when working with systems
+/// that label output as "200 DPI". Use ``dpi203`` for the most accurate dot placement.
+/// The practical difference is ~1.5%.
 ///
 /// ## Example
 ///
@@ -30,7 +39,12 @@ public enum DPI: Int, Sendable, Codable, Hashable, CustomStringConvertible {
     /// 152 DPI (6 dots/mm) - Economy desktop printers.
     case dpi152 = 152
 
-    /// 200 DPI (~8 dots/mm) - Older industrial printers like the ZM400.
+    /// 200 DPI (~8 dots/mm) - Compatibility alias for printers labeled "200dpi".
+    ///
+    /// The actual printhead resolution is 8 dots/mm (203.2 DPI). Many Zebra models
+    /// display "200dpi" in their model name (ZM400-200dpi, GX420t-200dpi). Use this
+    /// when matching systems that call it "200 DPI", or ``dpi203`` for the technically
+    /// accurate value. See the type-level documentation for details.
     case dpi200 = 200
 
     /// 203 DPI (8 dots/mm) - Most common, standard resolution.
