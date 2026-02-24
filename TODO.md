@@ -44,6 +44,13 @@
   - QR, Aztec, PDF417 use CoreImage (available on Apple platforms)
   - Data Matrix encoder (CoreImage doesn't support it, needs mathematical implementation)
   - Intelligent Mail encoder (uses placeholder currently)
+- [ ] **Bluetooth printer support** - Add BLE and Bluetooth Classic transports for mobile printers
+  - Target printers: Zebra ZQ610 Plus, ZQ620 Plus, ZQ630 Plus (and legacy QLn220)
+  - BLE via CoreBluetooth: Zebra Parser Service (`38EB4A80-C570-11E3-9507-0002A5D5C51B`), write characteristic (`38EB4A82-...`), chunked writes for BLE packet limits
+  - Bluetooth Classic via ExternalAccessory framework (MFi, stream-based like TCP)
+  - Abstract transport with a `ZPLTransport` protocol (TCP, BLE, Bluetooth Classic implementations)
+  - Label generation unchanged; only the send/query transport differs
+  - Note: 2" mobile printers have 48mm max print width vs 104mm on desktop printers
 
 ## Done
 - [x] **Zero-touch printer configuration API** - `PrinterConfiguration` struct with type-safe enums, ZPL generation, presets, and `apply`/`setup` methods on `ZPLPrinter`. Validated on ZM400-200dpi and GX420t-200dpi (x2). 82/82 integration tests pass.
