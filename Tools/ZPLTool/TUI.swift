@@ -303,7 +303,7 @@ struct HomeScreen: View {
                     SectionTitle(title: "discover", width: w)
                     Button("  \(Art.bullet) scan network (bonjour)") {
                         statusText = "scanning..."
-                        Task {
+                        Task { @MainActor in
                             let browser = ZPLPrinterBrowser()
                             browser.start()
                             try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -452,7 +452,7 @@ struct DashboardScreen: View {
     private func refreshStatus() {
         guard let printer else { return }
         statusText = "querying..."
-        Task {
+        Task { @MainActor in
             var info: [String] = []
             var status: [String] = []
 
@@ -502,7 +502,7 @@ struct DashboardScreen: View {
     private func sendTestLabel() {
         guard let printer else { return }
         statusText = "printing test label..."
-        Task {
+        Task { @MainActor in
             let now = ISO8601DateFormatter().string(from: Date())
             let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
                 ZPLKit.Text("ZPLTool Test Label", at: .dots(30, 30))
@@ -528,7 +528,7 @@ struct DashboardScreen: View {
 
     private func runCommand(_ name: String, action: @escaping () async throws -> Void) {
         statusText = "\(name)..."
-        Task {
+        Task { @MainActor in
             do {
                 try await action()
                 statusText = "\(name): ok"
@@ -664,7 +664,7 @@ struct ConfigureScreen: View {
         configLoaded = false
         configFailed = false
         statusText = "reading config..."
-        Task {
+        Task { @MainActor in
             do {
                 let s = try await printer.queryConfiguration()
                 currentDarkness = s.darkness.map { "\($0)" } ?? "—"
@@ -693,7 +693,7 @@ struct ConfigureScreen: View {
         guard let printer else { return }
         let c = config()
         statusText = "applying \(desc)..."
-        Task {
+        Task { @MainActor in
             do {
                 try await printer.apply(c)
                 try await printer.saveConfiguration()
@@ -707,7 +707,7 @@ struct ConfigureScreen: View {
 
     private func runPrinterCommand(_ name: String, action: @escaping () async throws -> Void) {
         statusText = "\(name)..."
-        Task {
+        Task { @MainActor in
             do {
                 try await action()
                 statusText = "\(name): ok"
@@ -746,7 +746,7 @@ struct RawZPLScreen: View {
                         let cmd = zpl.trimmingCharacters(in: .whitespaces)
                         guard !cmd.isEmpty, let printer else { return }
                         statusText = "sending..."
-                        Task {
+                        Task { @MainActor in
                             do {
                                 try await printer.send(cmd)
                                 statusText = "sent ok"
@@ -765,7 +765,7 @@ struct RawZPLScreen: View {
                         let command = cmd.trimmingCharacters(in: .whitespaces)
                         guard !command.isEmpty, let printer else { return }
                         statusText = "querying..."
-                        Task {
+                        Task { @MainActor in
                             do {
                                 let data = try await printer.query(command, responseTimeout: 10)
                                 if let str = String(data: data, encoding: .utf8) {
