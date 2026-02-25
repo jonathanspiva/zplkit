@@ -16,10 +16,13 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 
 - **Declarative API** using Swift result builders
 - **Text** with fonts, rotation, reverse print, and baseline positioning
-- **Barcodes**: Code128, Code39, QR, DataMatrix, PDF417, Aztec, EAN-13, EAN-8, UPC-A, UPC-E, Interleaved 2 of 5
-- **Shapes**: Box, Circle, Ellipse, Horizontal/Vertical/Diagonal lines
-- **Graphics**, templates, serial numbers, printer commands
-- **Full Swift 6 concurrency support** (`Sendable` types)
+- **TextBlock** for multi-line text with word wrapping
+- **Barcodes**: Code 128, Code 39, QR Code, DataMatrix, PDF417, Aztec, EAN-13, EAN-8, UPC-A, UPC-E, Interleaved 2 of 5, USPS Intelligent Mail
+- **Shapes**: Box, Circle, Ellipse, Horizontal line, Vertical line, Diagonal line
+- **Graphics**: Render CGImages to monochrome bitmaps with dithering (Floyd-Steinberg, Atkinson) and aspect-fill cropping
+- **Serial numbers**, comments, printer commands
+- **Unit-agnostic dimensions**: inches, millimeters, or dots
+- **Full Swift 6 concurrency support** (`Sendable` types throughout)
 
 ### ZPLKitRenderer (Previews)
 
@@ -33,7 +36,10 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 - **Send ZPL to printers** over TCP (port 9100)
 - **Bonjour discovery** to find printers on the local network
 - **Printer configuration** with type-safe enums, presets, and zero-touch setup
-- **Query printer status**, identification, and memory
+- **Query printer status**, info, memory, and full configuration
+- **Diagnostics** combining status, info, memory, and settings in one call
+- **Control commands**: calibrate, feed, cancel jobs, print config labels
+- **Idle timeout** for automatic connection cleanup
 - **Async/await API** with configurable timeout
 
 ### ZPLVerifier (Validation)
@@ -43,7 +49,7 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 
 ### Test Fixtures
 
-- **114 ZPL files** covering text, barcodes, shapes, and graphics
+- **124 ZPL files** covering text, barcodes, shapes, and graphics
 - **Reusable test suite** for validating any ZPL parser or renderer
 - **Reference images** from Labelary for comparison
 
@@ -89,6 +95,26 @@ let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
 let zpl = label.render()
 // Send `zpl` to your Zebra printer
 ```
+
+## Graphics and Dithering
+
+Print photographs and images with dithering for natural-looking halftones on thermal printers:
+
+```swift
+import ZPLKit
+
+let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
+    Graphic(photo, at: .dots(0, 0), width: .inches(4), height: .inches(6))
+        .dither(.floydSteinberg)
+        .contentMode(.aspectFill)
+}
+```
+
+Available dither methods:
+- `.none` - Hard threshold at 128 (default, best for icons and line art)
+- `.floydSteinberg` - Error diffusion dithering (best for photographs)
+- `.atkinson` - Lighter dithering that preserves more whites (good for text-heavy images)
+- `.threshold(n)` - Custom threshold value (0-255)
 
 ## Rendering Previews
 
