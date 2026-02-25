@@ -59,6 +59,12 @@ public struct PrinterStatus: Sendable, Equatable, Codable {
     /// Label length in dots (as reported by the printer).
     public var labelLengthInDots: Int
 
+    // MARK: - Configuration Fields (from ~HS string 2)
+
+    /// Whether the printer is in thermal transfer mode (true) or direct thermal (false).
+    /// Parsed from `~HS` string 2, index 3.
+    public var isThermalTransfer: Bool?
+
     // MARK: - Computed Properties
 
     /// True if the printer is ready to accept and print labels.
@@ -98,7 +104,8 @@ public struct PrinterStatus: Sendable, Equatable, Codable {
         isPartialFormatInProgress: Bool = false,
         formatsInBuffer: Int = 0,
         labelsRemainingInBatch: Int = 0,
-        labelLengthInDots: Int = 0
+        labelLengthInDots: Int = 0,
+        isThermalTransfer: Bool? = nil
     ) {
         self.isPaperOut = isPaperOut
         self.isRibbonOut = isRibbonOut
@@ -111,6 +118,7 @@ public struct PrinterStatus: Sendable, Equatable, Codable {
         self.formatsInBuffer = formatsInBuffer
         self.labelsRemainingInBatch = labelsRemainingInBatch
         self.labelLengthInDots = labelLengthInDots
+        self.isThermalTransfer = isThermalTransfer
     }
 }
 
@@ -179,6 +187,7 @@ extension PrinterStatus {
         //        4=print mode, 5=print width, 6=label waiting, 7=labels remaining
         let isHeadOpen = fields2.count > 1 && fields2[1] == "1"
         let isRibbonOut = fields2.count > 2 && fields2[2] == "1"
+        let isThermalTransfer: Bool? = fields2.count > 3 ? fields2[3] == "1" : nil
         let labelsRemaining = fields2.count > 7 ? Int(fields2[7]) ?? 0 : 0
 
         return PrinterStatus(
@@ -192,7 +201,8 @@ extension PrinterStatus {
             isPartialFormatInProgress: isPartialFormat,
             formatsInBuffer: formatsInBuffer,
             labelsRemainingInBatch: labelsRemaining,
-            labelLengthInDots: labelLength
+            labelLengthInDots: labelLength,
+            isThermalTransfer: isThermalTransfer
         )
     }
 

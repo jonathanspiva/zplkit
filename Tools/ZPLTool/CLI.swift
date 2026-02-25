@@ -152,10 +152,62 @@ enum CLI {
             guard let host = requireHost(args) else { return }
             let printer = ZPLPrinter(host: host, timeout: 10)
             do {
-                try await printer.send("^XA^XZ")
+                try await printer.feedLabel()
                 print("ok")
             } catch {
                 printError("feed", error)
+                exit(1)
+            }
+
+        case "diagnostics", "diag":
+            guard let host = requireHost(args) else { return }
+            let printer = ZPLPrinter(host: host, timeout: 10)
+            do {
+                let diag = try await printer.queryDiagnostics()
+                print("model: \(diag.info.model)")
+                print("firmware: \(diag.info.firmwareVersion)")
+                print("dpi: \(diag.info.dpi)")
+                print("memory: \(diag.memory.availableFormatted) free of \(diag.memory.totalFormatted)")
+                print("ready: \(diag.isReadyToPrint)")
+                if diag.status.hasError {
+                    print("errors: \(diag.status)")
+                }
+                if diag.status.isPaused {
+                    print("paused: true")
+                }
+                if let settings = diag.settings {
+                    if let serial = settings.serialNumber {
+                        print("serial: \(serial)")
+                    }
+                    if let fw = settings.firmware {
+                        print("config_firmware: \(fw)")
+                    }
+                    if let darkness = settings.darkness {
+                        print("darkness: \(darkness)")
+                    }
+                    if let speed = settings.printSpeed {
+                        print("speed: \(speed) IPS")
+                    }
+                    if let mediaType = settings.mediaType {
+                        print("media_type: \(mediaType == .directThermal ? "direct-thermal" : "thermal-transfer")")
+                    }
+                    if let lifetime = settings.nonresetCounterInches {
+                        print("lifetime_usage: \(lifetime) in")
+                    }
+                    if let headUsage = settings.resetCounterInches {
+                        print("head_usage: \(headUsage) in")
+                    }
+                    if let lastCleaned = settings.lastCleanedInches {
+                        print("last_cleaned: \(lastCleaned) in")
+                    }
+                    if let maxLen = settings.maximumLengthInches {
+                        print("max_length: \(maxLen) in")
+                    }
+                } else {
+                    print("settings: unavailable (^HH timed out)")
+                }
+            } catch {
+                printError("diagnostics", error)
                 exit(1)
             }
 
@@ -369,7 +421,7 @@ enum CLI {
             guard let host = requireHost(args) else { return }
             let printer = ZPLPrinter(host: host, timeout: 10)
             do {
-                try await printer.send("~JG")
+                try await printer.calibrateFull()
                 print("ok: full sensor profile sent (~JG)")
             } catch {
                 printError("calibrate-full", error)
@@ -380,7 +432,7 @@ enum CLI {
             guard let host = requireHost(args) else { return }
             let printer = ZPLPrinter(host: host, timeout: 10)
             do {
-                try await printer.send("~PP")
+                try await printer.togglePause()
                 print("ok: pause toggled (~PP)")
             } catch {
                 printError("pause", error)
@@ -391,10 +443,21 @@ enum CLI {
             guard let host = requireHost(args) else { return }
             let printer = ZPLPrinter(host: host, timeout: 10)
             do {
-                try await printer.send("~JA")
+                try await printer.cancelAll()
                 print("ok: all jobs cancelled (~JA)")
             } catch {
                 printError("cancel", error)
+                exit(1)
+            }
+
+        case "reset-printer":
+            guard let host = requireHost(args) else { return }
+            let printer = ZPLPrinter(host: host, timeout: 10)
+            do {
+                try await printer.powerOnReset()
+                print("ok: power-on reset sent (~JR)")
+            } catch {
+                printError("reset-printer", error)
                 exit(1)
             }
 
@@ -453,7 +516,84 @@ enum CLI {
                 exit(1)
             }
 
+        case "config-read":
+            guard let host = requireHost(args) else { return }
+            let printer = ZPLPrinter(host: host, timeout: 10)
+            do {
+                let settings = try await printer.queryConfiguration()
+                if let darkness = settings.darkness {
+                    print("darkness: \(darkness)")
+                }
+                if let speed = settings.printSpeed {
+                    print("speed: \(speed) IPS")
+                }
+                if let mediaType = settings.mediaType {
+                    print("media_type: \(mediaType == .directThermal ? "direct-thermal" : "thermal-transfer")")
+                }
+                if let tracking = settings.mediaTracking {
+                    let trackingStr: String
+                    switch tracking {
+                    case .gap: trackingStr = "gap"
+                    case .continuous: trackingStr = "continuous"
+                    case .mark: trackingStr = "mark"
+                    case .auto: trackingStr = "auto"
+                    }
+                    print("media_tracking: \(trackingStr)")
+                }
+                if let width = settings.printWidthDots {
+                    print("print_width_dots: \(width)")
+                }
+                if let length = settings.labelLengthDots {
+                    print("label_length_dots: \(length)")
+                }
+                if let mode = settings.printMode {
+                    let modeStr: String
+                    switch mode {
+                    case .tearOff: modeStr = "tear-off"
+                    case .peel: modeStr = "peel"
+                    case .rewind: modeStr = "rewind"
+                    case .cutter: modeStr = "cutter"
+                    }
+                    print("print_mode: \(modeStr)")
+                }
+                if let tearOff = settings.tearOffAdjust {
+                    print("tear_off_adjust: \(tearOff)")
+                }
+                if let serial = settings.serialNumber {
+                    print("serial: \(serial)")
+                }
+                if let fw = settings.firmware {
+                    print("firmware: \(fw)")
+                }
+                if let lifetime = settings.nonresetCounterInches {
+                    print("lifetime_usage: \(lifetime) in")
+                }
+                if let headUsage = settings.resetCounterInches {
+                    print("head_usage: \(headUsage) in")
+                }
+                if let lastCleaned = settings.lastCleanedInches {
+                    print("last_cleaned: \(lastCleaned) in")
+                }
+                if let maxLen = settings.maximumLengthInches {
+                    print("max_length: \(maxLen) in")
+                }
+            } catch {
+                printError("config-read", error)
+                exit(1)
+            }
+
         case "config-dump":
+            guard let host = requireHost(args) else { return }
+            let printer = ZPLPrinter(host: host, timeout: 10)
+            do {
+                let raw = try await printer.queryConfigurationRaw()
+                print(raw)
+            } catch {
+                printError("config-dump", error)
+                exit(1)
+            }
+
+        case "config-dump-raw":
             guard let host = requireHost(args) else { return }
             let printer = ZPLPrinter(host: host, timeout: 10)
             do {
@@ -464,7 +604,7 @@ enum CLI {
                     print("(\(data.count) bytes, non-UTF8)")
                 }
             } catch {
-                printError("config-dump", error)
+                printError("config-dump-raw", error)
                 exit(1)
             }
 
@@ -529,6 +669,7 @@ enum CLI {
           status <IP>                   Full printer status (info + status + memory)
           info <IP>                     Printer identification (~HI)
           memory <IP>                   RAM usage (~HM)
+          diagnostics <IP>              Full diagnostic snapshot (diag)
 
         Sending:
           send <IP> <ZPL>               Send raw ZPL string
@@ -552,10 +693,13 @@ enum CLI {
           save <IP>                     Save config to EEPROM (^JUS)
           restore <IP>                  Restore saved config (^JUR)
           reset <IP>                    Factory reset (^JUF)
+          reset-printer <IP>            Power-on reset (~JR)
 
         Query:
           query <IP> <COMMAND>          Send command, print response
-          config-dump <IP>              Full XML config dump (^HZa)
+          config-read <IP>              Read and parse current config (^HH)
+          config-dump <IP>              Text config dump (^HH)
+          config-dump-raw <IP>          Full XML config dump (^HZa)
 
         Discovery:
           discover [SECONDS]            Bonjour scan (default 5s)

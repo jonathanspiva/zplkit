@@ -6,10 +6,12 @@ extension PrinterConfiguration {
     /// immediate commands (`~` prefix) come first, then format commands
     /// are wrapped in a `^XA...^XZ` block.
     ///
+    /// - Parameter save: When true, appends `^JUS` to the format block so
+    ///   the configuration is saved to non-volatile memory in the same TCP payload.
     /// - Returns: An array of complete ZPL command strings ready to send.
     ///   Typically one or two strings: immediate commands (if any) and
     ///   a format block (if any).
-    public func zplCommands() -> [String] {
+    public func zplCommands(save: Bool = false) -> [String] {
         var immediateCommands: [String] = []
         var formatCommands: [String] = []
 
@@ -137,6 +139,11 @@ extension PrinterConfiguration {
             formatCommands.append("^ND\(ipAddress),\(subnetMask),\(gateway),\(dhcpFlag)")
         } else if dhcpEnabled == true {
             formatCommands.append("^NDY")
+        }
+
+        // Save to non-volatile memory inside the format block
+        if save {
+            formatCommands.append("^JUS")
         }
 
         // Build output

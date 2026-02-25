@@ -507,4 +507,57 @@ struct PrinterConfigurationTests {
         let commands = config.zplCommands()
         #expect(commands[0] == "^XA^NDY^XZ")
     }
+
+    // MARK: - Save Parameter
+
+    @Test("zplCommands(save: true) appends ^JUS to format block")
+    func saveAppendsJUS() {
+        let config = PrinterConfiguration().mediaType(.directThermal)
+        let commands = config.zplCommands(save: true)
+        #expect(commands.count == 1)
+        #expect(commands[0] == "^XA^MTD^JUS^XZ")
+    }
+
+    @Test("zplCommands(save: true) creates format block for immediate-only config")
+    func saveCreatesFormatBlockForImmediateOnly() {
+        let config = PrinterConfiguration().darkness(20)
+        let commands = config.zplCommands(save: true)
+        // Should have immediate command and a format block with just ^JUS
+        #expect(commands.count == 2)
+        #expect(commands[0] == "~SD20")
+        #expect(commands[1] == "^XA^JUS^XZ")
+    }
+
+    @Test("zplCommands(save: false) does not append ^JUS")
+    func noSaveDoesNotAppendJUS() {
+        let config = PrinterConfiguration().mediaType(.directThermal)
+        let commands = config.zplCommands(save: false)
+        #expect(commands.count == 1)
+        #expect(commands[0] == "^XA^MTD^XZ")
+    }
+
+    @Test("zplCommands(save: true) with empty config generates just ^JUS block")
+    func saveWithEmptyConfig() {
+        let config = PrinterConfiguration()
+        let commands = config.zplCommands(save: true)
+        #expect(commands.count == 1)
+        #expect(commands[0] == "^XA^JUS^XZ")
+    }
+
+    @Test("zplCommands(save: true) with mixed commands includes ^JUS in format block")
+    func saveWithMixedCommands() {
+        var config = PrinterConfiguration()
+        config.darkness = 20
+        config.mediaType = .thermalTransfer
+        config.printWidthDots = 832
+
+        let commands = config.zplCommands(save: true)
+        #expect(commands.count == 2)
+        #expect(commands[0] == "~SD20")
+        #expect(commands[1].hasPrefix("^XA"))
+        #expect(commands[1].hasSuffix("^XZ"))
+        #expect(commands[1].contains("^MTT"))
+        #expect(commands[1].contains("^PW832"))
+        #expect(commands[1].contains("^JUS"))
+    }
 }

@@ -7,6 +7,7 @@ private actor QueryState {
     private var hasCompleted = false
     private var responseBuffer = Data()
     private var hasSentCommand = false
+    private var lastReceiveTime: UInt64 = 0
 
     func setContinuation(_ continuation: CheckedContinuation<Data, Error>) {
         self.continuation = continuation
@@ -22,10 +23,15 @@ private actor QueryState {
 
     func appendResponse(_ data: Data) {
         responseBuffer.append(data)
+        lastReceiveTime = DispatchTime.now().uptimeNanoseconds
     }
 
     func getResponseBuffer() -> Data {
         responseBuffer
+    }
+
+    func getLastReceiveTime() -> UInt64 {
+        lastReceiveTime
     }
 
     func complete(with result: Result<Data, Error>) {
@@ -314,15 +320,38 @@ public struct ZPLPrinter: Sendable {
 
                                 await state.markCommandSent()
 
-                                // Start response timeout after send completes
+                                // Start response timeout after send completes.
+                                // Uses an idle check: if data has been received but
+                                // no new data arrives within 1s, return what we have.
+                                // This avoids waiting the full timeout for responses
+                                // without ETX framing (like ^HH).
                                 Task {
-                                    try? await Task.sleep(nanoseconds: responseTimeoutNanos)
+                                    let idleThresholdNanos: UInt64 = 1_000_000_000  // 1 second
+                                    let checkIntervalNanos: UInt64 = 500_000_000     // check every 500ms
+                                    let deadline = DispatchTime.now().uptimeNanoseconds + responseTimeoutNanos
+
+                                    while DispatchTime.now().uptimeNanoseconds < deadline {
+                                        try? await Task.sleep(nanoseconds: checkIntervalNanos)
+                                        if await state.isCompleted() { return }
+
+                                        let buffer = await state.getResponseBuffer()
+                                        let lastRecv = await state.getLastReceiveTime()
+                                        if !buffer.isEmpty && lastRecv > 0 {
+                                            let elapsed = DispatchTime.now().uptimeNanoseconds - lastRecv
+                                            if elapsed >= idleThresholdNanos {
+                                                await state.complete(with: .success(buffer))
+                                                connection.cancel()
+                                                return
+                                            }
+                                        }
+                                    }
+
+                                    // Full timeout reached
                                     if await !state.isCompleted() {
                                         let buffer = await state.getResponseBuffer()
                                         if buffer.isEmpty {
                                             await state.complete(with: .failure(PrinterError.responseTimeout(host: host, port: port)))
                                         } else {
-                                            // Return whatever we got
                                             await state.complete(with: .success(buffer))
                                         }
                                         connection.cancel()
@@ -583,7 +612,7 @@ public struct ZPLPrinter: Sendable {
 
     /// Prints a configuration label showing current printer settings.
     ///
-    /// The `~JC` command causes the printer to print a label with its current
+    /// The `~WC` command causes the printer to print a label with its current
     /// configuration, including:
     /// - Firmware version
     /// - Print speed and darkness
@@ -595,21 +624,6 @@ public struct ZPLPrinter: Sendable {
     ///
     /// - Throws: `PrinterError` if the command cannot be sent.
     public func printConfigurationLabel() async throws {
-        try await send("~JC")
-    }
-
-    /// Prints a network configuration label (if printer has network capability).
-    ///
-    /// The `~WC` command causes the printer to print a label with its current
-    /// network configuration, including:
-    /// - IP address
-    /// - Subnet mask
-    /// - Gateway
-    /// - MAC address
-    /// - DHCP/static settings
-    ///
-    /// - Throws: `PrinterError` if the command cannot be sent.
-    public func printNetworkConfigLabel() async throws {
         try await send("~WC")
     }
 }

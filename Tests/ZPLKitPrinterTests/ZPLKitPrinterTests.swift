@@ -731,4 +731,425 @@ struct ZPLKitPrinterTests {
         #expect(memory.total == 2097152)
         #expect(memory.available == 1847296)
     }
+
+    // MARK: - PrinterStatus Config Fields
+
+    @Test("PrinterStatus parses thermal transfer flag from string 2")
+    func printerStatusParsesThermalTransfer() throws {
+        let response = buildHSResponse(
+            string1: "000,0,0,0799,000,0,0,0,000,0,0,0",
+            string2: "0,0,0,1,0,2,0,0000"  // thermal_transfer=1
+        )
+
+        let status = try PrinterStatus.parse(from: response)
+
+        #expect(status.isThermalTransfer == true)
+    }
+
+    @Test("PrinterStatus parses direct thermal mode")
+    func printerStatusParsesDirectThermal() throws {
+        let response = buildHSResponse(
+            string1: "000,0,0,0799,000,0,0,0,000,0,0,0",
+            string2: "0,0,0,0,0,2,0,0000"  // thermal_transfer=0
+        )
+
+        let status = try PrinterStatus.parse(from: response)
+
+        #expect(status.isThermalTransfer == false)
+    }
+
+    // MARK: - PrinterSettings Tests
+
+    @Test("PrinterSettings parses darkness from ^HH response")
+    func printerSettingsParsesDarkness() {
+        // Real ^HH format: value on left, field name on right
+        let text = """
+          +15                 DARKNESS
+          4 IPS               PRINT SPEED
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.darkness == 15)
+        #expect(settings.printSpeed == 4)
+    }
+
+    @Test("PrinterSettings parses media type via PRINT METHOD")
+    func printerSettingsParsesThermalTransfer() {
+        let text = """
+          THERMAL-TRANS.      PRINT METHOD
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.mediaType == .thermalTransfer)
+    }
+
+    @Test("PrinterSettings parses direct thermal via PRINT METHOD")
+    func printerSettingsParsesDirectThermal() {
+        let text = """
+          DIRECT-THERMAL      PRINT METHOD
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.mediaType == .directThermal)
+    }
+
+    @Test("PrinterSettings parses media tracking from MEDIA TYPE field")
+    func printerSettingsParsesTrackingGap() {
+        let text = """
+          GAP/NOTCH           MEDIA TYPE
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.mediaTracking == .gap)
+    }
+
+    @Test("PrinterSettings parses continuous tracking from MEDIA TYPE field")
+    func printerSettingsParsesTrackingContinuous() {
+        let text = """
+          CONTINUOUS          MEDIA TYPE
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.mediaTracking == .continuous)
+    }
+
+    @Test("PrinterSettings parses mark tracking from MEDIA TYPE field")
+    func printerSettingsParsesTrackingMark() {
+        let text = """
+          MARK                MEDIA TYPE
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.mediaTracking == .mark)
+    }
+
+    @Test("PrinterSettings falls back to SENSOR TYPE for tracking")
+    func printerSettingsParsesTrackingFromSensor() {
+        let text = """
+          WEB                 SENSOR TYPE
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.mediaTracking == .gap)
+    }
+
+    @Test("PrinterSettings parses print width and label length")
+    func printerSettingsParsesDimensions() {
+        let text = """
+          832                 PRINT WIDTH
+          1218                LABEL LENGTH
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.printWidthDots == 832)
+        #expect(settings.labelLengthDots == 1218)
+    }
+
+    @Test("PrinterSettings parses print mode tear-off")
+    func printerSettingsParsesPrintMode() {
+        let text = """
+          TEAR OFF            PRINT MODE
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.printMode == .tearOff)
+    }
+
+    @Test("PrinterSettings parses tear-off adjust")
+    func printerSettingsParsesTearOffAdjust() {
+        let text = """
+          +000                TEAR OFF
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.tearOffAdjust == 0)
+    }
+
+    @Test("PrinterSettings parses negative tear-off adjust")
+    func printerSettingsParsesNegativeTearOff() {
+        let text = """
+          -015                TEAR OFF
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.tearOffAdjust == -15)
+    }
+
+    @Test("PrinterSettings returns empty for unrecognized text")
+    func printerSettingsParsesEmpty() {
+        let text = "Some random printer output with no config keys"
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.darkness == nil)
+        #expect(settings.printSpeed == nil)
+        #expect(settings.mediaType == nil)
+    }
+
+    @Test("PrinterSettings parse from Data works")
+    func printerSettingsParsesFromData() throws {
+        let text = "  25                  DARKNESS\n  6 IPS               PRINT SPEED"
+        let data = Data(text.utf8)
+        let settings = try PrinterSettings.parse(from: data)
+        #expect(settings.darkness == 25)
+        #expect(settings.printSpeed == 6)
+    }
+
+    @Test("PrinterSettings throws on invalid data")
+    func printerSettingsThrowsOnInvalidData() {
+        // Invalid UTF-8 data
+        let data = Data([0xFF, 0xFE, 0x00, 0x01])
+        #expect(throws: PrinterError.self) {
+            _ = try PrinterSettings.parse(from: data)
+        }
+    }
+
+    @Test("PrinterSettings description is readable")
+    func printerSettingsDescription() {
+        var settings = PrinterSettings()
+        settings.darkness = 20
+        settings.printSpeed = 4
+        settings.mediaType = .directThermal
+
+        let desc = settings.description
+        #expect(desc.contains("darkness: 20"))
+        #expect(desc.contains("speed: 4"))
+        #expect(desc.contains("direct-thermal"))
+    }
+
+    @Test("PrinterSettings empty description")
+    func printerSettingsEmptyDescription() {
+        let settings = PrinterSettings()
+        #expect(settings.description == "No settings parsed")
+    }
+
+    @Test("PrinterSettings is Codable")
+    func printerSettingsCodable() throws {
+        var settings = PrinterSettings()
+        settings.darkness = 20
+        settings.printSpeed = 6
+        settings.mediaType = .thermalTransfer
+        settings.mediaTracking = .gap
+        settings.printWidthDots = 832
+        settings.labelLengthDots = 1218
+        settings.printMode = .tearOff
+        settings.tearOffAdjust = 16
+
+        let data = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(PrinterSettings.self, from: data)
+
+        #expect(decoded == settings)
+    }
+
+    @Test("PrinterSettings parses ZM400 ^HH output")
+    func printerSettingsParsesZM400Output() {
+        // Real ZM400 ^HH output format
+        let text = """
+          +15                 DARKNESS
+          2 IPS               PRINT SPEED
+          +000                TEAR OFF
+          TEAR OFF            PRINT MODE
+          GAP/NOTCH           MEDIA TYPE
+          TRANSMISSIVE        SENSOR SELECT
+          THERMAL-TRANS.      PRINT METHOD
+          812                 PRINT WIDTH
+          0419                LABEL LENGTH
+          39.0IN   988MM      MAXIMUM LENGTH
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.darkness == 15)
+        #expect(settings.printSpeed == 2)
+        #expect(settings.mediaType == .thermalTransfer)
+        #expect(settings.mediaTracking == .gap)
+        #expect(settings.printWidthDots == 812)
+        #expect(settings.labelLengthDots == 419)
+        #expect(settings.printMode == .tearOff)
+        #expect(settings.tearOffAdjust == 0)
+    }
+
+    @Test("PrinterSettings parses GX420t ^HH output")
+    func printerSettingsParsesGX420tOutput() {
+        // Real GX420t ^HH output format
+        let text = """
+          05.0                DARKNESS
+          4 IPS               PRINT SPEED
+          +000                TEAR OFF
+          TEAR OFF            PRINT MODE
+          CONTINUOUS          MEDIA TYPE
+          WEB                 SENSOR TYPE
+          MANUAL              SENSOR SELECT
+          THERMAL-TRANS.      PRINT METHOD
+          812                 PRINT WIDTH
+          0406                LABEL LENGTH
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.darkness == 5)
+        #expect(settings.printSpeed == 4)
+        #expect(settings.mediaType == .thermalTransfer)
+        #expect(settings.mediaTracking == .continuous)
+        #expect(settings.printWidthDots == 812)
+        #expect(settings.labelLengthDots == 406)
+        #expect(settings.printMode == .tearOff)
+        #expect(settings.tearOffAdjust == 0)
+    }
+
+    // MARK: - Extended Diagnostic Field Tests
+
+    @Test("PrinterSettings parses serial number")
+    func printerSettingsParsesSerialNumber() {
+        let text = "  31J114702349        SERIAL NUMBER"
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.serialNumber == "31J114702349")
+    }
+
+    @Test("PrinterSettings parses firmware with arrow marker")
+    func printerSettingsParsesFirmwareWithArrow() {
+        let text = "  V53.17.24Z <-       FIRMWARE"
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.firmware == "V53.17.24Z")
+    }
+
+    @Test("PrinterSettings parses firmware without arrow marker")
+    func printerSettingsParsesFirmwareWithoutArrow() {
+        let text = "  V48.18.2Z           FIRMWARE"
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.firmware == "V48.18.2Z")
+    }
+
+    @Test("PrinterSettings parses usage counters with commas")
+    func printerSettingsParsesUsageCountersWithCommas() {
+        let text = """
+          111,367 IN          NONRESET CNTR
+          50,234 IN           RESET CNTR1
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.nonresetCounterInches == 111367)
+        #expect(settings.resetCounterInches == 50234)
+    }
+
+    @Test("PrinterSettings parses usage counters without commas")
+    func printerSettingsParsesUsageCountersWithoutCommas() {
+        let text = """
+          500 IN              NONRESET CNTR
+          200 IN              RESET CNTR1
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.nonresetCounterInches == 500)
+        #expect(settings.resetCounterInches == 200)
+    }
+
+    @Test("PrinterSettings parses GX420t counter field names")
+    func printerSettingsParsesGX420tCounters() {
+        let text = """
+          1,234 IN            TOTAL USAGE
+          567 IN              HEAD USAGE
+          100 IN              LAST CLEANED
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.nonresetCounterInches == 1234)
+        #expect(settings.resetCounterInches == 567)
+        #expect(settings.lastCleanedInches == 100)
+    }
+
+    @Test("PrinterSettings parses maximum length")
+    func printerSettingsParsesMaximumLength() {
+        let text = "  39.0IN   988MM      MAXIMUM LENGTH"
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.maximumLengthInches == 39.0)
+    }
+
+    @Test("PrinterSettings parses extended ZM400 full output")
+    func printerSettingsParsesExtendedZM400() {
+        let text = """
+          31J114702349        SERIAL NUMBER
+          +15                 DARKNESS
+          2 IPS               PRINT SPEED
+          +000                TEAR OFF
+          TEAR OFF            PRINT MODE
+          GAP/NOTCH           MEDIA TYPE
+          TRANSMISSIVE        SENSOR SELECT
+          THERMAL-TRANS.      PRINT METHOD
+          812                 PRINT WIDTH
+          0419                LABEL LENGTH
+          39.0IN   988MM      MAXIMUM LENGTH
+          V53.17.24Z <-       FIRMWARE
+          111,367 IN          NONRESET CNTR
+          50,234 IN           RESET CNTR1
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.serialNumber == "31J114702349")
+        #expect(settings.darkness == 15)
+        #expect(settings.printSpeed == 2)
+        #expect(settings.mediaType == .thermalTransfer)
+        #expect(settings.mediaTracking == .gap)
+        #expect(settings.printWidthDots == 812)
+        #expect(settings.labelLengthDots == 419)
+        #expect(settings.maximumLengthInches == 39.0)
+        #expect(settings.firmware == "V53.17.24Z")
+        #expect(settings.nonresetCounterInches == 111367)
+        #expect(settings.resetCounterInches == 50234)
+    }
+
+    @Test("PrinterSettings parses extended GX420t full output")
+    func printerSettingsParsesExtendedGX420t() {
+        let text = """
+          ABC12345678         SERIAL NUMBER
+          05.0                DARKNESS
+          4 IPS               PRINT SPEED
+          +000                TEAR OFF
+          TEAR OFF            PRINT MODE
+          CONTINUOUS          MEDIA TYPE
+          WEB                 SENSOR TYPE
+          MANUAL              SENSOR SELECT
+          THERMAL-TRANS.      PRINT METHOD
+          812                 PRINT WIDTH
+          0406                LABEL LENGTH
+          V48.18.2Z           FIRMWARE
+          1,234 IN            TOTAL USAGE
+          567 IN              HEAD USAGE
+          100 IN              LAST CLEANED
+        """
+        let settings = PrinterSettings.parse(from: text)
+        #expect(settings.serialNumber == "ABC12345678")
+        #expect(settings.darkness == 5)
+        #expect(settings.printSpeed == 4)
+        #expect(settings.mediaType == .thermalTransfer)
+        #expect(settings.mediaTracking == .continuous)
+        #expect(settings.printWidthDots == 812)
+        #expect(settings.labelLengthDots == 406)
+        #expect(settings.firmware == "V48.18.2Z")
+        #expect(settings.nonresetCounterInches == 1234)
+        #expect(settings.resetCounterInches == 567)
+        #expect(settings.lastCleanedInches == 100)
+    }
+
+    @Test("PrinterSettings Codable round-trip with diagnostic fields")
+    func printerSettingsCodableWithDiagnostics() throws {
+        var settings = PrinterSettings()
+        settings.darkness = 20
+        settings.printSpeed = 6
+        settings.mediaType = .thermalTransfer
+        settings.mediaTracking = .gap
+        settings.printWidthDots = 832
+        settings.labelLengthDots = 1218
+        settings.printMode = .tearOff
+        settings.tearOffAdjust = 16
+        settings.serialNumber = "31J114702349"
+        settings.firmware = "V53.17.24Z"
+        settings.nonresetCounterInches = 111367
+        settings.resetCounterInches = 50234
+        settings.lastCleanedInches = 200
+        settings.maximumLengthInches = 39.0
+
+        let data = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(PrinterSettings.self, from: data)
+
+        #expect(decoded == settings)
+    }
+
+    @Test("PrinterSettings description includes diagnostic fields")
+    func printerSettingsDescriptionWithDiagnostics() {
+        var settings = PrinterSettings()
+        settings.serialNumber = "ABC123"
+        settings.firmware = "V1.0"
+        settings.nonresetCounterInches = 5000
+        settings.resetCounterInches = 1000
+        settings.lastCleanedInches = 200
+        settings.maximumLengthInches = 39.0
+
+        let desc = settings.description
+        #expect(desc.contains("serial: ABC123"))
+        #expect(desc.contains("firmware: V1.0"))
+        #expect(desc.contains("lifetime: 5000"))
+        #expect(desc.contains("head usage: 1000"))
+        #expect(desc.contains("last cleaned: 200"))
+        #expect(desc.contains("max length: 39.0"))
+    }
 }
