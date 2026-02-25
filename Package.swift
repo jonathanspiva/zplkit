@@ -31,6 +31,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/LiveUI/Awesome", from: "2.0.0"),
+        .package(url: "https://github.com/rensbreur/SwiftTUI.git", branch: "main"),
     ],
     targets: [
         .target(
@@ -95,6 +96,12 @@ let package = Package(
             name: "StatusCheck",
             dependencies: ["ZPLKit", "ZPLKitPrinter"],
             path: "Tools/StatusCheck"
+        ),
+        .executableTarget(
+            name: "ZPLTool",
+            dependencies: ["ZPLKit", "ZPLKitPrinter", "SwiftTUI"],
+            path: "Tools/ZPLTool",
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
 )
