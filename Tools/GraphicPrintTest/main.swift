@@ -29,7 +29,7 @@ guard let colorSpace = CGColorSpace(name: CGColorSpace.linearGray),
 }
 
 // Helper to draw text using CoreText
-func drawText(_ text: String, fontName: String, fontSize: CGFloat, x: CGFloat, y: CGFloat) {
+func drawText(_ text: String, fontName: String, fontSize: CGFloat, x: CGFloat, y: CGFloat, context: CGContext) {
     let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
     let attrs: [CFString: Any] = [
         kCTFontAttributeName: font,
@@ -37,8 +37,8 @@ func drawText(_ text: String, fontName: String, fontSize: CGFloat, x: CGFloat, y
     ]
     let attrStr = CFAttributedStringCreate(nil, text as CFString, attrs as CFDictionary)!
     let line = CTLineCreateWithAttributedString(attrStr)
-    ctx.textPosition = CGPoint(x: x, y: y)
-    CTLineDraw(line, ctx)
+    context.textPosition = CGPoint(x: x, y: y)
+    CTLineDraw(line, context)
 }
 
 // White background
@@ -54,10 +54,10 @@ ctx.setLineWidth(3)
 ctx.stroke(CGRect(x: 5, y: 5, width: widthDots - 10, height: heightDots - 10))
 
 // Draw title text
-drawText("BITMAP LABEL TEST", fontName: "Helvetica-Bold", fontSize: 36, x: 30, y: CGFloat(heightDots - 60))
+drawText("BITMAP LABEL TEST", fontName: "Helvetica-Bold", fontSize: 36, x: 30, y: CGFloat(heightDots - 60), context: ctx)
 
 // Draw subtitle
-drawText("Rendered via CoreGraphics, sent as ^GF", fontName: "Helvetica", fontSize: 20, x: 30, y: CGFloat(heightDots - 95))
+drawText("Rendered via CoreGraphics, sent as ^GF", fontName: "Helvetica", fontSize: 20, x: 30, y: CGFloat(heightDots - 95), context: ctx)
 
 // Draw a filled rectangle
 ctx.fill(CGRect(x: 30, y: 80, width: 200, height: 40))
@@ -72,7 +72,7 @@ let infoLines = [
     "Host: \(host)",
 ]
 for (i, text) in infoLines.enumerated() {
-    drawText(text, fontName: "Courier", fontSize: 16, x: 30, y: CGFloat(heightDots - 140 - (i * 22)))
+    drawText(text, fontName: "Courier", fontSize: 16, x: 30, y: CGFloat(heightDots - 140 - (i * 22)), context: ctx)
 }
 
 // Create CGImage
@@ -111,11 +111,74 @@ let nativeLabel = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
 }
 let nativeZpl = nativeLabel.render()
 let nativeBytes = nativeZpl.utf8.count
-print("Native ZPL size: \(nativeBytes) bytes")
 print("Bitmap is \(String(format: "%.0f", Double(zplBytes) / Double(nativeBytes)))x larger")
 print()
 
-// Send both labels
+// MARK: - Dither Comparison Label
+
+// Create a gradient test image (smooth horizontal gradient from black to white)
+let gradWidth = 200
+let gradHeight = 300
+guard let gradCtx = CGContext(
+    data: nil,
+    width: gradWidth,
+    height: gradHeight,
+    bitsPerComponent: 8,
+    bytesPerRow: gradWidth,
+    space: colorSpace,
+    bitmapInfo: CGImageAlphaInfo.none.rawValue
+) else {
+    print("Failed to create gradient context")
+    exit(1)
+}
+
+// Draw horizontal gradient
+if let data = gradCtx.data {
+    let pixels = data.bindMemory(to: UInt8.self, capacity: gradWidth * gradHeight)
+    for y in 0..<gradHeight {
+        for x in 0..<gradWidth {
+            pixels[y * gradWidth + x] = UInt8(x * 255 / (gradWidth - 1))
+        }
+    }
+}
+
+guard let gradientImage = gradCtx.makeImage() else {
+    print("Failed to create gradient image")
+    exit(1)
+}
+
+// Build a comparison label: three columns showing different dither methods
+// 4" wide label at 203 DPI = 812 dots, using 3" tall = 609 dots
+let ditherLabel = ZPLLabel(width: 4, height: 3, dpi: .dpi203) {
+    // Column headers
+    Text("Threshold", at: .dots(30, 20))
+        .font(.default, height: .dots(22))
+    Text("Floyd-Steinberg", at: .dots(280, 20))
+        .font(.default, height: .dots(22))
+    Text("Atkinson", at: .dots(560, 20))
+        .font(.default, height: .dots(22))
+
+    // Column 1: default threshold (no dither)
+    Graphic(gradientImage, at: .dots(30, 50), width: .dots(gradWidth), height: .dots(gradHeight))
+
+    // Column 2: Floyd-Steinberg
+    Graphic(gradientImage, at: .dots(280, 50), width: .dots(gradWidth), height: .dots(gradHeight))
+        .dither(.floydSteinberg)
+
+    // Column 3: Atkinson
+    Graphic(gradientImage, at: .dots(560, 50), width: .dots(gradWidth), height: .dots(gradHeight))
+        .dither(.atkinson)
+
+    // Footer
+    Text("Dither Comparison - Gradient", at: .dots(30, 370))
+        .font(.default, height: .dots(18))
+}
+
+let ditherZpl = ditherLabel.render()
+let ditherBytes = ditherZpl.utf8.count
+print("Dither comparison label: \(ditherBytes) bytes (\(String(format: "%.1f", Double(ditherBytes) / 1024.0)) KB)")
+
+// Send all labels
 let printer = ZPLPrinter(host: host)
 
 print("Sending bitmap label to \(host)...")
@@ -133,5 +196,13 @@ try await printer.send(nativeZpl)
 let nativeTime = Date().timeIntervalSince(nativeStart)
 print("Native sent in \(String(format: "%.2f", nativeTime))s")
 
+try await Task.sleep(nanoseconds: 2_000_000_000)
+
+print("Sending dither comparison label to \(host)...")
+let ditherStart = Date()
+try await printer.send(ditherZpl)
+let ditherTime = Date().timeIntervalSince(ditherStart)
+print("Dither comparison sent in \(String(format: "%.2f", ditherTime))s")
+
 print()
-print("Done! Compare the two labels.")
+print("Done! Compare the three labels.")

@@ -1935,6 +1935,153 @@ final class ZPLKitTests: XCTestCase {
         // The hex data should be different when inverted
         XCTAssertNotEqual(zplNormal, zplInverted)
     }
+
+    // MARK: - Graphic Dithering Tests
+
+    /// Helper: creates a grayscale gradient CGImage (left=black, right=white).
+    private func makeGradientImage(width: Int, height: Int) -> CGImage {
+        var pixelData = [UInt8](repeating: 0, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width {
+                pixelData[y * width + x] = UInt8(x * 255 / max(width - 1, 1))
+            }
+        }
+        let colorSpace = CGColorSpace(name: CGColorSpace.linearGray)!
+        let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    /// Helper: creates a solid gray CGImage.
+    private func makeSolidImage(width: Int, height: Int, gray: UInt8) -> CGImage {
+        var pixelData = [UInt8](repeating: gray, count: width * height)
+        let colorSpace = CGColorSpace(name: CGColorSpace.linearGray)!
+        let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    func testGraphicDitherNoneMatchesDefault() {
+        let gradient = makeGradientImage(width: 32, height: 32)
+
+        let labelDefault = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
+        }
+        let labelNone = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
+                .dither(.none)
+        }
+
+        XCTAssertEqual(labelDefault.render(), labelNone.render())
+    }
+
+    func testGraphicFloydSteinbergDiffersFromThreshold() {
+        let gradient = makeGradientImage(width: 32, height: 32)
+
+        let labelThreshold = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
+        }
+        let labelFS = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
+                .dither(.floydSteinberg)
+        }
+
+        XCTAssertNotEqual(labelThreshold.render(), labelFS.render())
+    }
+
+    func testGraphicAtkinsonDiffersFromThreshold() {
+        let gradient = makeGradientImage(width: 32, height: 32)
+
+        let labelThreshold = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
+        }
+        let labelAtkinson = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
+                .dither(.atkinson)
+        }
+
+        XCTAssertNotEqual(labelThreshold.render(), labelAtkinson.render())
+    }
+
+    func testGraphicCustomThreshold() {
+        let gradient = makeGradientImage(width: 32, height: 32)
+
+        let labelDefault = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
+        }
+        let labelLow = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
+                .dither(.threshold(64))
+        }
+
+        // Lower threshold means fewer pixels become black
+        XCTAssertNotEqual(labelDefault.render(), labelLow.render())
+    }
+
+    func testGraphicAspectFillCrop() {
+        // Wide source (32x8) with black edges, white center.
+        // Stretch squishes the whole image; aspectFill crops to center (white) portion.
+        let width = 32
+        let height = 8
+        var pixelData = [UInt8](repeating: 0, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width {
+                // Left quarter and right quarter are black (0), middle half is white (255)
+                let isEdge = x < 8 || x >= 24
+                pixelData[y * width + x] = isEdge ? 0 : 255
+            }
+        }
+        let colorSpace = CGColorSpace(name: CGColorSpace.linearGray)!
+        let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        )!
+        let wideImage = context.makeImage()!
+
+        let labelStretch = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(wideImage, at: .dots(0, 0), width: .dots(8), height: .dots(8))
+        }
+        let labelFill = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(wideImage, at: .dots(0, 0), width: .dots(8), height: .dots(8))
+                .contentMode(.aspectFill)
+        }
+
+        // Stretch keeps the black edges; aspectFill crops to center (mostly white)
+        XCTAssertNotEqual(labelStretch.render(), labelFill.render())
+    }
+
+    func testGraphicContentModeStretchIsDefault() {
+        let gradient = makeGradientImage(width: 32, height: 16)
+
+        let labelDefault = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(16), height: .dots(16))
+        }
+        let labelStretch = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(gradient, at: .dots(0, 0), width: .dots(16), height: .dots(16))
+                .contentMode(.stretch)
+        }
+
+        XCTAssertEqual(labelDefault.render(), labelStretch.render())
+    }
     #endif
 
     // MARK: - Printer Commands
