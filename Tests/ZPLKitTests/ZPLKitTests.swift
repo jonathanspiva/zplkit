@@ -2102,4 +2102,145 @@ final class ZPLKitTests: XCTestCase {
     func testPrinterCommandCancelJob() {
         XCTAssertEqual(PrinterCommand.cancelJob.zpl, "~JA")
     }
+
+    // MARK: - Barcode Field-Data Escaping
+
+    func testBarcode128EscapesSpecialChars() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("A^B~C_D", at: .inches(0.25, 0.5))
+        }
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))           // hex mode enabled
+        XCTAssertTrue(zpl.contains("^FDA_5EB_7EC_5FD^FS"))
+        // The raw control sequence must NOT leak into the command stream
+        XCTAssertFalse(zpl.contains("^FDA^B~C_D^FS"))
+    }
+
+    func testBarcode128NormalDataUnchanged() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("ABC123", at: .inches(0.25, 0.5))
+        }
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("^FDABC123^FS"))
+    }
+
+    func testQRCodeEscapesSpecialCharsKeepingPrefix() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("a^b~c_d", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))
+        // Error-correction + input-mode prefix ("MA,") stays UNescaped,
+        // only the user payload is hex-escaped.
+        XCTAssertTrue(zpl.contains("^FDMA,a_5Eb_7Ec_5Fd^FS"))
+    }
+
+    func testQRCodeNormalDataUnchanged() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("https://example.com", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("^FDMA,https://example.com^FS"))
+    }
+
+    func testPDF417EscapesSpecialChars() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            PDF417("x^y~z_w", at: .inches(0.25, 0.25))
+        }
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("^FDx_5Ey_7Ez_5Fw^FS"))
+    }
+
+    func testPDF417NormalDataUnchanged() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            PDF417("SHIPPING-MANIFEST-12345", at: .inches(0.25, 0.25))
+        }
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("^FDSHIPPING-MANIFEST-12345^FS"))
+    }
+
+    func testDataMatrixEscapesSpecialChars() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            DataMatrix("d^m~x_y", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("^FDd_5Em_7Ex_5Fy^FS"))
+    }
+
+    func testDataMatrixNormalDataUnchanged() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            DataMatrix("SERIAL123", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("^FDSERIAL123^FS"))
+    }
+
+    func testAztecEscapesSpecialChars() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Aztec("a^z~q_r", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        XCTAssertTrue(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("^FDa_5Ez_7Eq_5Fr^FS"))
+    }
+
+    func testAztecNormalDataUnchanged() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Aztec("TICKET-DATA-12345", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        XCTAssertFalse(zpl.contains("^FH"))
+        XCTAssertTrue(zpl.contains("^FDTICKET-DATA-12345^FS"))
+    }
+
+    // MARK: - DataMatrix Column/Row Clamping
+
+    func testDataMatrixColumnsRowsClamped() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            DataMatrix("DATA", at: .inches(0.5, 0.5))
+                .columns(1000)
+                .rows(0)
+        }
+        let zpl = label.render()
+        // Clamped to the ^BX range 9-49
+        XCTAssertTrue(zpl.contains(",49,9^FD"))
+    }
+
+    // MARK: - Substitution Escaping
+
+    func testSubstitutionEscapesInjectionValue() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("{{val}}", at: .inches(0.25, 0.25))
+        }
+        // A value attempting to inject ^XZ (end-of-label) must be neutralized.
+        let zpl = label.render(substituting: ["val": "X^XZ"])
+        XCTAssertFalse(zpl.contains("X^XZ"))      // injection sequence neutralized
+        XCTAssertTrue(zpl.contains("X_5EXZ"))     // caret hex-escaped
+        // Only the closing ^XZ emitted by the renderer should remain.
+        XCTAssertEqual(zpl.components(separatedBy: "^XZ").count - 1, 1)
+    }
+
+    func testSubstitutionNormalValueUnchanged() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Order: {{orderNumber}}", at: .inches(0.25, 0.25))
+        }
+        let zpl = label.render(substituting: ["orderNumber": "12345"])
+        XCTAssertTrue(zpl.contains("^FDOrder: 12345^FS"))
+    }
+
+    func testSubstitutionDeterministicWithPrefixKeys() {
+        // "item" is a prefix of "itemCount"; the longer key must win.
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("{{itemCount}}", at: .inches(0.25, 0.25))
+        }
+        let zpl = label.render(substituting: ["item": "WRONG", "itemCount": "42"])
+        XCTAssertTrue(zpl.contains("^FD42^FS"))
+        XCTAssertFalse(zpl.contains("WRONG"))
+    }
 }

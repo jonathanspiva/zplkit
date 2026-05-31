@@ -9,8 +9,6 @@ public struct Aztec: ZPLElement, Equatable, Hashable {
     private var extendedChannel: Bool = false   // Extended channel interpretation
     private var errorCorrection: Int = 0        // 0 = default, 1-99 = percentage + 1
     private var menuSymbol: Bool = false        // Reader initialization symbol
-    private var symbolCount: Int = 1            // Number of symbols for structured append
-    private var idField: String? = nil          // Optional ID for structured append
 
     /// Creates an Aztec barcode at the given position.
     /// - Parameters:
@@ -63,9 +61,15 @@ public struct Aztec: ZPLElement, Equatable, Hashable {
         let eciFlag = extendedChannel ? "Y" : "N"
         let menuFlag = menuSymbol ? "Y" : "N"
 
+        let (needsHex, escapedData) = escapeZPLFieldData(data)
+
         var result = "^FO\(pos.x),\(pos.y)"
-        result += "^B0\(rotation.rawValue),\(magnification),\(eciFlag),\(errorCorrection),\(menuFlag),\(symbolCount)"
-        result += "^FD\(data)^FS"
+        // Trailing "1" is the ^B0 structured-append symbol count (single symbol).
+        result += "^B0\(rotation.rawValue),\(magnification),\(eciFlag),\(errorCorrection),\(menuFlag),1"
+        if needsHex {
+            result += "^FH"
+        }
+        result += "^FD\(escapedData)^FS"
 
         return result
     }

@@ -46,7 +46,7 @@ public struct Barcode128: ZPLElement, Equatable, Hashable {
     /// - Returns: A barcode element, or `nil` if data contains invalid characters.
     public init?(_ data: String, at position: Position) {
         // Validate: Code 128 supports ASCII 0-127
-        guard data.allSatisfy({ $0.asciiValue != nil && $0.asciiValue! < 128 }) else {
+        guard data.allSatisfy({ $0.isASCII }) else {
             return nil
         }
         self.data = data
@@ -112,10 +112,15 @@ public struct Barcode128: ZPLElement, Equatable, Hashable {
         let textFlag = showText ? "Y" : "N"
         let aboveFlag = isTextAbove ? "Y" : "N"
 
+        let (needsHex, escapedData) = escapeZPLFieldData(data)
+
         var result = "^FO\(pos.x),\(pos.y)"
         result += "^BY\(moduleWidth)"
         result += "^BC\(rotation.rawValue),\(height),\(textFlag),\(aboveFlag),N"
-        result += "^FD\(data)^FS"
+        if needsHex {
+            result += "^FH"
+        }
+        result += "^FD\(escapedData)^FS"
 
         return result
     }

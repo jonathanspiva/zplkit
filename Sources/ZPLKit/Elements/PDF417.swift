@@ -68,9 +68,14 @@ public struct PDF417: ZPLElement, Equatable, Hashable {
 
         let truncateFlag = truncate ? "Y" : "N"
 
+        let (needsHex, escapedData) = escapeZPLFieldData(data)
+
         var result = "^FO\(pos.x),\(pos.y)"
         result += "^B7\(rotation.rawValue),\(height),\(securityLevel),\(dataColumns),\(rows),\(truncateFlag)"
-        result += "^FD\(data)^FS"
+        if needsHex {
+            result += "^FH"
+        }
+        result += "^FD\(escapedData)^FS"
 
         return result
     }

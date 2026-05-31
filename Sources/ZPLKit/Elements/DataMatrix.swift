@@ -1,4 +1,7 @@
-/// A DataMatrix barcode element.
+/// A DataMatrix barcode element using ZPL's ^BX command.
+///
+/// DataMatrix is a compact 2D barcode used for marking small items, electronics,
+/// and documents. It can encode text or binary data with built-in error correction.
 public struct DataMatrix: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
@@ -33,17 +36,17 @@ public struct DataMatrix: ZPLElement, Equatable, Hashable {
         return copy
     }
 
-    /// Sets a fixed number of columns.
+    /// Sets a fixed number of columns (clamped to the ^BX range 9-49).
     public func columns(_ cols: Int) -> DataMatrix {
         var copy = self
-        copy.columns = cols
+        copy.columns = min(49, max(9, cols))
         return copy
     }
 
-    /// Sets a fixed number of rows.
+    /// Sets a fixed number of rows (clamped to the ^BX range 9-49).
     public func rows(_ rows: Int) -> DataMatrix {
         var copy = self
-        copy.rows = rows
+        copy.rows = min(49, max(9, rows))
         return copy
     }
 
@@ -63,7 +66,12 @@ public struct DataMatrix: ZPLElement, Equatable, Hashable {
         let colStr = columns.map { ",\($0)" } ?? ""
         let rowStr = rows.map { ",\($0)" } ?? ""
         result += "^BX\(rotation.rawValue),\(moduleSize),\(quality)\(colStr)\(rowStr)"
-        result += "^FD\(data)^FS"
+
+        let (needsHex, escapedData) = escapeZPLFieldData(data)
+        if needsHex {
+            result += "^FH"
+        }
+        result += "^FD\(escapedData)^FS"
 
         return result
     }

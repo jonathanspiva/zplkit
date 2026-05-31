@@ -214,8 +214,27 @@ public struct ZPLLabel: Sendable {
     /// - Returns: The ZPL string with all variables substituted.
     public func render(substituting substitutions: [String: String], prettyPrint: Bool = false) -> String {
         var zpl = render(prettyPrint: prettyPrint)
-        for (key, value) in substitutions {
-            zpl = zpl.replacingOccurrences(of: "{{\(key)}}", with: value)
+
+        // Substituted values are escaped so that ZPL control characters in the
+        // value (`^`, `~`, `_`) and injection sequences like `^XZ` are rendered
+        // inert (hex-escaped to `_XX`) rather than corrupting the command stream.
+        //
+        // Limitation: substitution runs on already-rendered ZPL, so we cannot
+        // retroactively insert a `^FH` directive in front of a field that didn't
+        // already enable hex mode. If a substituted value contains special
+        // characters and lands in a field that was NOT emitted with `^FH`, the
+        // printer will render the literal `_XX` escape sequence rather than the
+        // original character. This is a fidelity tradeoff that keeps injected
+        // values safe. For full-fidelity special characters, supply the value at
+        // element-construction time (e.g. `Text(value, ...)`) instead of via
+        // post-render substitution.
+        //
+        // Keys are sorted by descending length so that iteration order is
+        // deterministic and longer keys are replaced before any shorter key that
+        // is a prefix of them.
+        for key in substitutions.keys.sorted(by: { $0.count > $1.count }) {
+            let escapedValue = escapeZPLFieldData(substitutions[key]!).escaped
+            zpl = zpl.replacingOccurrences(of: "{{\(key)}}", with: escapedValue)
         }
         return zpl
     }

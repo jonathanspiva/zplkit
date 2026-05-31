@@ -34,7 +34,13 @@ import Foundation
 /// Graphic(photo, at: .dots(0, 0), width: .inches(2), height: .inches(3))
 ///     .contentMode(.aspectFill)
 /// ```
-public struct Graphic: ZPLElement, Equatable, Hashable {
+// Note: `Graphic` intentionally does NOT conform to `Equatable`/`Hashable`.
+// It stores a `CGImage` (a reference type whose synthesized conformance would
+// compare by object identity `===`), so two `Graphic` values built from
+// pixel-identical but distinct `CGImage` instances would compare unequal — a
+// value-type footgun. These conformances aren't required by `ZPLElement` and
+// aren't used by the DSL, so they're omitted.
+public struct Graphic: ZPLElement {
     private let image: CGImage
     private let position: Position
     private let targetWidth: Dimension
@@ -81,13 +87,20 @@ public struct Graphic: ZPLElement, Equatable, Hashable {
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
         let width = targetWidth.resolve(dpi: context.dpi)
+
+        // A non-positive width produces a degenerate, unparseable ^GF field.
+        guard width > 0 else {
+            return "^FX Graphic render failed: width must be > 0 ^FS"
+        }
+
         let height: Int
         if let h = targetHeight {
-            height = h.resolve(dpi: context.dpi)
+            height = max(1, h.resolve(dpi: context.dpi))
         } else {
-            // Maintain aspect ratio
+            // Maintain aspect ratio; clamp to at least 1 dot so rounding can't
+            // collapse the height to 0.
             let aspectRatio = Double(image.height) / Double(image.width)
-            height = Int(Double(width) * aspectRatio)
+            height = max(1, Int(Double(width) * aspectRatio))
         }
 
         // Render image to monochrome bitmap

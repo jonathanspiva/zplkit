@@ -8,9 +8,12 @@ public struct DiagonalLine: ZPLElement, Equatable, Hashable {
     private var direction: DiagonalDirection = .rightLeaning
 
     /// The direction of the diagonal line.
-    public enum DiagonalDirection: String, Sendable {
-        case rightLeaning = "R"  // Top-left to bottom-right (default)
-        case leftLeaning = "L"   // Top-right to bottom-left
+    @frozen
+    public enum DiagonalDirection: String, Sendable, Codable, Hashable {
+        /// Top-left to bottom-right (default).
+        case rightLeaning = "R"
+        /// Top-right to bottom-left.
+        case leftLeaning = "L"
     }
 
     /// Creates a diagonal line within the given bounding box.

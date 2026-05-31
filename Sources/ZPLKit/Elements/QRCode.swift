@@ -90,11 +90,18 @@ public struct QRCode: ZPLElement, Equatable, Hashable {
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
 
+        // Escape only the user-supplied payload. The error-correction + input-mode
+        // prefix (e.g. "MA,") is a ZPL control prefix and must remain unescaped.
+        let (needsHex, escapedData) = escapeZPLFieldData(data)
+
         var result = "^FO\(pos.x),\(pos.y)"
         // ^BQ: orientation, model (2=enhanced), magnification
         result += "^BQN,2,\(magnification),\(errorCorrection.rawValue)"
+        if needsHex {
+            result += "^FH"
+        }
         // QR data must be prefixed with error correction and "A," for automatic encoding
-        result += "^FD\(errorCorrection.rawValue)A,\(data)^FS"
+        result += "^FD\(errorCorrection.rawValue)A,\(escapedData)^FS"
 
         return result
     }
