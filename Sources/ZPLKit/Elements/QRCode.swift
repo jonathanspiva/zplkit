@@ -95,12 +95,24 @@ public struct QRCode: ZPLElement, Equatable, Hashable {
         let (needsHex, escapedData) = escapeZPLFieldData(data)
 
         var result = "^FO\(pos.x),\(pos.y)"
-        // ^BQ: orientation, model (2=enhanced), magnification
+        // ^BQ: orientation, model (2=enhanced), magnification.
+        //
+        // The error-correction level appears twice: once as the 4th ^BQ
+        // parameter and again as the leading character of the ^FD data. This is
+        // intentional and correct per the ZPL spec. For ^BQ the error-correction
+        // and input-mode are supplied via the ^FD field-data prefix
+        // ("<ecc><mode>,") — that prefix is authoritative and is what the printer
+        // actually uses. The ^BQ parameter slot for error correction is largely
+        // redundant/ignored for the QR symbology, but we emit it for completeness
+        // and to keep the command explicit. The two values are always kept in
+        // sync (both come from `errorCorrection.rawValue`).
         result += "^BQN,2,\(magnification),\(errorCorrection.rawValue)"
         if needsHex {
             result += "^FH"
         }
-        // QR data must be prefixed with error correction and "A," for automatic encoding
+        // QR data must be prefixed with error correction and "A," for automatic
+        // encoding. This ^FD prefix is the authoritative error-correction source
+        // (see note above on ^BQ).
         result += "^FD\(errorCorrection.rawValue)A,\(escapedData)^FS"
 
         return result

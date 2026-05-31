@@ -5,7 +5,7 @@
 ///
 /// ```swift
 /// let command = PrinterCommand.printNetworkConfig
-/// connection.send(command.data(using: .utf8)!)
+/// connection.send(Data(command.zpl.utf8))
 /// ```
 public enum PrinterCommand: String, Sendable {
     /// Print the printer's network configuration on a label (`~WL`).

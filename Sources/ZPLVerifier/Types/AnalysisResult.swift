@@ -14,7 +14,11 @@ public struct AnalysisResult: Sendable, Codable, Equatable {
     /// Information about content near label edges.
     public let boundsInfo: BoundsInfo
 
-    /// Time taken to analyze the image, in seconds.
+    /// Wall-clock time taken to analyze the image, in seconds.
+    ///
+    /// Measured with `ContinuousClock` across the full async operation, so it
+    /// includes any time spent suspended at `await` points (e.g. queued waiting
+    /// for Vision), not just active CPU/compute time.
     public let analysisTimeSeconds: Double
 
     public init(

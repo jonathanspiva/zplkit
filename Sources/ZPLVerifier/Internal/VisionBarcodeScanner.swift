@@ -9,6 +9,13 @@ struct VisionBarcodeScanner {
         var symbologies: [BarcodeSymbology] = []
 
         /// Minimum confidence threshold for results.
+        ///
+        /// - Note: This filter is primarily meaningful for text recognition, not
+        ///   barcodes. Vision reports a near-constant `confidence` (~1.0) for
+        ///   detected barcodes regardless of scan quality, so any threshold at or
+        ///   below ~1.0 effectively passes every detected barcode through. Set
+        ///   expectations accordingly: a nonzero value here will not meaningfully
+        ///   filter barcode results.
         var minimumConfidence: Float = 0.0
     }
 

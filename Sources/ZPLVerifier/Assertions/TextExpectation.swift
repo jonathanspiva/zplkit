@@ -23,10 +23,19 @@ public struct Text: Expectation {
         }
     }
 
+    /// Vision recognition hints derived from the expected text.
+    ///
+    /// "Significant" words from the expectation are passed to Vision as custom
+    /// words to bias OCR toward the strings we expect. Only words of **3 or more
+    /// characters** are included: shorter tokens are too generic to be useful as
+    /// custom-word hints and risk biasing recognition toward noise. As a result,
+    /// very short expectations such as `Text("OK")` contribute no custom-word
+    /// hint (matching still works at check time; only the recognition hint is
+    /// skipped).
     public var visionHints: VisionHints {
         switch textMatch {
         case .containing(let substring):
-            // Add significant words as custom words for better recognition
+            // Add significant words (>= 3 chars) as custom words for better recognition.
             let words = substring.split(whereSeparator: { $0.isWhitespace || $0.isPunctuation })
                 .map(String.init)
                 .filter { $0.count >= 3 }

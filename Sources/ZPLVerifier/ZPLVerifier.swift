@@ -126,7 +126,8 @@ public final class ZPLVerifier: Sendable {
             throw VerifierError.invalidImage
         }
 
-        let startTime = CFAbsoluteTimeGetCurrent()
+        let clock = ContinuousClock()
+        let startTime = clock.now
 
         async let barcodesTask = scanBarcodes(image, hints: .empty)
         async let textRegionsTask = scanText(image, hints: .empty)
@@ -135,7 +136,7 @@ public final class ZPLVerifier: Sendable {
         let allBoundingBoxes = barcodes.map(\.boundingBox) + textRegions.map(\.boundingBox)
         let boundsInfo = BoundsInfo.from(boundingBoxes: allBoundingBoxes)
 
-        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+        let elapsed = startTime.duration(to: clock.now).inSeconds
 
         return AnalysisResult(
             barcodes: barcodes,
@@ -185,7 +186,8 @@ public final class ZPLVerifier: Sendable {
             throw VerifierError.invalidImage
         }
 
-        let startTime = CFAbsoluteTimeGetCurrent()
+        let clock = ContinuousClock()
+        let startTime = clock.now
 
         // Merge hints from all expectations
         let hints = VisionHints.merge(expectations.map(\.visionHints))
@@ -205,7 +207,7 @@ public final class ZPLVerifier: Sendable {
         let allBoundingBoxes = barcodes.map(\.boundingBox) + textRegions.map(\.boundingBox)
         let boundsInfo = BoundsInfo.from(boundingBoxes: allBoundingBoxes)
 
-        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+        let elapsed = startTime.duration(to: clock.now).inSeconds
 
         return VerificationResult(
             passed: allPassed,
@@ -250,5 +252,13 @@ public final class ZPLVerifier: Sendable {
         } catch {
             throw VerifierError.textRecognitionFailed(underlying: error)
         }
+    }
+}
+
+private extension Duration {
+    /// This `Duration` expressed as a fractional number of seconds.
+    var inSeconds: Double {
+        let (seconds, attoseconds) = components
+        return Double(seconds) + Double(attoseconds) / 1_000_000_000_000_000_000
     }
 }
