@@ -5,41 +5,20 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0]
 
-### Added
-- `ZPLKitRenderer` now decodes `^GF` binary (`^GFB`), ASCII run-length compression in `^GFA` (repeat-count letters, `,`/`!` row fills, `:` row repeat), and `^GFC` `:B64:`/`:Z64:` (zlib) graphic formats, which were previously dropped.
+<!-- set release date when tagging -->
+First public release.
 
-### Changed
-- Adopted Swift 6.2's "approachable concurrency" upcoming-feature flags via a shared `swiftSettings` block applied to every first-party target: `NonisolatedNonsendingByDefault` and `InferIsolatedConformances`. (`InferSendableFromCaptures` is already enabled by default in Swift 6 language mode, so it is intentionally not enabled explicitly.) Default isolation remains `nonisolated`; the package is a library and does not force callers onto the main actor.
-- `ZPLVerifier.analyze`/`verify` timing now uses `ContinuousClock`; the reported `*TimeSeconds` fields are documented as wall-clock (including time suspended at `await`).
-- Set `swiftLanguageModes: [.v6]` explicitly in the manifest (Swift 6.3 tools-version already defaults to Swift 6 mode; this makes it explicit)
-- Raised `swift-tools-version` to 6.3 (Swift 6.3 / Xcode 26.5 toolchain)
-- Raised minimum platforms to iOS 26 / macOS 26 / tvOS 26 / watchOS 26
-- CI now runs on the `macos-26` runner with Xcode 26 selected explicitly, enforces `-warnings-as-errors`, has per-job timeouts, and treats the external Labelary visual comparison as non-blocking
-- Migrated `ZPLVerifier` to the new Swift-native Vision API (`DetectBarcodesRequest`, `RecognizeTextRequest`, `ImageRequestHandler`), replacing the legacy `VN`-prefixed completion-handler API. As a result, `ZPLVerifier.analyze(_:)` and the `verify(...)` overloads are now `async throws`.
-- **Removed the `Awesome` dependency** (and the `GraphicsTest` dev tool that used it); the library now has zero external dependencies.
-- `ZPLVerifier` now runs barcode and text recognition concurrently (`async let`), roughly halving analysis latency.
+### Breaking changes
 
-### Fixed
-- **Fixed a `query()` hang**: a continuation race in `ZPLPrinter` could drop the result on fast connection failure and hang forever; it now always resumes.
-- **Fixed crashes reachable from public API**: zero-port force-unwrap in `query()`/`send()`, empty-`Data` `send()` trap, integer divide-by-zero on malformed `^GF` (`bytesPerRow == 0`), and a slice-offset bug in the `~HS`/`~HI`/`~HM` response parsers when given a non-zero-`startIndex` `Data`.
-- **Fixed ZPL corruption/injection**: free-form barcode payloads (`Barcode128`, `QRCode`, `PDF417`, `DataMatrix`, `Aztec`) and `render(substituting:)` values are now escaped (`^FH`), so `^`/`~`/`_` in data no longer breaks or injects into the command stream.
-- POSIX `send()` now loops on partial writes and retries `EINTR`, validates `fcntl`/`getsockopt` results, honors fractional timeouts and task cancellation.
-- `ZPLVerifier` now covers all 24 Vision barcode symbologies (previously dropped `codabar`, GS1 DataBar variants, `microPDF417`, `microQR`, `msiPlessey`), preserves the underlying error, rethrows `CancellationError`, and validates image dimensions.
-- Renderer: cache the bundled `CGFont` and reuse one `CIContext` per render pass; reset all `^FB` text-block state between fields; apply rotation to barcode render paths.
-- Resolved Swift 6 temporary-pointer warning in `CoreGraphicsRenderer` paragraph-style creation; silenced unused-result `fcntl` warnings in `ZPLPrinter`.
-- `ZPLPrinter` now formats POSIX errors with the thread-safe `strerror_r` (the shared `strerror` buffer could race across concurrent `send()` calls).
-- Renderer: single-allocation graphic buffer (removed a redundant copy); forward-compatible font-slot selection with documented Font 0 fallback; human-readable placeholder barcode names.
-- Removed the deprecated `VerifierError.visionError` case (no consumers); documented the QRCode dual error-correction emission, the barcode `minimumConfidence` no-op, and the `TextExpectation` 3-character hint threshold; replaced a force-unwrapping `PrinterCommand` doc example.
+These affect anyone who built against pre-release code:
 
-### Internal
-- Gated flaky live-network printer tests behind an env var so CI is hermetic by default; added hermetic regression tests for the fixes above.
-- Migrated the entire test suite from XCTest to Swift Testing and parameterized the repetitive barcode-validity, clamping, parser-per-command, and verification matrices into `@Test(arguments:)` tables. The package no longer uses XCTest. Coverage was preserved (verified per target); the formerly hidden `SKIP`-prefixed Data Matrix test is now a tracked `@Test(.disabled(...))` skip.
-
-## [1.0.0] - 2025-02-01
-
-Initial public release.
+- The `ZPLVerifier` module (product) was renamed to `ZPLKitVerifier`. Update imports to `import ZPLKitVerifier`. The entry type is still named `ZPLVerifier`.
+- `ZPLVerifier.analyze(_:)` and the `verify(...)` overloads are now `async throws` (migrated to the Swift-native Vision API).
+- Minimum platforms raised to iOS 26 / macOS 26 / tvOS 26 / watchOS 26.
+- Swift 6.3 is required (`swift-tools-version: 6.3`).
+- `VerifierError.visionError` was removed (no consumers).
 
 ### Added
 
@@ -49,7 +28,7 @@ Initial public release.
 - **1D Barcodes**: `Barcode128`, `Code39`, `EAN13`, `EAN8`, `UPCA`, `UPCE`, `Interleaved2of5`
 - **2D Barcodes**: `QRCode`, `DataMatrix`, `PDF417`, `Aztec`, `IntelligentMail`
 - **Shapes**: `Box`, `Circle`, `Ellipse`, `HorizontalLine`, `VerticalLine`, `DiagonalLine`
-- **Graphics**: `Graphic` element for embedding CGImage content
+- **Graphics**: `Graphic` element for embedding CGImage content, with dithering (Floyd-Steinberg, Atkinson) and aspect-fill cropping
 - **Utilities**: `Comment`, `SerialNumber` for label metadata and sequential numbering
 - **Label configuration**: print quantity, print speed, darkness, reverse print, label home
 - **Template substitution**: `{{variable}}` syntax for dynamic label content
@@ -64,6 +43,7 @@ Initial public release.
 - Bundled Roboto Condensed Bold font for accurate Font 0 rendering
 - Barcode rendering: Code128, Code39, EAN-13/8, UPC-A/E, Interleaved 2 of 5, QR, Aztec, PDF417
 - Parser sub-modules: `BarcodeParser`, `ShapeParser`, `TextParser`, `GraphicParser`
+- `^GF` graphic decoding: binary (`^GFB`), ASCII run-length compression in `^GFA` (repeat-count letters, `,`/`!` row fills, `:` row repeat), and `^GFC` `:B64:`/`:Z64:` (zlib) formats
 - Hex character decoding (`^FH` with `_XX` sequences)
 - Render metrics: parse time, render time, image dimensions
 
@@ -75,22 +55,24 @@ Initial public release.
 - **Status queries**: `queryStatus()` for `~HS` (Host Status) response parsing
 - **Printer info**: `queryInfo()` for `~HI` (Host Identification) response parsing
 - **Memory status**: `queryMemory()` for `~HM` (Host Memory) response parsing
+- **Configuration**: `PrinterConfiguration` with type-safe enums, presets, and `apply`/`setup` methods
+- **Diagnostics**: combined status, info, memory, and settings in one call
 - **Test pages**: `printConfigurationLabel()`, `printNetworkConfigLabel()`
 - Structured response types: `PrinterStatus`, `PrinterInfo`, `MemoryStatus`
-- Async/await API with configurable connection and response timeouts
+- Async/await API with configurable connection and response timeouts, plus an idle timeout for automatic connection cleanup
 
-#### ZPLVerifier (Label Verification)
-- Barcode detection via Vision framework (Code128, QR, Code39, EAN-13, Aztec, PDF417, etc.)
-- Text OCR via `VNRecognizeTextRequest`
+#### ZPLKitVerifier (Label Verification)
+- Barcode detection via Vision framework (Code128, QR, Code39, EAN-13, Aztec, PDF417, etc.), covering all 24 Vision symbologies
+- Text OCR via the Swift-native `RecognizeTextRequest`
 - **Discovery mode**: `analyze()` to discover all barcodes and text in an image
-- **Assertion mode**: `verify()` with declarative expectations DSL
-- Expectation types: `Barcode(symbology, exactly/containing)`, `Text(exactly/containing)`
+- **Assertion mode**: `verify()` with a declarative expectations DSL
+- Expectation types: `Barcode(symbology, exactly/containing:)`, `Text(exactly/containing:)`
 - Vision hints optimization for faster detection
 - Bounds/clipping detection for edge content
 - Result types: `AnalysisResult`, `VerificationResult`, `DetectedBarcode`, `DetectedText`
 
 #### Test Fixtures
-- 114 ZPL fixture files covering text, barcodes, shapes, and graphics
+- 124 ZPL fixture files covering text, barcodes, shapes, and graphics
 - `fixtures.json` metadata with descriptions, categories, features, expected barcodes
 - Reference images from Labelary for comparison
 - Visual test harness with HTML comparison output
@@ -103,15 +85,32 @@ Initial public release.
 - README with quick start examples
 
 #### Quality
-- 374 unit and integration tests
+- Unit and integration tests across all modules
 - GitHub Actions CI with visual comparison artifacts
 - MIT license
 
-### Notes
+### Changed
+- Adopted Swift 6.2's "approachable concurrency" upcoming-feature flags via a shared `swiftSettings` block applied to every first-party target: `NonisolatedNonsendingByDefault` and `InferIsolatedConformances`. (`InferSendableFromCaptures` is already enabled by default in Swift 6 language mode, so it is intentionally not enabled explicitly.) Default isolation remains `nonisolated`; the package is a library and does not force callers onto the main actor.
+- `ZPLVerifier.analyze`/`verify` timing now uses `ContinuousClock`; the reported `*TimeSeconds` fields are documented as wall-clock (including time suspended at `await`).
+- Set `swiftLanguageModes: [.v6]` explicitly in the manifest.
+- Migrated `ZPLVerifier` to the Swift-native Vision API (`DetectBarcodesRequest`, `RecognizeTextRequest`, `ImageRequestHandler`), replacing the legacy `VN`-prefixed completion-handler API.
+- `ZPLVerifier` now runs barcode and text recognition concurrently (`async let`), roughly halving analysis latency.
+- **Removed the `Awesome` dependency** (and the `GraphicsTest` dev tool that used it); the library now has zero external dependencies.
+- CI now runs on the `macos-26` runner with Xcode 26 selected explicitly, enforces `-warnings-as-errors`, has per-job timeouts, and treats the external Labelary visual comparison as non-blocking.
 
-- **Data Matrix**: Uses placeholder rendering (CoreImage lacks Data Matrix generator)
-- **Intelligent Mail**: Uses placeholder rendering (encoder not yet implemented)
-- **Font support**: Only Font 0 (Roboto Condensed Bold) is bundled; other fonts render as Font 0
+### Fixed
+- **Fixed a `query()` hang**: a continuation race in `ZPLPrinter` could drop the result on fast connection failure and hang forever; it now always resumes.
+- **Fixed crashes reachable from public API**: zero-port force-unwrap in `query()`/`send()`, empty-`Data` `send()` trap, integer divide-by-zero on malformed `^GF` (`bytesPerRow == 0`), and a slice-offset bug in the `~HS`/`~HI`/`~HM` response parsers when given a non-zero-`startIndex` `Data`.
+- **Fixed ZPL corruption/injection**: free-form barcode payloads (`Barcode128`, `QRCode`, `PDF417`, `DataMatrix`, `Aztec`) and `render(substituting:)` values are now escaped (`^FH`), so `^`/`~`/`_` in data no longer breaks or injects into the command stream.
+- POSIX `send()` now loops on partial writes and retries `EINTR`, validates `fcntl`/`getsockopt` results, honors fractional timeouts and task cancellation.
+- `ZPLVerifier` now preserves the underlying error, rethrows `CancellationError`, and validates image dimensions.
+- Renderer: cache the bundled `CGFont` and reuse one `CIContext` per render pass; reset all `^FB` text-block state between fields; apply rotation to barcode render paths.
+- Resolved Swift 6 temporary-pointer warning in `CoreGraphicsRenderer` paragraph-style creation; silenced unused-result `fcntl` warnings in `ZPLPrinter`.
+- `ZPLPrinter` now formats POSIX errors with the thread-safe `strerror_r` (the shared `strerror` buffer could race across concurrent `send()` calls).
+- Renderer: single-allocation graphic buffer (removed a redundant copy); forward-compatible font-slot selection with documented Font 0 fallback; human-readable placeholder barcode names.
 
-[Unreleased]: https://github.com/jonathanspiva/zplkit/compare/v1.0.0...HEAD
+### Internal
+- Gated flaky live-network printer tests behind an env var so CI is hermetic by default; added hermetic regression tests for the fixes above.
+- The test suite uses the Swift Testing framework throughout (no XCTest). Repetitive barcode-validity, clamping, parser-per-command, and verification matrices are parameterized into `@Test(arguments:)` tables. Coverage was preserved per target; the formerly hidden `SKIP`-prefixed Data Matrix test is now a tracked `@Test(.disabled(...))` skip.
+
 [1.0.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.0

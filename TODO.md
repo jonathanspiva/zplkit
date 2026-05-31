@@ -18,9 +18,9 @@
 
 ## Someday
 - [ ] **Physical print verification** - End-to-end testing with real printers
-  - V1: MacBook camera capture + ZPLVerifier (hold label in front of camera)
+  - V1: MacBook camera capture + ZPLKitVerifier (hold label in front of camera)
   - AVFoundation `AVCaptureSession` for FaceTime camera frame capture
-  - ZPLVerifier already handles barcode/text detection from captured image
+  - ZPLKitVerifier already handles barcode/text detection from captured image
   - V2: Network camera support (HTTP snapshot endpoints like `/snapshot.jpg`)
   - V3: Automated test fixture (camera mount, consistent lighting, label positioning)
   - Consider: timing (wait for print), print quality grading (ISO 15415), thermal artifacts
@@ -61,4 +61,4 @@
 ## Never
 - Stored formats (`^DF`, `^XF`) - Printer-dependent state; ZPLKit's `{{variable}}` templates solve this better at the application level
 - SF Symbols icon support - Apple licensing prohibits redistribution and use in printed materials; FontAwesome is the supported alternative
-- Snapshot tests (pixel-perfect PNG comparison) - ZPLVerifier already validates barcodes scan correctly; snapshot tests are brittle across macOS versions, CI environments, and architectures; thermal printers are forgiving of minor rendering differences
+- Snapshot tests (pixel-perfect PNG comparison) - ZPLKitVerifier already validates barcodes scan correctly; snapshot tests are brittle across macOS versions, CI environments, and architectures; thermal printers are forgiving of minor rendering differences

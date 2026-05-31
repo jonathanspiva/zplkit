@@ -4,7 +4,7 @@ A collection of real-world ZPL files for testing parsers and renderers.
 
 ## Overview
 
-ZPLKit includes 114 ZPL test fixtures covering shipping labels, retail tags, warehouse bins, barcodes, shapes, and more. Use these to validate your own ZPL parser or renderer implementation.
+ZPLKit includes 124 ZPL test fixtures covering shipping labels, retail tags, warehouse bins, barcodes, shapes, and more. Use these to validate your own ZPL parser or renderer implementation.
 
 ## Location
 
@@ -106,7 +106,7 @@ for (filename, meta) in metadata where !meta.expectedBarcodes.isEmpty {
     for expected in meta.expectedBarcodes {
         // Use Vision framework to verify barcode renders correctly
         let detected = try detectBarcodes(in: image)
-        XCTAssert(detected.contains { $0.payload == expected.payload })
+        #expect(detected.contains { $0.payload == expected.payload })
     }
 }
 ```

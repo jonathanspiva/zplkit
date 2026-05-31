@@ -3,7 +3,7 @@
 <img src="logo.svg" width="128" height="128" alt="ZPLKit logo">
 
 ![Swift 6.3+](https://img.shields.io/badge/Swift-6.3+-orange.svg)
-![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS-blue.svg)
+![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS%2026+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 [![CI](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-cc785c)](https://claude.ai/code)
@@ -42,10 +42,31 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 - **Idle timeout** for automatic connection cleanup
 - **Async/await API** with configurable timeout
 
-### ZPLVerifier (Validation)
+### ZPLKitVerifier (Validation)
 
 - **Barcode verification** using Vision framework
 - **Text OCR** to verify label content
+
+```swift
+import ZPLKitVerifier
+
+let verifier = ZPLVerifier()
+
+// Discovery mode: find every barcode and text region in a rendered image.
+let result = try await verifier.analyze(cgImage)
+for barcode in result.barcodes {
+    print("\(barcode.symbology): \(barcode.payload)")
+}
+
+// Assertion mode: declare what the label must contain.
+let check = try await verifier.verify(cgImage) {
+    Barcode(.qr, containing: "SKU-123")
+    Text("FRAGILE")
+}
+if !check.passed {
+    print(check.summary)
+}
+```
 
 ### Test Fixtures
 
@@ -59,7 +80,7 @@ Add ZPLKit to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/jonathanspiva/ZPLKit.git", from: "1.0.0")
+    .package(url: "https://github.com/jonathanspiva/zplkit.git", from: "1.0.0")
 ]
 ```
 
@@ -188,7 +209,7 @@ if status.isReadyToPrint {
 ## Documentation
 
 - **[Getting Started](Sources/ZPLKit/Documentation.docc/Articles/GettingStarted.md)** - Full API reference with examples for all elements
-- **[Test Fixtures](Sources/ZPLKit/Documentation.docc/Articles/Fixtures.md)** - 114 ZPL files for testing parsers and renderers
+- **[Test Fixtures](Sources/ZPLKit/Documentation.docc/Articles/Fixtures.md)** - 124 ZPL files for testing parsers and renderers
 
 ## Known Issues
 
@@ -198,15 +219,29 @@ if status.isReadyToPrint {
 
 POSIX `close()` sends a proper TCP FIN (graceful shutdown) that printers handle correctly. This works reliably across all payload sizes and on all Apple platforms. `query()` still uses `NWConnection` for bidirectional communication, where the connection stays open for the response and RST is not an issue.
 
+## Known Limitations
+
+- **DataMatrix and Intelligent Mail** generate valid ZPL, but render as labeled placeholder boxes in the renderer preview (CoreImage has no DataMatrix generator, and the Intelligent Mail encoder is not yet implemented). They print correctly on a real printer.
+- **Fonts**: only Font 0 (Roboto Condensed Bold) is bundled. Any other font selection falls back to Font 0 in the renderer preview.
+- **2D barcode previews**: QR, PDF417, Aztec, and Code 128 rendering depend on CoreImage, so preview rendering of those symbologies requires an Apple platform.
+
 ## Requirements
 
 - Swift 6.3+
 - iOS 26+ / macOS 26+ / tvOS 26+ / watchOS 26+
 
+The narrow, latest-OS-only floor is intentional. ZPLKit targets the most recent OS releases so it can use the newest Swift concurrency and Vision APIs without back-compatibility shims. If you need wider platform support, pin to a fork rather than expecting older-OS compatibility.
+
 ## Resources
 
 - [Zebra ZPL Programming Guide](https://www.zebra.com/content/dam/zebra/manuals/printers/common/programming/zpl-zbi2-pm-en.pdf)
 - [Labelary](http://labelary.com/viewer.html) - Online ZPL viewer
+
+## Acknowledgements
+
+ZPLKit bundles the Roboto Condensed font (Google / Christian Robertson), licensed under the Apache License 2.0. See [`NOTICE`](NOTICE) and [`Sources/ZPLKitRenderer/Resources/Roboto-LICENSE.txt`](Sources/ZPLKitRenderer/Resources/Roboto-LICENSE.txt) for details.
+
+ZPL, Zebra Programming Language, and Zebra are trademarks of Zebra Technologies Corporation. ZPLKit is independent and unaffiliated.
 
 ## License
 

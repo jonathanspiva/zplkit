@@ -32,13 +32,13 @@ Sources/
 │   ├── Barcodes/     # Barcode pattern generation
 │   └── Rendering/    # CoreGraphics rendering
 ├── ZPLKitPrinter/    # Network printing and discovery
-└── ZPLVerifier/      # Barcode/text verification via Vision
+└── ZPLKitVerifier/   # Barcode/text verification via Vision
 
 Tests/
 ├── ZPLKitTests/          # Unit tests for ZPLKit
 ├── ZPLKitRendererTests/  # Parser and renderer tests
 ├── ZPLKitPrinterTests/   # Printer communication tests
-├── ZPLVerifierTests/     # Verification tests
+├── ZPLKitVerifierTests/  # Verification tests
 └── VisualTestHarness/    # 124 ZPL fixtures + comparison tools
 
 Tools/
@@ -52,6 +52,8 @@ Tools/
 
 ## Running Tests
 
+The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#require`, `@Suite`), not XCTest. New tests must be written in that style. Prefer `@Test(arguments:)` parameterized tables for repetitive cases, and `@Test(.disabled("reason"))` for tracked skips.
+
 ```bash
 # All tests
 swift test
@@ -60,7 +62,7 @@ swift test
 swift test --filter ZPLKitTests
 swift test --filter ZPLKitRendererTests
 swift test --filter ZPLKitPrinterTests
-swift test --filter ZPLVerifierTests
+swift test --filter ZPLKitVerifierTests
 
 # Visual comparison (renders fixtures, compares to Labelary)
 swift run -c release VisualTests --labelary --score
@@ -151,7 +153,7 @@ Add EAN-8 barcode element
 2. **Conform to protocols**: `ZPLElement`, `Sendable`, `Equatable`, `Hashable`, `Codable`
 3. **Add validation** in the initializer (return nil for invalid input)
 4. **Implement `render(context:)`** to generate ZPL commands
-5. **Add tests** in `Tests/ZPLKitTests/`
+5. **Add tests** in `Tests/ZPLKitTests/` using Swift Testing (`@Test` / `#expect`), not XCTest
 6. **Add fixtures** in `Tests/VisualTestHarness/fixtures/` if visual testing is relevant
 7. **Update fixtures.json** with metadata for new fixtures
 
@@ -160,7 +162,7 @@ Add EAN-8 barcode element
 1. **Add parsing logic** in `Sources/ZPLKitRenderer/Parser/`
 2. **Add to `ParsedElement` enum** if new element type
 3. **Add rendering** in `CoreGraphicsRenderer.swift`
-4. **Add round-trip tests** in `ZPLKitRendererTests`
+4. **Add round-trip tests** in `ZPLKitRendererTests` (Swift Testing style)
 5. **Add verification tests** if barcode (in `ZPLKitRendererTests`)
 
 ## Questions?
