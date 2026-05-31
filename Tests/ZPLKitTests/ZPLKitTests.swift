@@ -1,230 +1,62 @@
-import XCTest
+import Testing
 @testable import ZPLKit
 
-final class ZPLKitTests: XCTestCase {
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
-    func testBasicLabelRenders() {
+// MARK: - Basic Label & Text
+
+@Suite("Basic Label Rendering")
+struct BasicLabelTests {
+
+    @Test("Basic label renders core ZPL framing and field data")
+    func basicLabelRenders() {
         let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
             Text("Hello World", at: .inches(0.25, 0.25))
         }
 
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^XA"))
-        XCTAssertTrue(zpl.contains("^XZ"))
-        XCTAssertTrue(zpl.contains("^FDHello World^FS"))
+        #expect(zpl.contains("^XA"))
+        #expect(zpl.contains("^XZ"))
+        #expect(zpl.contains("^FDHello World^FS"))
     }
 
-    func testLabelDimensionsCorrect() {
+    @Test("Label dimensions convert to dots")
+    func labelDimensionsCorrect() {
         let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
             Text("Test", at: .dots(0, 0))
         }
 
         let zpl = label.render()
         // 4 inches * 203 DPI = 812 dots
-        XCTAssertTrue(zpl.contains("^PW812"))
+        #expect(zpl.contains("^PW812"))
         // 6 inches * 203 DPI = 1218 dots
-        XCTAssertTrue(zpl.contains("^LL1218"))
+        #expect(zpl.contains("^LL1218"))
     }
 
-    func testTextWithFont() {
+    @Test("Text with font emits ^A0N with height/width")
+    func textWithFont() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Styled", at: .inches(0.5, 0.5))
                 .font(.default, height: .dots(50), width: .dots(40))
         }
 
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^A0N,50,40"))
+        #expect(label.render().contains("^A0N,50,40"))
     }
 
-    func testTextRotation() {
+    @Test("Text rotation emits ^A0R")
+    func textRotation() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Rotated", at: .inches(0.5, 0.5))
                 .rotated(.rotated90)
         }
 
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^A0R"))
+        #expect(label.render().contains("^A0R"))
     }
 
-    func testBarcode128Valid() {
-        let barcode = Barcode128("ABC123", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testBarcode128Invalid() {
-        let barcode = Barcode128("ABC\u{0080}123", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testCode39Valid() {
-        let barcode = Code39("HELLO-123", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testCode39Invalid() {
-        let barcode = Code39("hello@world", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testCode39Uppercases() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Code39("abc123", at: .inches(0.5, 0.5))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FDABC123^FS"))
-    }
-
-    func testQRCodeRenders() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            QRCode("https://example.com", at: .inches(0.5, 0.5))
-                .magnification(5)
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BQN,2,5"))
-    }
-
-    func testDataMatrixRenders() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            DataMatrix("SERIAL123", at: .inches(0.5, 0.5))
-                .size(5)
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BXN,5"))
-    }
-
-    func testBoxRenders() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .inches(0.25, 0.25), width: .inches(1.0), height: .inches(0.5))
-                .thickness(3)
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GB"))
-    }
-
-    func testFilledBoxRenders() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .inches(0.25, 0.25), width: .dots(100), height: .dots(50))
-                .filled()
-        }
-
-        let zpl = label.render()
-        // Filled box has thickness equal to min(width, height)
-        XCTAssertTrue(zpl.contains("^GB100,50,50"))
-    }
-
-    func testHorizontalLineRenders() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            HorizontalLine(at: .inches(0.25, 0.5), length: .inches(2.0))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GB"))
-    }
-
-    func testTextBlockRenders() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            TextBlock("This is a long text that should wrap", at: .inches(0.25, 0.25), width: .inches(2.0))
-                .maxLines(3)
-                .alignment(.center)
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FB"))
-        XCTAssertTrue(zpl.contains(",C,"))
-    }
-
-    func testSpecialCharactersEscaped() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Price: $5 (50% off) ^test~ _under", at: .inches(0.25, 0.25))
-        }
-
-        let zpl = label.render()
-        // Should have hex mode enabled
-        XCTAssertTrue(zpl.contains("^FH"))
-        // Caret should be escaped
-        XCTAssertTrue(zpl.contains("_5E"))
-        // Tilde should be escaped
-        XCTAssertTrue(zpl.contains("_7E"))
-        // Underscore should be escaped
-        XCTAssertTrue(zpl.contains("_5F"))
-    }
-
-    func testPrintQuantity() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
-        }.printQuantity(5)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^PQ5"))
-    }
-
-    func testPrintSpeed() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
-        }.printSpeed(6)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^PR6"))
-    }
-
-    func testPrintSpeedWithSlew() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
-        }.printSpeed(6, slew: 8)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^PR6,8"))
-    }
-
-    func testPrintSpeedWithAllOptions() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
-        }.printSpeed(6, slew: 8, backfeed: 4)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^PR6,8,4"))
-    }
-
-    func testPrintSpeedWithBackfeedOnly() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
-        }.printSpeed(6, backfeed: 4)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^PR6,,4"))
-    }
-
-    func testDimensionConversions() {
-        let dpi = DPI.dpi203
-
-        // 1 inch = 203 dots
-        XCTAssertEqual(ZPLKit.Dimension.inches(1.0).resolve(dpi: dpi), 203)
-
-        // 25.4 mm = 1 inch = 203 dots
-        XCTAssertEqual(ZPLKit.Dimension.mm(25.4).resolve(dpi: dpi), 203)
-
-        // Integer literal becomes dots
-        let dim: ZPLKit.Dimension = 100
-        XCTAssertEqual(dim.resolve(dpi: dpi), 100)
-    }
-
-    func testPositionConversions() {
-        let dpi = DPI.dpi203
-
-        let dotsPos = Position.dots(100, 200).resolve(dpi: dpi)
-        XCTAssertEqual(dotsPos.x, 100)
-        XCTAssertEqual(dotsPos.y, 200)
-
-        let inchesPos = Position.inches(1.0, 2.0).resolve(dpi: dpi)
-        XCTAssertEqual(inchesPos.x, 203)
-        XCTAssertEqual(inchesPos.y, 406)
-    }
-
-    func testPrettyPrintAddsNewlines() {
+    @Test("Pretty print adds newlines, compact does not")
+    func prettyPrintAddsNewlines() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(0.25, 0.25))
         }
@@ -232,301 +64,869 @@ final class ZPLKitTests: XCTestCase {
         let compact = label.render(prettyPrint: false)
         let pretty = label.render(prettyPrint: true)
 
-        XCTAssertFalse(compact.contains("\n"))
-        XCTAssertTrue(pretty.contains("\n"))
+        #expect(!compact.contains("\n"))
+        #expect(pretty.contains("\n"))
     }
 
-    // MARK: - Circle Tests
-
-    func testCircleRenders() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Circle(at: .inches(0.5, 0.5), diameter: .inches(1.0))
-                .thickness(3)
+    @Test("Empty string text renders empty field data")
+    func emptyStringText() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("", at: .inches(0.25, 0.25))
         }
 
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GC"))
+        #expect(label.render().contains("^FD^FS"))
+    }
+}
+
+// MARK: - Dimension & Position Conversions
+
+@Suite("Dimension & Position Conversions")
+struct ConversionTests {
+
+    @Test("Dimension conversions resolve to dots")
+    func dimensionConversions() {
+        let dpi = DPI.dpi203
+
+        // 1 inch = 203 dots
+        #expect(ZPLKit.Dimension.inches(1.0).resolve(dpi: dpi) == 203)
+        // 25.4 mm = 1 inch = 203 dots
+        #expect(ZPLKit.Dimension.mm(25.4).resolve(dpi: dpi) == 203)
+        // Integer literal becomes dots
+        let dim: ZPLKit.Dimension = 100
+        #expect(dim.resolve(dpi: dpi) == 100)
     }
 
-    func testFilledCircleRenders() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Circle(at: .inches(0.5, 0.5), diameter: .dots(100))
-                .filled()
+    @Test("Position conversions resolve x/y to dots")
+    func positionConversions() {
+        let dpi = DPI.dpi203
+
+        let dotsPos = Position.dots(100, 200).resolve(dpi: dpi)
+        #expect(dotsPos.x == 100)
+        #expect(dotsPos.y == 200)
+
+        let inchesPos = Position.inches(1.0, 2.0).resolve(dpi: dpi)
+        #expect(inchesPos.x == 203)
+        #expect(inchesPos.y == 406)
+    }
+}
+
+// MARK: - DPI Variations
+
+@Suite("DPI Variations")
+struct DPITests {
+
+    /// (dpi, expectedPW, expectedLL, expectedFO) for a 4x2 label with text at 1.0,1.0 inch.
+    @Test(arguments: [
+        (DPI.dpi152, "^PW608", "^LL304", "^FO152,152"),
+        (DPI.dpi200, "^PW800", "^LL400", "^FO200,200"),
+        (DPI.dpi203, "^PW812", "^LL406", "^FO203,203"),
+        (DPI.dpi300, "^PW1200", "^LL600", "^FO300,300"),
+        (DPI.dpi600, "^PW2400", "^LL1200", "^FO600,600")
+    ])
+    func dpiConversion(dpi: DPI, expectedPW: String, expectedLL: String, expectedFO: String) {
+        let label = ZPLLabel(width: 4, height: 2, dpi: dpi) {
+            Text("Test", at: .inches(1.0, 1.0))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains(expectedPW))
+        #expect(zpl.contains(expectedLL))
+        #expect(zpl.contains(expectedFO))
+    }
+
+    @Test("Millimeter conversion respects DPI")
+    func dpiMillimeterConversion() {
+        // 25.4mm = 1 inch
+        let label152 = ZPLLabel(width: 4, height: 2, dpi: .dpi152) {
+            Box(at: .mm(25.4, 25.4), width: .mm(25.4), height: .mm(25.4))
+        }
+        let label300 = ZPLLabel(width: 4, height: 2, dpi: .dpi300) {
+            Box(at: .mm(25.4, 25.4), width: .mm(25.4), height: .mm(25.4))
         }
 
-        let zpl = label.render()
-        // Filled circle has thickness equal to diameter
-        XCTAssertTrue(zpl.contains("^GC100,100,B"))
+        #expect(label152.render().contains("^FO152,152"))
+        #expect(label152.render().contains("^GB152,152,"))
+        #expect(label300.render().contains("^FO300,300"))
+        #expect(label300.render().contains("^GB300,300,"))
     }
 
-    // MARK: - Ellipse Tests
-
-    func testEllipseRenders() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Ellipse(at: .inches(0.5, 0.5), width: .inches(1.0), height: .inches(0.5))
-                .thickness(2)
+    @Test("Dots are unaffected by DPI")
+    func dpiDotsUnaffected() {
+        let label152 = ZPLLabel(width: 4, height: 2, dpi: .dpi152) {
+            Box(at: .dots(100, 100), width: .dots(200), height: .dots(150))
+        }
+        let label600 = ZPLLabel(width: 4, height: 2, dpi: .dpi600) {
+            Box(at: .dots(100, 100), width: .dots(200), height: .dots(150))
         }
 
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GE"))
+        #expect(label152.render().contains("^FO100,100"))
+        #expect(label152.render().contains("^GB200,150,"))
+        #expect(label600.render().contains("^FO100,100"))
+        #expect(label600.render().contains("^GB200,150,"))
     }
 
-    func testFilledEllipseRenders() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Ellipse(at: .dots(50, 50), width: .dots(200), height: .dots(100))
-                .filled()
+    @Test("All barcode types render at each DPI", arguments: [DPI.dpi152, .dpi200, .dpi203, .dpi300, .dpi600])
+    func dpiAllBarcodeTypes(dpi: DPI) {
+        let label = ZPLLabel(width: 4, height: 4, dpi: dpi) {
+            Barcode128("TEST", at: .inches(0.5, 0.5))
+            QRCode("TEST", at: .inches(0.5, 1.5))
         }
-
         let zpl = label.render()
-        // Filled ellipse has thickness = min(width, height)
-        XCTAssertTrue(zpl.contains("^GE200,100,100"))
+        #expect(zpl.contains("^BC"))
+        #expect(zpl.contains("^BQ"))
     }
 
-    // MARK: - Diagonal Line Tests
-
-    func testDiagonalLineRenders() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            DiagonalLine(at: .inches(0.25, 0.25), width: .inches(1.0), height: .inches(1.0))
-                .thickness(3)
+    @Test("All shapes render at each DPI", arguments: [DPI.dpi152, .dpi200, .dpi203, .dpi300, .dpi600])
+    func dpiShapesAtAllResolutions(dpi: DPI) {
+        let label = ZPLLabel(width: 4, height: 4, dpi: dpi) {
+            Box(at: .inches(0.25, 0.25), width: .inches(0.5), height: .inches(0.5))
+            Circle(at: .inches(1.0, 0.25), diameter: .inches(0.5))
+            Ellipse(at: .inches(1.75, 0.25), width: .inches(0.75), height: .inches(0.5))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GD"))
+        #expect(zpl.contains("^GB"))
+        #expect(zpl.contains("^GC"))
+        #expect(zpl.contains("^GE"))
+    }
+}
+
+// MARK: - Barcode Validity Matrices
+
+@Suite("Barcode Validity")
+struct BarcodeValidityTests {
+
+    // Barcode128: valid ASCII (incl. empty), invalid for non-ASCII control chars.
+    @Test(arguments: [
+        ("ABC123", true),
+        ("", true),
+        ("ABC\u{0080}123", false)
+    ])
+    func barcode128Validity(input: String, expectedValid: Bool) {
+        #expect((Barcode128(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
     }
 
-    func testDiagonalLineDirections() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            DiagonalLine(at: .dots(50, 50), width: .dots(100), height: .dots(100))
-                .direction(.leftLeaning)
+    // Code39: A-Z, 0-9, -.$/+% and space allowed; lowercase tolerated (uppercased);
+    // empty valid; '@' and other symbols invalid.
+    @Test(arguments: [
+        ("HELLO-123", true),
+        ("", true),
+        ("HELLO-123 $50.00", true),
+        ("hello@world", false),
+        ("TEST@EMAIL", false)
+    ])
+    func code39Validity(input: String, expectedValid: Bool) {
+        #expect((Code39(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
+    }
+
+    // Interleaved 2 of 5: digits only; empty valid; spaces/letters invalid.
+    @Test(arguments: [
+        ("1234567890", true),
+        ("", true),
+        ("123ABC", false),
+        ("123 456", false)
+    ])
+    func interleaved2of5Validity(input: String, expectedValid: Bool) {
+        #expect((Interleaved2of5(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
+    }
+
+    // EAN-13: 12 or 13 digits.
+    @Test(arguments: [
+        ("590123412345", true),     // 12 digits
+        ("123456789012", true),     // 12 digits
+        ("1234567890123", true),    // 13 digits
+        ("000000000000", true),     // leading zeros, 12 digits
+        ("12345", false),           // too short
+        ("12345678901234", false),  // 14, too long
+        ("59012341234A", false)     // non-numeric
+    ])
+    func ean13Validity(input: String, expectedValid: Bool) {
+        #expect((EAN13(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
+    }
+
+    // EAN-8: 7 or 8 digits.
+    @Test(arguments: [
+        ("1234567", true),   // 7 digits
+        ("12345670", true),  // 8 digits (incl. check)
+        ("12345", false),    // too short
+        ("123456A", false)   // non-numeric
+    ])
+    func ean8Validity(input: String, expectedValid: Bool) {
+        #expect((EAN8(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
+    }
+
+    // UPC-A: 11 or 12 digits.
+    @Test(arguments: [
+        ("01234567890", true),   // 11 digits
+        ("12345678901", true),   // 11 digits
+        ("1234567890", false),   // 10, too short
+        ("12345", false),        // too short
+        ("0123456789A", false)   // non-numeric
+    ])
+    func upcaValidity(input: String, expectedValid: Bool) {
+        #expect((UPCA(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
+    }
+
+    // UPC-E: 6, 7, or 8 digits.
+    @Test(arguments: [
+        ("123456", true),     // 6 digits
+        ("1234567", true),    // 7 digits
+        ("01234565", true),   // 8 digits
+        ("12345", false),     // too short
+        ("123456789", false), // too long
+        ("12345A", false)     // non-numeric
+    ])
+    func upceValidity(input: String, expectedValid: Bool) {
+        #expect((UPCE(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
+    }
+
+    // Intelligent Mail: valid lengths are exactly 20, 25, 29, 31 digits.
+    @Test(arguments: [
+        ("01234567890123456789", true),                   // 20
+        ("0123456789012345678901234", true),              // 25
+        ("01234567890123456789012345678", true),          // 29
+        ("0123456789012345678901234567890", true),        // 31
+        ("123456789", false),                             // 9
+        ("1234567890123456789", false),                   // 19
+        ("123456789012345678901", false),                 // 21
+        ("12345678901234567890123", false),               // 23
+        ("012345678901234567890123", false),              // 24
+        ("1234567890123456789012345678901234", false),    // 34
+        ("0123456789012345678A", false)                   // non-numeric (20 chars)
+    ])
+    func intelligentMailValidity(input: String, expectedValid: Bool) {
+        #expect((IntelligentMail(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
+    }
+}
+
+// MARK: - 1D Barcode Rendering
+
+@Suite("1D Barcode Rendering")
+struct OneDBarcodeRenderTests {
+
+    @Test("Code39 uppercases field data")
+    func code39Uppercases() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Code39("abc123", at: .inches(0.5, 0.5))
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains(",L^FS"))
+        #expect(label.render().contains("^FDABC123^FS"))
     }
 
-    // MARK: - PDF417 Tests
+    @Test("Code39 lowercase converted to uppercase")
+    func code39LowercaseConverted() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Code39("hello", at: .inches(0.25, 0.25))
+        }
+        #expect(label.render().contains("^FDHELLO^FS"))
+    }
 
-    func testPDF417Renders() {
+    @Test("Interleaved 2 of 5 renders ^B2 with field data")
+    func interleaved2of5Renders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Interleaved2of5("123456", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^B2"))
+        #expect(zpl.contains("^FD123456^FS"))
+    }
+
+    @Test("Interleaved 2 of 5 check digit flag")
+    func interleaved2of5WithCheckDigit() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Interleaved2of5("12345", at: .inches(0.25, 0.25))?
+                .checkDigit(true)
+        }
+        #expect(label.render().contains(",Y^FD"))  // Check digit flag = Y
+    }
+
+    @Test("EAN-13 renders ^BE with field data")
+    func ean13Renders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            EAN13("590123412345", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^BE"))
+        #expect(zpl.contains("^FD590123412345^FS"))
+    }
+
+    @Test("EAN-8 renders ^B8 with field data")
+    func ean8Renders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            EAN8("1234567", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^B8"))
+        #expect(zpl.contains("^FD1234567^FS"))
+    }
+
+    @Test("EAN-8 text above flag")
+    func ean8TextAbove() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            EAN8("1234567", at: .inches(0.25, 0.25))?
+                .textAbove()
+        }
+        #expect(label.render().contains("^B8N,100,Y,Y"))  // Last Y = text above
+    }
+
+    @Test("UPC-A renders ^BU with field data")
+    func upcaRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            UPCA("01234567890", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^BU"))
+        #expect(zpl.contains("^FD01234567890^FS"))
+    }
+
+    @Test("UPC-E renders ^B9 with field data")
+    func upceRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            UPCE("123456", at: .inches(0.25, 0.25))?
+                .height(.dots(80))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^B9"))
+        #expect(zpl.contains("^FD123456^FS"))
+    }
+
+    @Test("UPC-E with options")
+    func upceWithOptions() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            UPCE("123456", at: .inches(0.25, 0.25))?
+                .showText(false)
+                .checkDigit(false)
+        }
+        #expect(label.render().contains("^B9N,100,N,N,N"))
+    }
+
+    @Test("Intelligent Mail renders ^BZ with field data")
+    func intelligentMailRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            IntelligentMail("01234567890123456789", at: .inches(0.25, 0.25))?
+                .height(.dots(30))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^BZ"))
+        #expect(zpl.contains("^FD01234567890123456789^FS"))
+    }
+
+    @Test("Intelligent Mail rotated")
+    func intelligentMailRotated() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            IntelligentMail("01234567890123456789", at: .inches(0.25, 0.25))?
+                .rotated(.rotated90)
+        }
+        #expect(label.render().contains("^BZR,"))  // R = rotated 90
+    }
+}
+
+// MARK: - 2D Barcode Rendering
+
+@Suite("2D Barcode Rendering")
+struct TwoDBarcodeRenderTests {
+
+    @Test("QR code renders ^BQN with magnification")
+    func qrCodeRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("https://example.com", at: .inches(0.5, 0.5))
+                .magnification(5)
+        }
+        #expect(label.render().contains("^BQN,2,5"))
+    }
+
+    @Test("DataMatrix renders ^BXN with size")
+    func dataMatrixRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DataMatrix("SERIAL123", at: .inches(0.5, 0.5))
+                .size(5)
+        }
+        #expect(label.render().contains("^BXN,5"))
+    }
+
+    @Test("PDF417 renders ^B7 with field data")
+    func pdf417Renders() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             PDF417("SHIPPING-MANIFEST-12345", at: .inches(0.25, 0.25))
                 .rowHeight(.dots(8))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B7"))
-        XCTAssertTrue(zpl.contains("^FDSHIPPING-MANIFEST-12345^FS"))
+        #expect(zpl.contains("^B7"))
+        #expect(zpl.contains("^FDSHIPPING-MANIFEST-12345^FS"))
     }
 
-    func testPDF417WithOptions() {
+    @Test("PDF417 with options")
+    func pdf417WithOptions() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             PDF417("ID-CARD-DATA", at: .inches(0.25, 0.25))
                 .securityLevel(3)
                 .columns(5)
                 .truncated()
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B7N,10,3,5,0,Y"))
+        #expect(label.render().contains("^B7N,10,3,5,0,Y"))
     }
 
-    // MARK: - Interleaved 2 of 5 Tests
-
-    func testInterleaved2of5Valid() {
-        let barcode = Interleaved2of5("1234567890", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testInterleaved2of5Invalid() {
-        // Should fail with non-numeric characters
-        let barcode = Interleaved2of5("123ABC", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testInterleaved2of5Renders() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Interleaved2of5("123456", at: .inches(0.25, 0.25))?
-                .height(.dots(80))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B2"))
-        XCTAssertTrue(zpl.contains("^FD123456^FS"))
-    }
-
-    func testInterleaved2of5WithCheckDigit() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Interleaved2of5("12345", at: .inches(0.25, 0.25))?
-                .checkDigit(true)
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains(",Y^FD"))  // Check digit flag = Y
-    }
-
-    // MARK: - EAN-13 Tests
-
-    func testEAN13Valid() {
-        let barcode = EAN13("590123412345", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testEAN13InvalidLength() {
-        // Should fail with wrong length
-        let barcode = EAN13("12345", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testEAN13InvalidChars() {
-        // Should fail with non-numeric characters
-        let barcode = EAN13("59012341234A", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testEAN13Renders() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            EAN13("590123412345", at: .inches(0.25, 0.25))?
-                .height(.dots(80))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BE"))
-        XCTAssertTrue(zpl.contains("^FD590123412345^FS"))
-    }
-
-    // MARK: - UPC-A Tests
-
-    func testUPCAValid() {
-        let barcode = UPCA("01234567890", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testUPCAInvalidLength() {
-        // Should fail with wrong length
-        let barcode = UPCA("12345", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testUPCAInvalidChars() {
-        // Should fail with non-numeric characters
-        let barcode = UPCA("0123456789A", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testUPCARenders() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            UPCA("01234567890", at: .inches(0.25, 0.25))?
-                .height(.dots(80))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BU"))
-        XCTAssertTrue(zpl.contains("^FD01234567890^FS"))
-    }
-
-    // MARK: - Aztec Tests
-
-    func testAztecRenders() {
+    @Test("Aztec renders ^B0 with field data")
+    func aztecRenders() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             Aztec("TICKET-DATA-12345", at: .inches(0.5, 0.5))
                 .magnification(5)
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B0"))
-        XCTAssertTrue(zpl.contains("^FDTICKET-DATA-12345^FS"))
+        #expect(zpl.contains("^B0"))
+        #expect(zpl.contains("^FDTICKET-DATA-12345^FS"))
     }
 
-    func testAztecWithOptions() {
+    @Test("Aztec with options")
+    func aztecWithOptions() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             Aztec("SECURE-DATA", at: .inches(0.5, 0.5))
                 .magnification(4)
                 .errorCorrection(50)
                 .extendedChannel(true)
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B0N,4,Y,50"))
+        #expect(label.render().contains("^B0N,4,Y,50"))
     }
 
-    // MARK: - Serial Number Tests
-
-    func testSerialNumberRenders() {
+    @Test("DataMatrix columns/rows clamped to ^BX range 9-49")
+    func dataMatrixColumnsRowsClamped() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            SerialNumber("001", at: .inches(0.25, 0.25))
-                .increment(1)
+            DataMatrix("DATA", at: .inches(0.5, 0.5))
+                .columns(1000)
+                .rows(0)
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^SN001,1,Y"))
+        #expect(label.render().contains(",49,9^FD"))
     }
+}
 
-    func testSerialNumberDecrement() {
+// MARK: - Clamping
+
+@Suite("Value Clamping")
+struct ClampingTests {
+
+    // Barcode128 ^BY module width: clamped to 1...10.
+    @Test(arguments: [
+        (0, "^BY1"),    // below min
+        (1, "^BY1"),    // boundary min
+        (10, "^BY10"),  // boundary max
+        (20, "^BY10")   // above max
+    ])
+    func barcode128ModuleWidthClamp(input: Int, expected: String) {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            SerialNumber("100", at: .inches(0.25, 0.25))
-                .increment(-1)
-                .leadingZeros(false)
+            Barcode128("TEST", at: .inches(0.25, 0.25))?
+                .moduleWidth(input)
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^SN100,-1,N"))
+        #expect(label.render().contains(expected))
     }
 
-    // MARK: - Baseline Positioning Tests
+    // QR code magnification: clamped to 1...10.
+    @Test(arguments: [
+        (0, "^BQN,2,1"),
+        (20, "^BQN,2,10")
+    ])
+    func qrCodeMagnificationClamp(input: Int, expected: String) {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("TEST", at: .inches(0.5, 0.5))
+                .magnification(input)
+        }
+        #expect(label.render().contains(expected))
+    }
 
-    func testTextBaseline() {
+    // DataMatrix size: clamped to 1...10.
+    @Test(arguments: [
+        (0, "^BXN,1"),
+        (20, "^BXN,10")
+    ])
+    func dataMatrixSizeClamp(input: Int, expected: String) {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DataMatrix("TEST", at: .inches(0.5, 0.5))
+                .size(input)
+        }
+        #expect(label.render().contains(expected))
+    }
+
+    // Aztec magnification: clamped to 1...10.
+    @Test(arguments: [
+        (0, "^B0N,1"),
+        (20, "^B0N,10")
+    ])
+    func aztecMagnificationClamp(input: Int, expected: String) {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Aztec("TEST", at: .inches(0.5, 0.5))
+                .magnification(input)
+        }
+        #expect(label.render().contains(expected))
+    }
+
+    // Label print darkness ^MD: clamped to 0...30.
+    @Test(arguments: [
+        (-10, "^MD0"),
+        (0, "^MD0"),
+        (15, "^MD15"),
+        (30, "^MD30"),
+        (50, "^MD30")
+    ])
+    func printDarknessClamp(input: Int, expected: String) {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Baseline", at: .inches(0.5, 0.5))
-                .baseline()
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FT"))  // Uses ^FT instead of ^FO
-        XCTAssertFalse(zpl.contains("^FO"))
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printDarkness(input)
+        #expect(label.render().contains(expected))
     }
 
-    func testTextBlockBaseline() {
+    @Test("Print darkness over max does not leak raw value")
+    func printDarknessOverMaxNoLeak() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printDarkness(50)
+        #expect(!label.render().contains("^MD50"))
+    }
+
+    // Box corner radius: clamped to 0...8. Rendered as trailing ",N^FS".
+    @Test(arguments: [
+        (-5, ",0^FS"),
+        (0, ",0^FS"),
+        (8, ",8^FS"),
+        (15, ",8^FS")
+    ])
+    func boxCornerRadiusClamp(input: Int, expected: String) {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .cornerRadius(input)
+        }
+        #expect(label.render().contains(expected))
+    }
+}
+
+// MARK: - Shapes
+
+@Suite("Shapes")
+struct ShapeTests {
+
+    @Test("Box renders ^GB")
+    func boxRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .inches(0.25, 0.25), width: .inches(1.0), height: .inches(0.5))
+                .thickness(3)
+        }
+        #expect(label.render().contains("^GB"))
+    }
+
+    @Test("Filled box has thickness equal to min(width, height)")
+    func filledBoxRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .inches(0.25, 0.25), width: .dots(100), height: .dots(50))
+                .filled()
+        }
+        #expect(label.render().contains("^GB100,50,50"))
+    }
+
+    // Degenerate boxes: zero width/height still render ^GB prefix.
+    @Test(arguments: [
+        (0, 100, "^GB0,100,"),
+        (100, 0, "^GB100,0,"),
+        (0, 0, "^GB0,0,")
+    ])
+    func boxZeroDimensions(width: Int, height: Int, expected: String) {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(width), height: .dots(height))
+        }
+        #expect(label.render().contains(expected))
+    }
+
+    @Test("Box white color")
+    func boxWhiteColor() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .white()
+        }
+        #expect(label.render().contains(",W,"))
+    }
+
+    @Test("Circle renders ^GC")
+    func circleRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Circle(at: .inches(0.5, 0.5), diameter: .inches(1.0))
+                .thickness(3)
+        }
+        #expect(label.render().contains("^GC"))
+    }
+
+    @Test("Filled circle has thickness equal to diameter")
+    func filledCircleRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Circle(at: .inches(0.5, 0.5), diameter: .dots(100))
+                .filled()
+        }
+        #expect(label.render().contains("^GC100,100,B"))
+    }
+
+    @Test("Circle zero diameter renders degenerate ^GC")
+    func circleZeroDiameter() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Circle(at: .dots(50, 50), diameter: .dots(0))
+        }
+        #expect(label.render().contains("^GC0,"))
+    }
+
+    @Test("Circle white color")
+    func circleWhiteColor() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Circle(at: .dots(50, 50), diameter: .dots(100))
+                .white()
+        }
+        #expect(label.render().contains(",W^FS"))
+    }
+
+    @Test("Ellipse renders ^GE")
+    func ellipseRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Ellipse(at: .inches(0.5, 0.5), width: .inches(1.0), height: .inches(0.5))
+                .thickness(2)
+        }
+        #expect(label.render().contains("^GE"))
+    }
+
+    @Test("Filled ellipse has thickness = min(width, height)")
+    func filledEllipseRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Ellipse(at: .dots(50, 50), width: .dots(200), height: .dots(100))
+                .filled()
+        }
+        #expect(label.render().contains("^GE200,100,100"))
+    }
+
+    // Degenerate ellipses: zero width/height still render ^GE prefix.
+    @Test(arguments: [
+        (0, 100, "^GE0,100,"),
+        (100, 0, "^GE100,0,")
+    ])
+    func ellipseZeroDimensions(width: Int, height: Int, expected: String) {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Ellipse(at: .dots(50, 50), width: .dots(width), height: .dots(height))
+        }
+        #expect(label.render().contains(expected))
+    }
+
+    @Test("Ellipse white color")
+    func ellipseWhiteColor() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Ellipse(at: .dots(50, 50), width: .dots(200), height: .dots(100))
+                .white()
+        }
+        #expect(label.render().contains(",W^FS"))
+    }
+
+    @Test("Diagonal line renders ^GD")
+    func diagonalLineRenders() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DiagonalLine(at: .inches(0.25, 0.25), width: .inches(1.0), height: .inches(1.0))
+                .thickness(3)
+        }
+        #expect(label.render().contains("^GD"))
+    }
+
+    @Test("Diagonal line left-leaning direction")
+    func diagonalLineDirections() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DiagonalLine(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .direction(.leftLeaning)
+        }
+        #expect(label.render().contains(",L^FS"))
+    }
+
+    @Test("Diagonal line zero dimensions render degenerate ^GD")
+    func diagonalLineZeroDimensions() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DiagonalLine(at: .dots(50, 50), width: .dots(0), height: .dots(0))
+        }
+        #expect(label.render().contains("^GD0,0,"))
+    }
+
+    @Test("Diagonal line white color")
+    func diagonalLineWhiteColor() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            DiagonalLine(at: .dots(50, 50), width: .dots(100), height: .dots(100))
+                .white()
+        }
+        #expect(label.render().contains(",W,"))
+    }
+}
+
+// MARK: - Lines
+
+@Suite("Lines")
+struct LineTests {
+
+    @Test("Horizontal line renders ^GB")
+    func horizontalLineRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .inches(0.25, 0.5), length: .inches(2.0))
+        }
+        #expect(label.render().contains("^GB"))
+    }
+
+    @Test("Horizontal line custom thickness ^GB[length],[thickness],[thickness]")
+    func horizontalLineWithCustomThickness() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .dots(50, 50), length: .dots(200), thickness: .dots(5))
+        }
+        #expect(label.render().contains("^GB200,5,5"))
+    }
+
+    @Test("Horizontal line in inches resolves position and dimensions")
+    func horizontalLineInInches() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .inches(0.25, 0.25), length: .inches(2.0), thickness: .inches(0.02))
+        }
+        let zpl = label.render()
+        // 0.25 * 203 = 50.75 -> 51
+        #expect(zpl.contains("^FO51,51"))
+        // 2.0 * 203 = 406, 0.02 * 203 = 4.06 -> 4
+        #expect(zpl.contains("^GB406,4,4"))
+    }
+
+    @Test("Horizontal line in millimeters renders")
+    func horizontalLineInMillimeters() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .mm(5, 5), length: .mm(50))
+        }
+        #expect(label.render().contains("^GB"))
+    }
+
+    @Test("Horizontal line zero length renders degenerate ^GB")
+    func horizontalLineZeroLength() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .dots(50, 50), length: .dots(0))
+        }
+        #expect(label.render().contains("^GB0,2,2"))
+    }
+
+    @Test("Horizontal line default thickness is 2 dots")
+    func horizontalLineDefaultThickness() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            HorizontalLine(at: .dots(0, 0), length: .dots(100))
+        }
+        #expect(label.render().contains("^GB100,2,2"))
+    }
+
+    @Test("Vertical line renders ^GB")
+    func verticalLineRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .inches(0.5, 0.25), length: .inches(1.0))
+        }
+        #expect(label.render().contains("^GB"))
+    }
+
+    @Test("Vertical line custom thickness ^GB[thickness],[length],[thickness]")
+    func verticalLineWithCustomThickness() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .dots(50, 50), length: .dots(200), thickness: .dots(5))
+        }
+        #expect(label.render().contains("^GB5,200,5"))
+    }
+
+    @Test("Vertical line in dots resolves position and default thickness")
+    func verticalLineInDots() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .dots(100, 100), length: .dots(150))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^FO100,100"))
+        #expect(zpl.contains("^GB2,150,2"))  // Default thickness = 2
+    }
+
+    @Test("Vertical line in inches resolves position")
+    func verticalLineInInches() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .inches(0.5, 0.5), length: .inches(1.0), thickness: .inches(0.05))
+        }
+        // 0.5 inches * 203 DPI = 101.5 -> 102 dots
+        #expect(label.render().contains("^FO102,102"))
+    }
+
+    @Test("Vertical line in millimeters renders")
+    func verticalLineInMillimeters() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .mm(10, 10), length: .mm(25.4))  // 25.4mm = 1 inch
+        }
+        #expect(label.render().contains("^GB"))
+    }
+
+    @Test("Vertical line zero length renders degenerate ^GB")
+    func verticalLineZeroLength() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .dots(50, 50), length: .dots(0))
+        }
+        #expect(label.render().contains("^GB2,0,2"))
+    }
+
+    @Test("Vertical line default thickness is 2 dots")
+    func verticalLineDefaultThickness() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            VerticalLine(at: .dots(0, 0), length: .dots(100))
+        }
+        #expect(label.render().contains("^GB2,100,2"))
+    }
+}
+
+// MARK: - TextBlock
+
+@Suite("TextBlock")
+struct TextBlockTests {
+
+    @Test("TextBlock renders ^FB with center alignment")
+    func textBlockRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            TextBlock("This is a long text that should wrap", at: .inches(0.25, 0.25), width: .inches(2.0))
+                .maxLines(3)
+                .alignment(.center)
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^FB"))
+        #expect(zpl.contains(",C,"))
+    }
+
+    @Test("TextBlock baseline uses ^FT instead of ^FO")
+    func textBlockBaseline() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             TextBlock("Baseline block", at: .inches(0.25, 0.5), width: .inches(2.0))
                 .baseline()
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FT"))
-        XCTAssertFalse(zpl.contains("^FO"))
+        #expect(zpl.contains("^FT"))
+        #expect(!zpl.contains("^FO"))
     }
 
-    func testTextBlockRotated() {
+    @Test("TextBlock rotated emits ^A0R")
+    func textBlockRotated() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             TextBlock("Rotated", at: .inches(0.25, 0.5), width: .inches(2.0))
                 .rotated(.rotated90)
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^A0R,"))  // R = rotated 90
+        #expect(label.render().contains("^A0R,"))  // R = rotated 90
     }
 
-    func testTextBlockReversed() {
+    @Test("TextBlock reversed emits ^FR")
+    func textBlockReversed() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             TextBlock("Reversed", at: .inches(0.25, 0.5), width: .inches(2.0))
                 .reversed()
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FR"))  // Reverse field
+        #expect(label.render().contains("^FR"))  // Reverse field
     }
 
-    func testTextBlockWithNewlines() {
+    @Test("TextBlock converts newlines to ZPL line breaks")
+    func textBlockWithNewlines() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             TextBlock("Line 1\nLine 2\nLine 3", at: .inches(0.25, 0.25), width: .inches(2.0))
                 .maxLines(3)
         }
-
-        let zpl = label.render()
-        // \n should be converted to ZPL's \& line break
-        XCTAssertTrue(zpl.contains("Line 1\\&Line 2\\&Line 3"))
+        #expect(label.render().contains("Line 1\\&Line 2\\&Line 3"))
     }
 
-    func testTextBlockCombinedOptions() {
+    @Test("TextBlock combined options")
+    func textBlockCombinedOptions() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             TextBlock("Important\nMessage", at: .inches(0.25, 0.25), width: .inches(2.0))
                 .font(.default, height: .dots(40))
@@ -535,503 +935,132 @@ final class ZPLKitTests: XCTestCase {
                 .reversed()
                 .maxLines(2)
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FR"))
-        XCTAssertTrue(zpl.contains("^FB"))
-        XCTAssertTrue(zpl.contains(",C,"))  // Center alignment
-        XCTAssertTrue(zpl.contains("\\&"))  // Line break
+        #expect(zpl.contains("^FR"))
+        #expect(zpl.contains("^FB"))
+        #expect(zpl.contains(",C,"))  // Center alignment
+        #expect(zpl.contains("\\&"))  // Line break
     }
+}
 
-    // MARK: - EAN-8 Tests
+// MARK: - Baseline Positioning (Text)
 
-    func testEAN8Valid() {
-        let barcode = EAN8("1234567", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
+@Suite("Baseline Positioning")
+struct BaselineTests {
 
-    func testEAN8With8Digits() {
-        // 8 digits includes check digit
-        let barcode = EAN8("12345670", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testEAN8InvalidLength() {
-        // Should fail with wrong length
-        let barcode = EAN8("12345", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testEAN8InvalidChars() {
-        // Should fail with non-numeric characters
-        let barcode = EAN8("123456A", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testEAN8Renders() {
+    @Test("Text baseline uses ^FT instead of ^FO")
+    func textBaseline() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            EAN8("1234567", at: .inches(0.25, 0.25))?
-                .height(.dots(80))
+            Text("Baseline", at: .inches(0.5, 0.5))
+                .baseline()
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B8"))
-        XCTAssertTrue(zpl.contains("^FD1234567^FS"))
+        #expect(zpl.contains("^FT"))
+        #expect(!zpl.contains("^FO"))
     }
+}
 
-    func testEAN8TextAbove() {
+// MARK: - Serial Numbers
+
+@Suite("Serial Numbers")
+struct SerialNumberTests {
+
+    @Test("Serial number increment renders ^SN")
+    func serialNumberRenders() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            EAN8("1234567", at: .inches(0.25, 0.25))?
-                .textAbove()
+            SerialNumber("001", at: .inches(0.25, 0.25))
+                .increment(1)
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B8N,100,Y,Y"))  // Last Y = text above
+        #expect(label.render().contains("^SN001,1,Y"))
     }
 
-    // MARK: - UPC-E Tests
-
-    func testUPCEValid() {
-        let barcode = UPCE("123456", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testUPCEWith8Digits() {
-        // 8 digits = number system + data + check
-        let barcode = UPCE("01234565", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testUPCEInvalidLength() {
-        // Should fail with wrong length (too short)
-        let barcode = UPCE("12345", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-
-        // Should fail with wrong length (too long)
-        let barcode2 = UPCE("123456789", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode2)
-    }
-
-    func testUPCEInvalidChars() {
-        // Should fail with non-numeric characters
-        let barcode = UPCE("12345A", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testUPCERenders() {
+    @Test("Serial number decrement without leading zeros")
+    func serialNumberDecrement() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            UPCE("123456", at: .inches(0.25, 0.25))?
-                .height(.dots(80))
+            SerialNumber("100", at: .inches(0.25, 0.25))
+                .increment(-1)
+                .leadingZeros(false)
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B9"))
-        XCTAssertTrue(zpl.contains("^FD123456^FS"))
+        #expect(label.render().contains("^SN100,-1,N"))
     }
+}
 
-    func testUPCEWithOptions() {
+// MARK: - Print Configuration (label-level)
+
+@Suite("Print Configuration")
+struct PrintConfigTests {
+
+    @Test("Print quantity emits ^PQ")
+    func printQuantity() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            UPCE("123456", at: .inches(0.25, 0.25))?
-                .showText(false)
-                .checkDigit(false)
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B9N,100,N,N,N"))
+            Text("Test", at: .inches(0.25, 0.25))
+        }.printQuantity(5)
+        #expect(label.render().contains("^PQ5"))
     }
 
-    // MARK: - Intelligent Mail Tests
-
-    func testIntelligentMailValid20() {
-        // 20 digits = tracking code only
-        let barcode = IntelligentMail("01234567890123456789", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testIntelligentMailValid25() {
-        // 25 digits = tracking + 5-digit ZIP
-        let barcode = IntelligentMail("0123456789012345678901234", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testIntelligentMailValid29() {
-        // 29 digits = tracking + 9-digit ZIP
-        let barcode = IntelligentMail("01234567890123456789012345678", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testIntelligentMailValid31() {
-        // 31 digits = tracking + 11-digit delivery point
-        let barcode = IntelligentMail("0123456789012345678901234567890", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testIntelligentMailInvalidLength() {
-        // Should fail with invalid lengths
-        let barcode1 = IntelligentMail("123456789", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode1)
-
-        let barcode2 = IntelligentMail("012345678901234567890123", at: .inches(0.5, 0.5))  // 24 digits
-        XCTAssertNil(barcode2)
-    }
-
-    func testIntelligentMailInvalidChars() {
-        // Should fail with non-numeric characters
-        let barcode = IntelligentMail("0123456789012345678A", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testIntelligentMailRenders() {
+    // Print speed ^PR with optional slew/backfeed.
+    @Test(arguments: [
+        ("^PR6", false, false),       // speed only
+        ("^PR6,8", true, false),      // speed + slew
+        ("^PR6,8,4", true, true),     // speed + slew + backfeed
+        ("^PR6,,4", false, true)      // speed + backfeed only
+    ])
+    func printSpeedVariants(expected: String, withSlew: Bool, withBackfeed: Bool) {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            IntelligentMail("01234567890123456789", at: .inches(0.25, 0.25))?
-                .height(.dots(30))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BZ"))
-        XCTAssertTrue(zpl.contains("^FD01234567890123456789^FS"))
-    }
-
-    func testIntelligentMailRotated() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            IntelligentMail("01234567890123456789", at: .inches(0.25, 0.25))?
-                .rotated(.rotated90)
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BZR,"))  // R = rotated 90
-    }
-
-    // MARK: - Template Substitution Tests
-
-    func testTemplateSubstitution() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Order: {{orderNumber}}", at: .inches(0.25, 0.25))
-        }
-
-        let zpl = label.render(substituting: ["orderNumber": "12345"])
-        XCTAssertTrue(zpl.contains("^FDOrder: 12345^FS"))
-        XCTAssertFalse(zpl.contains("{{orderNumber}}"))
-    }
-
-    func testTemplateSubstitutionMultiple() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("{{name}}", at: .inches(0.25, 0.25))
-            Text("{{address}}", at: .inches(0.25, 0.5))
-            Barcode128("{{tracking}}", at: .inches(0.25, 1))?
-                .height(.dots(80))
-        }
-
-        let zpl = label.render(substituting: [
-            "name": "John Smith",
-            "address": "123 Main St",
-            "tracking": "1Z999AA1"
-        ])
-
-        XCTAssertTrue(zpl.contains("^FDJohn Smith^FS"))
-        XCTAssertTrue(zpl.contains("^FD123 Main St^FS"))
-        XCTAssertTrue(zpl.contains("^FD1Z999AA1^FS"))
-    }
-
-    func testTemplateSubstitutionWithQRCode() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            QRCode("{{url}}", at: .inches(0.5, 0.5))
-                .magnification(5)
-        }
-
-        let zpl = label.render(substituting: ["url": "https://example.com/order/12345"])
-        // QR codes prepend error correction + "A," prefix
-        XCTAssertTrue(zpl.contains("MA,https://example.com/order/12345^FS"))
-        XCTAssertFalse(zpl.contains("{{url}}"))
-    }
-
-    func testTemplateUnsubstitutedVariablesRemain() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("{{name}} - {{missing}}", at: .inches(0.25, 0.25))
-        }
-
-        let zpl = label.render(substituting: ["name": "Test"])
-        XCTAssertTrue(zpl.contains("Test"))
-        XCTAssertTrue(zpl.contains("{{missing}}"))  // Unsubstituted variable remains
-    }
-
-    // MARK: - Reverse Print Tests
-
-    func testReversePrint() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Inverted", at: .inches(0.25, 0.25))
-        }.reversePrint()
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^LRY"))  // Label-wide reverse
-    }
-
-    func testReversePrintDisabled() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Normal", at: .inches(0.25, 0.25))
-        }.reversePrint(false)
-
-        let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^LRY"))
-    }
-
-    func testReversePrintDefault() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Normal", at: .inches(0.25, 0.25))
-        }
-
-        let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^LRY"))  // Should not be present by default
-    }
-
-    // MARK: - Comment Tests
-
-    func testCommentRenders() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Comment("This is a debugging note")
-            Text("Hello", at: .inches(0.25, 0.25))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FX This is a debugging note ^FS"))
-    }
-
-    func testCommentNotPrinted() {
-        // Comments should be in ZPL output but use ^FX which is ignored by printer
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Comment("Section 1: Header")
-            Text("Title", at: .inches(0.25, 0.25))
-            Comment("Section 2: Content")
-            Text("Body", at: .inches(0.25, 0.5))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FX Section 1: Header ^FS"))
-        XCTAssertTrue(zpl.contains("^FX Section 2: Content ^FS"))
-        XCTAssertTrue(zpl.contains("^FDTitle^FS"))
-        XCTAssertTrue(zpl.contains("^FDBody^FS"))
-    }
-
-    func testCommentEmpty() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Comment("")
             Text("Test", at: .inches(0.25, 0.25))
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FX  ^FS"))  // Empty comment still renders
-    }
-
-    // MARK: - Graphic Tests
-
-    // MARK: - VerticalLine Tests
-
-    func testVerticalLineRenders() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            VerticalLine(at: .inches(0.5, 0.25), length: .inches(1.0))
+        let configured: ZPLLabel
+        switch (withSlew, withBackfeed) {
+        case (false, false): configured = label.printSpeed(6)
+        case (true, false): configured = label.printSpeed(6, slew: 8)
+        case (true, true): configured = label.printSpeed(6, slew: 8, backfeed: 4)
+        case (false, true): configured = label.printSpeed(6, backfeed: 4)
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GB"))
-        // Vertical line: width = thickness, height = length
-        // Default thickness is 2 dots
+        #expect(configured.render().contains(expected))
     }
 
-    func testVerticalLineWithCustomThickness() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            VerticalLine(at: .dots(50, 50), length: .dots(200), thickness: .dots(5))
-        }
-
-        let zpl = label.render()
-        // Vertical line: ^GB[thickness],[length],[thickness]
-        XCTAssertTrue(zpl.contains("^GB5,200,5"))
-    }
-
-    func testVerticalLineInDots() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            VerticalLine(at: .dots(100, 100), length: .dots(150))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FO100,100"))
-        XCTAssertTrue(zpl.contains("^GB2,150,2"))  // Default thickness = 2
-    }
-
-    func testVerticalLineInInches() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            VerticalLine(at: .inches(0.5, 0.5), length: .inches(1.0), thickness: .inches(0.05))
-        }
-
-        let zpl = label.render()
-        // 0.5 inches * 203 DPI = 101.5, rounded = 102 dots
-        // 1.0 inches * 203 DPI = 203 dots
-        // 0.05 inches * 203 DPI = 10.15, rounded = 10 dots
-        XCTAssertTrue(zpl.contains("^FO102,102"))
-    }
-
-    func testVerticalLineInMillimeters() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            VerticalLine(at: .mm(10, 10), length: .mm(25.4))  // 25.4mm = 1 inch
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GB"))
-        // Just verify it renders without error
-    }
-
-    func testVerticalLineZeroLength() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            VerticalLine(at: .dots(50, 50), length: .dots(0))
-        }
-
-        let zpl = label.render()
-        // Should still render (degenerate case)
-        XCTAssertTrue(zpl.contains("^GB2,0,2"))
-    }
-
-    // MARK: - HorizontalLine Edge Cases
-
-    func testHorizontalLineWithCustomThickness() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            HorizontalLine(at: .dots(50, 50), length: .dots(200), thickness: .dots(5))
-        }
-
-        let zpl = label.render()
-        // Horizontal line: ^GB[length],[thickness],[thickness]
-        XCTAssertTrue(zpl.contains("^GB200,5,5"))
-    }
-
-    func testHorizontalLineInInches() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            HorizontalLine(at: .inches(0.25, 0.25), length: .inches(2.0), thickness: .inches(0.02))
-        }
-
-        let zpl = label.render()
-        // 0.25 * 203 = 50.75, rounded = 51
-        XCTAssertTrue(zpl.contains("^FO51,51"))
-        // 2.0 * 203 = 406, 0.02 * 203 = 4.06, rounded = 4
-        XCTAssertTrue(zpl.contains("^GB406,4,4"))
-    }
-
-    func testHorizontalLineInMillimeters() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            HorizontalLine(at: .mm(5, 5), length: .mm(50))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GB"))
-    }
-
-    func testHorizontalLineZeroLength() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            HorizontalLine(at: .dots(50, 50), length: .dots(0))
-        }
-
-        let zpl = label.render()
-        // Should still render (degenerate case)
-        XCTAssertTrue(zpl.contains("^GB0,2,2"))
-    }
-
-    func testHorizontalLineDefaultThickness() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            HorizontalLine(at: .dots(0, 0), length: .dots(100))
-        }
-
-        let zpl = label.render()
-        // Default thickness is 2 dots
-        XCTAssertTrue(zpl.contains("^GB100,2,2"))
-    }
-
-    func testVerticalLineDefaultThickness() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            VerticalLine(at: .dots(0, 0), length: .dots(100))
-        }
-
-        let zpl = label.render()
-        // Default thickness is 2 dots
-        XCTAssertTrue(zpl.contains("^GB2,100,2"))
-    }
-
-    // MARK: - Label Configuration Tests
-
-    func testDefaultFont() {
+    @Test("Default font emits ^CF0 with height")
+    func defaultFont() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(0.25, 0.25))
         }.defaultFont(.default, height: 40)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^CF0,40"))
+        #expect(label.render().contains("^CF0,40"))
     }
 
-    func testDefaultFontWithDifferentFonts() {
+    @Test("Default font with font A emits ^CFA")
+    func defaultFontWithDifferentFonts() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(0.25, 0.25))
         }.defaultFont(.a, height: 50)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^CFA,50"))
+        #expect(label.render().contains("^CFA,50"))
     }
 
-    func testLabelHome() {
+    @Test("Label home emits ^LH")
+    func labelHome() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(0.25, 0.25))
         }.labelHome(100, 50)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^LH100,50"))
+        #expect(label.render().contains("^LH100,50"))
     }
 
-    func testLabelHomeAtOrigin() {
+    @Test("Label home at origin emits ^LH0,0")
+    func labelHomeAtOrigin() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(0.25, 0.25))
         }.labelHome(0, 0)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^LH0,0"))
+        #expect(label.render().contains("^LH0,0"))
     }
 
-    func testPrintDarkness() {
+    @Test("Print darkness emits ^MD")
+    func printDarkness() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(0.25, 0.25))
         }.printDarkness(15)
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^MD15"))
+        #expect(label.render().contains("^MD15"))
     }
 
-    func testPrintDarknessClampedToMax() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
-        }.printDarkness(50)  // Over max of 30
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^MD30"))  // Clamped to 30
-        XCTAssertFalse(zpl.contains("^MD50"))
-    }
-
-    func testPrintDarknessClampedToMin() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
-        }.printDarkness(-10)  // Under min of 0
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^MD0"))  // Clamped to 0
-    }
-
-    func testPrintDarknessAtBoundaries() {
-        let labelMin = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
-        }.printDarkness(0)
-
-        let labelMax = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
-        }.printDarkness(30)
-
-        XCTAssertTrue(labelMin.render().contains("^MD0"))
-        XCTAssertTrue(labelMax.render().contains("^MD30"))
-    }
-
-    func testCombinedLabelConfig() {
+    @Test("Combined label config emits all commands")
+    func combinedLabelConfig() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(0.25, 0.25))
         }
@@ -1041,14 +1070,14 @@ final class ZPLKitTests: XCTestCase {
         .reversePrint()
 
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^LH50,25"))
-        XCTAssertTrue(zpl.contains("^CF0,35"))
-        XCTAssertTrue(zpl.contains("^MD20"))
-        XCTAssertTrue(zpl.contains("^LRY"))
+        #expect(zpl.contains("^LH50,25"))
+        #expect(zpl.contains("^CF0,35"))
+        #expect(zpl.contains("^MD20"))
+        #expect(zpl.contains("^LRY"))
     }
 
-    func testLabelConfigOrder() {
-        // Config commands should appear in consistent order after ^XA
+    @Test("Config command order: ^LH before ^PW")
+    func labelConfigOrder() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(0.25, 0.25))
         }
@@ -1056,887 +1085,535 @@ final class ZPLKitTests: XCTestCase {
         .printDarkness(15)
 
         let zpl = label.render()
-
-        // ^LH should come before ^PW
-        let lhIndex = zpl.range(of: "^LH")!.lowerBound
-        let pwIndex = zpl.range(of: "^PW")!.lowerBound
-        XCTAssertTrue(lhIndex < pwIndex)
+        let lhIndex = try! #require(zpl.range(of: "^LH")).lowerBound
+        let pwIndex = try! #require(zpl.range(of: "^PW")).lowerBound
+        #expect(lhIndex < pwIndex)
     }
 
-    func testDefaultFontNotPresentByDefault() {
+    // Config commands absent by default.
+    @Test(arguments: ["^CF", "^LH", "^MD"])
+    func configCommandsNotPresentByDefault(command: String) {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Test", at: .inches(0.25, 0.25))
         }
+        #expect(!label.render().contains(command))
+    }
+}
 
-        let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^CF"))
+// MARK: - Reverse Print
+
+@Suite("Reverse Print")
+struct ReversePrintTests {
+
+    // Label-wide reverse ^LRY: present only when enabled.
+    @Test(arguments: [
+        (true, true),    // .reversePrint() -> present
+        (false, false)   // .reversePrint(false) -> absent
+    ])
+    func reversePrintToggle(enabled: Bool, expectedPresent: Bool) {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("X", at: .inches(0.25, 0.25))
+        }.reversePrint(enabled)
+        #expect(label.render().contains("^LRY") == expectedPresent)
     }
 
-    func testLabelHomeNotPresentByDefault() {
+    @Test("Reverse print absent by default")
+    func reversePrintDefault() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("Normal", at: .inches(0.25, 0.25))
+        }
+        #expect(!label.render().contains("^LRY"))
+    }
+}
+
+// MARK: - Comments
+
+@Suite("Comments")
+struct CommentTests {
+
+    @Test("Comment renders ^FX")
+    func commentRenders() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Comment("This is a debugging note")
+            Text("Hello", at: .inches(0.25, 0.25))
+        }
+        #expect(label.render().contains("^FX This is a debugging note ^FS"))
+    }
+
+    @Test("Multiple comments and content all render")
+    func commentNotPrinted() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Comment("Section 1: Header")
+            Text("Title", at: .inches(0.25, 0.25))
+            Comment("Section 2: Content")
+            Text("Body", at: .inches(0.25, 0.5))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^FX Section 1: Header ^FS"))
+        #expect(zpl.contains("^FX Section 2: Content ^FS"))
+        #expect(zpl.contains("^FDTitle^FS"))
+        #expect(zpl.contains("^FDBody^FS"))
+    }
+
+    @Test("Empty comment still renders ^FX")
+    func commentEmpty() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Comment("")
             Text("Test", at: .inches(0.25, 0.25))
         }
-
-        let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^LH"))
+        #expect(label.render().contains("^FX  ^FS"))
     }
+}
 
-    func testPrintDarknessNotPresentByDefault() {
+// MARK: - String Escaping
+
+@Suite("String Escaping")
+struct StringEscapingTests {
+
+    @Test("Special chars in text enable hex mode and escape caret/tilde/underscore")
+    func specialCharactersEscaped() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(0.25, 0.25))
+            Text("Price: $5 (50% off) ^test~ _under", at: .inches(0.25, 0.25))
         }
-
         let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^MD"))
+        #expect(zpl.contains("^FH"))   // hex mode
+        #expect(zpl.contains("_5E"))   // ^ escaped
+        #expect(zpl.contains("_7E"))   // ~ escaped
+        #expect(zpl.contains("_5F"))   // _ escaped
     }
 
-    // MARK: - String Escaping Tests
-
-    func testEmptyStringText() {
+    // Single special characters each enable hex mode and escape to their hex code.
+    @Test(arguments: [
+        ("A^B", "_5E"),  // caret
+        ("A~B", "_7E"),  // tilde
+        ("A_B", "_5F")   // underscore
+    ])
+    func singleSpecialCharEscaping(input: String, expectedHex: String) {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("", at: .inches(0.25, 0.25))
+            Text(input, at: .inches(0.25, 0.25))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FD^FS"))
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains(expectedHex))
     }
 
-    func testCaretEscaping() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("A^B", at: .inches(0.25, 0.25))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))  // Hex mode enabled
-        XCTAssertTrue(zpl.contains("_5E"))  // ^ escaped
-    }
-
-    func testTildeEscaping() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("A~B", at: .inches(0.25, 0.25))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("_7E"))  // ~ escaped
-    }
-
-    func testUnderscoreEscaping() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("A_B", at: .inches(0.25, 0.25))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("_5F"))  // _ escaped
-    }
-
-    func testMultipleSpecialCharsEscaping() {
+    @Test("All special chars together escape individually")
+    func multipleSpecialCharsEscaping() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("^~_", at: .inches(0.25, 0.25))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("_5E"))  // ^
-        XCTAssertTrue(zpl.contains("_7E"))  // ~
-        XCTAssertTrue(zpl.contains("_5F"))  // _
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains("_5E"))
+        #expect(zpl.contains("_7E"))
+        #expect(zpl.contains("_5F"))
     }
 
-    func testNoSpecialCharsNoHexMode() {
+    @Test("No special chars means no hex mode")
+    func noSpecialCharsNoHexMode() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Hello World 123", at: .inches(0.25, 0.25))
         }
-
         let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^FH"))  // No hex mode needed
-        XCTAssertTrue(zpl.contains("^FDHello World 123^FS"))
+        #expect(!zpl.contains("^FH"))
+        #expect(zpl.contains("^FDHello World 123^FS"))
     }
 
-    func testNonASCIICharacterEscaping() {
+    // Non-ASCII / multibyte / emoji all enable hex mode.
+    @Test(arguments: ["Café", "日本語", "Hello 👋"])
+    func nonASCIIEnablesHexMode(input: String) {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Café", at: .inches(0.25, 0.25))
+            Text(input, at: .inches(0.25, 0.25))
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))  // Hex mode for non-ASCII
+        #expect(label.render().contains("^FH"))
     }
 
-    func testUTF8MultibyteEscaping() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("日本語", at: .inches(0.25, 0.25))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))  // Hex mode for multibyte
-        // Each Japanese character is 3 bytes in UTF-8
-    }
-
-    func testMixedASCIIAndSpecialChars() {
+    @Test("Mixed ASCII and special chars escape correctly")
+    func mixedASCIIAndSpecialChars() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Item^1: $10.00", at: .inches(0.25, 0.25))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("Item"))
-        XCTAssertTrue(zpl.contains("_5E"))
-        XCTAssertTrue(zpl.contains(": $10.00"))
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains("Item"))
+        #expect(zpl.contains("_5E"))
+        #expect(zpl.contains(": $10.00"))
     }
+}
 
-    func testEmojiEscaping() {
+// MARK: - Barcode Field-Data Escaping
+
+@Suite("Barcode Field-Data Escaping")
+struct BarcodeEscapingTests {
+
+    @Test("Barcode128 escapes special chars without leaking control sequence")
+    func barcode128EscapesSpecialChars() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Hello 👋", at: .inches(0.25, 0.25))
+            Barcode128("A^B~C_D", at: .inches(0.25, 0.5))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))  // Hex mode for emoji (4-byte UTF-8)
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains("^FDA_5EB_7EC_5FD^FS"))
+        #expect(!zpl.contains("^FDA^B~C_D^FS"))
     }
 
-    // MARK: - Barcode Validation Edge Cases
-
-    func testBarcode128EmptyString() {
-        let barcode = Barcode128("", at: .inches(0.5, 0.5))
-        // Empty string is valid ASCII
-        XCTAssertNotNil(barcode)
-    }
-
-    func testBarcode128ModuleWidthClampedToMin() {
+    @Test("Barcode128 normal data unchanged, no hex mode")
+    func barcode128NormalDataUnchanged() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Barcode128("TEST", at: .inches(0.25, 0.25))?
-                .moduleWidth(0)  // Below min of 1
+            Barcode128("ABC123", at: .inches(0.25, 0.5))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BY1"))  // Clamped to 1
+        #expect(!zpl.contains("^FH"))
+        #expect(zpl.contains("^FDABC123^FS"))
     }
 
-    func testBarcode128ModuleWidthClampedToMax() {
+    @Test("QR code escapes payload but keeps MA, prefix unescaped")
+    func qrCodeEscapesSpecialCharsKeepingPrefix() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("a^b~c_d", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains("^FDMA,a_5Eb_7Ec_5Fd^FS"))
+    }
+
+    @Test("QR code normal data unchanged, no hex mode")
+    func qrCodeNormalDataUnchanged() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("https://example.com", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        #expect(!zpl.contains("^FH"))
+        #expect(zpl.contains("^FDMA,https://example.com^FS"))
+    }
+
+    @Test("PDF417 escapes special chars")
+    func pdf417EscapesSpecialChars() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Barcode128("TEST", at: .inches(0.25, 0.25))?
-                .moduleWidth(20)  // Above max of 10
+            PDF417("x^y~z_w", at: .inches(0.25, 0.25))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BY10"))  // Clamped to 10
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains("^FDx_5Ey_7Ez_5Fw^FS"))
     }
 
-    func testBarcode128ModuleWidthBoundaries() {
-        let label1 = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Barcode128("TEST", at: .inches(0.25, 0.25))?
-                .moduleWidth(1)
-        }
-        let label10 = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Barcode128("TEST", at: .inches(0.25, 0.25))?
-                .moduleWidth(10)
-        }
-
-        XCTAssertTrue(label1.render().contains("^BY1"))
-        XCTAssertTrue(label10.render().contains("^BY10"))
-    }
-
-    func testCode39EmptyString() {
-        let barcode = Code39("", at: .inches(0.5, 0.5))
-        // Empty string technically has no invalid chars
-        XCTAssertNotNil(barcode)
-    }
-
-    func testCode39LowercaseConverted() {
-        // Code39 should convert to uppercase
+    @Test("PDF417 normal data unchanged, no hex mode")
+    func pdf417NormalDataUnchanged() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Code39("hello", at: .inches(0.25, 0.25))
+            PDF417("SHIPPING-MANIFEST-12345", at: .inches(0.25, 0.25))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FDHELLO^FS"))
+        #expect(!zpl.contains("^FH"))
+        #expect(zpl.contains("^FDSHIPPING-MANIFEST-12345^FS"))
     }
 
-    func testCode39SpecialCharsValid() {
-        // Code39 allows: A-Z, 0-9, -.$/+% and space
-        let barcode = Code39("HELLO-123 $50.00", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testCode39AtSymbolInvalid() {
-        let barcode = Code39("TEST@EMAIL", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)
-    }
-
-    func testInterleaved2of5EmptyString() {
-        let barcode = Interleaved2of5("", at: .inches(0.5, 0.5))
-        // Empty is technically valid (no non-numeric chars)
-        XCTAssertNotNil(barcode)
-    }
-
-    func testInterleaved2of5WithSpacesInvalid() {
-        let barcode = Interleaved2of5("123 456", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)  // Spaces not allowed
-    }
-
-    func testEAN13TooShort() {
-        let barcode = EAN13("12345", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)  // Must be 12 or 13 digits
-    }
-
-    func testEAN13TooLong() {
-        let barcode = EAN13("12345678901234", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)  // 14 digits, too long
-    }
-
-    func testEAN13Exactly12Digits() {
-        let barcode = EAN13("123456789012", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)  // 12 digits valid
-    }
-
-    func testEAN13Exactly13Digits() {
-        let barcode = EAN13("1234567890123", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)  // 13 digits valid (includes check)
-    }
-
-    func testEAN13WithLeadingZeros() {
-        let barcode = EAN13("000000000000", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testEAN8TooShort() {
-        let barcode = EAN8("12345", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)  // Must be 7 or 8 digits
-    }
-
-    func testEAN8Exactly7Digits() {
-        let barcode = EAN8("1234567", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testUPCATooShort() {
-        let barcode = UPCA("1234567890", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)  // 10 digits, needs 11 or 12
-    }
-
-    func testUPCAExactly11Digits() {
-        let barcode = UPCA("12345678901", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testUPCETooShort() {
-        let barcode = UPCE("12345", at: .inches(0.5, 0.5))
-        XCTAssertNil(barcode)  // 5 digits, needs 6-8
-    }
-
-    func testUPCEExactly6Digits() {
-        let barcode = UPCE("123456", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testUPCEExactly7Digits() {
-        let barcode = UPCE("1234567", at: .inches(0.5, 0.5))
-        XCTAssertNotNil(barcode)
-    }
-
-    func testIntelligentMailInvalidLengths() {
-        // Valid lengths: 20, 25, 29, 31
-        XCTAssertNil(IntelligentMail("1234567890123456789", at: .inches(0.5, 0.5)))  // 19
-        XCTAssertNil(IntelligentMail("123456789012345678901", at: .inches(0.5, 0.5)))  // 21
-        XCTAssertNil(IntelligentMail("12345678901234567890123", at: .inches(0.5, 0.5)))  // 23
-        XCTAssertNil(IntelligentMail("1234567890123456789012345678901234", at: .inches(0.5, 0.5)))  // 34
-    }
-
-    func testQRCodeMagnificationClampedToMin() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            QRCode("TEST", at: .inches(0.5, 0.5))
-                .magnification(0)  // Below min of 1
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BQN,2,1"))  // Clamped to 1
-    }
-
-    func testQRCodeMagnificationClampedToMax() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            QRCode("TEST", at: .inches(0.5, 0.5))
-                .magnification(20)  // Above max of 10
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BQN,2,10"))  // Clamped to 10
-    }
-
-    func testDataMatrixSizeClampedToMin() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            DataMatrix("TEST", at: .inches(0.5, 0.5))
-                .size(0)  // Below min of 1
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BXN,1"))  // Clamped to 1
-    }
-
-    func testDataMatrixSizeClampedToMax() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            DataMatrix("TEST", at: .inches(0.5, 0.5))
-                .size(20)  // Above max of 10
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BXN,10"))  // Clamped to 10
-    }
-
-    func testAztecMagnificationClampedToMin() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Aztec("TEST", at: .inches(0.5, 0.5))
-                .magnification(0)  // Below min of 1
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B0N,1"))  // Clamped to 1
-    }
-
-    func testAztecMagnificationClampedToMax() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Aztec("TEST", at: .inches(0.5, 0.5))
-                .magnification(20)  // Above max of 10
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^B0N,10"))  // Clamped to 10
-    }
-
-    // MARK: - Shape Edge Cases
-
-    func testBoxZeroWidth() {
+    @Test("DataMatrix escapes special chars")
+    func dataMatrixEscapesSpecialChars() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .dots(50, 50), width: .dots(0), height: .dots(100))
+            DataMatrix("d^m~x_y", at: .inches(0.5, 0.5))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GB0,100,"))  // Degenerate box
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains("^FDd_5Em_7Ex_5Fy^FS"))
     }
 
-    func testBoxZeroHeight() {
+    @Test("DataMatrix normal data unchanged, no hex mode")
+    func dataMatrixNormalDataUnchanged() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .dots(50, 50), width: .dots(100), height: .dots(0))
+            DataMatrix("SERIAL123", at: .inches(0.5, 0.5))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GB100,0,"))  // Degenerate box
+        #expect(!zpl.contains("^FH"))
+        #expect(zpl.contains("^FDSERIAL123^FS"))
     }
 
-    func testBoxZeroDimensions() {
+    @Test("Aztec escapes special chars")
+    func aztecEscapesSpecialChars() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Aztec("a^z~q_r", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains("^FDa_5Ez_7Eq_5Fr^FS"))
+    }
+
+    @Test("Aztec normal data unchanged, no hex mode")
+    func aztecNormalDataUnchanged() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            Aztec("TICKET-DATA-12345", at: .inches(0.5, 0.5))
+        }
+        let zpl = label.render()
+        #expect(!zpl.contains("^FH"))
+        #expect(zpl.contains("^FDTICKET-DATA-12345^FS"))
+    }
+}
+
+// MARK: - Template Substitution
+
+@Suite("Template Substitution")
+struct TemplateSubstitutionTests {
+
+    @Test("Single variable substitution")
+    func templateSubstitution() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .dots(50, 50), width: .dots(0), height: .dots(0))
+            Text("Order: {{orderNumber}}", at: .inches(0.25, 0.25))
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GB0,0,"))
+        let zpl = label.render(substituting: ["orderNumber": "12345"])
+        #expect(zpl.contains("^FDOrder: 12345^FS"))
+        #expect(!zpl.contains("{{orderNumber}}"))
     }
 
-    func testBoxCornerRadiusClampedToMin() {
+    @Test("Multiple variable substitution across elements")
+    func templateSubstitutionMultiple() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
-                .cornerRadius(-5)  // Below min of 0
+            Text("{{name}}", at: .inches(0.25, 0.25))
+            Text("{{address}}", at: .inches(0.25, 0.5))
+            Barcode128("{{tracking}}", at: .inches(0.25, 1))?
+                .height(.dots(80))
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains(",0^FS"))  // Clamped to 0
+        let zpl = label.render(substituting: [
+            "name": "John Smith",
+            "address": "123 Main St",
+            "tracking": "1Z999AA1"
+        ])
+        #expect(zpl.contains("^FDJohn Smith^FS"))
+        #expect(zpl.contains("^FD123 Main St^FS"))
+        #expect(zpl.contains("^FD1Z999AA1^FS"))
     }
 
-    func testBoxCornerRadiusClampedToMax() {
+    @Test("Substitution inside QR code keeps prefix")
+    func templateSubstitutionWithQRCode() {
+        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
+            QRCode("{{url}}", at: .inches(0.5, 0.5))
+                .magnification(5)
+        }
+        let zpl = label.render(substituting: ["url": "https://example.com/order/12345"])
+        #expect(zpl.contains("MA,https://example.com/order/12345^FS"))
+        #expect(!zpl.contains("{{url}}"))
+    }
+
+    @Test("Unsubstituted variables remain")
+    func templateUnsubstitutedVariablesRemain() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
-                .cornerRadius(15)  // Above max of 8
+            Text("{{name}} - {{missing}}", at: .inches(0.25, 0.25))
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains(",8^FS"))  // Clamped to 8
+        let zpl = label.render(substituting: ["name": "Test"])
+        #expect(zpl.contains("Test"))
+        #expect(zpl.contains("{{missing}}"))
     }
 
-    func testBoxCornerRadiusBoundaries() {
-        let label0 = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
-                .cornerRadius(0)
-        }
-        let label8 = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
-                .cornerRadius(8)
-        }
-
-        XCTAssertTrue(label0.render().contains(",0^FS"))
-        XCTAssertTrue(label8.render().contains(",8^FS"))
-    }
-
-    func testBoxWhiteColor() {
+    @Test("Substitution value attempting ^XZ injection is neutralized")
+    func substitutionEscapesInjectionValue() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Box(at: .dots(50, 50), width: .dots(100), height: .dots(100))
-                .white()
+            Text("{{val}}", at: .inches(0.25, 0.25))
         }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains(",W,"))  // White color
+        let zpl = label.render(substituting: ["val": "X^XZ"])
+        #expect(!zpl.contains("X^XZ"))      // injection neutralized
+        #expect(zpl.contains("X_5EXZ"))     // caret hex-escaped
+        #expect(zpl.components(separatedBy: "^XZ").count - 1 == 1)
     }
 
-    func testCircleZeroDiameter() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Circle(at: .dots(50, 50), diameter: .dots(0))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GC0,"))  // Degenerate circle
-    }
-
-    func testCircleWhiteColor() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Circle(at: .dots(50, 50), diameter: .dots(100))
-                .white()
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains(",W^FS"))
-    }
-
-    func testEllipseZeroWidth() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Ellipse(at: .dots(50, 50), width: .dots(0), height: .dots(100))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GE0,100,"))
-    }
-
-    func testEllipseZeroHeight() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Ellipse(at: .dots(50, 50), width: .dots(100), height: .dots(0))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GE100,0,"))
-    }
-
-    func testEllipseWhiteColor() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Ellipse(at: .dots(50, 50), width: .dots(200), height: .dots(100))
-                .white()
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains(",W^FS"))
-    }
-
-    func testDiagonalLineZeroDimensions() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            DiagonalLine(at: .dots(50, 50), width: .dots(0), height: .dots(0))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GD0,0,"))
-    }
-
-    func testDiagonalLineWhiteColor() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            DiagonalLine(at: .dots(50, 50), width: .dots(100), height: .dots(100))
-                .white()
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains(",W,"))
-    }
-
-    // MARK: - DPI Variation Tests
-
-    func testDPI152Conversion() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi152) {
-            Text("Test", at: .inches(1.0, 1.0))
-        }
-
-        let zpl = label.render()
-        // 4 inches * 152 DPI = 608 dots
-        XCTAssertTrue(zpl.contains("^PW608"))
-        // 2 inches * 152 DPI = 304 dots
-        XCTAssertTrue(zpl.contains("^LL304"))
-        // Position: 1 inch * 152 = 152 dots
-        XCTAssertTrue(zpl.contains("^FO152,152"))
-    }
-
-    func testDPI200Conversion() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi200) {
-            Text("Test", at: .inches(1.0, 1.0))
-        }
-
-        let zpl = label.render()
-        // 4 inches * 200 DPI = 800 dots
-        XCTAssertTrue(zpl.contains("^PW800"))
-        // 2 inches * 200 DPI = 400 dots
-        XCTAssertTrue(zpl.contains("^LL400"))
-        // Position: 1 inch * 200 = 200 dots
-        XCTAssertTrue(zpl.contains("^FO200,200"))
-    }
-
-    func testDPI203Conversion() {
+    @Test("Normal substitution value unchanged")
+    func substitutionNormalValueUnchanged() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Test", at: .inches(1.0, 1.0))
+            Text("Order: {{orderNumber}}", at: .inches(0.25, 0.25))
         }
-
-        let zpl = label.render()
-        // 4 inches * 203 DPI = 812 dots
-        XCTAssertTrue(zpl.contains("^PW812"))
-        // 2 inches * 203 DPI = 406 dots
-        XCTAssertTrue(zpl.contains("^LL406"))
-        // Position: 1 inch * 203 = 203 dots
-        XCTAssertTrue(zpl.contains("^FO203,203"))
+        let zpl = label.render(substituting: ["orderNumber": "12345"])
+        #expect(zpl.contains("^FDOrder: 12345^FS"))
     }
 
-    func testDPI300Conversion() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi300) {
-            Text("Test", at: .inches(1.0, 1.0))
+    @Test("Longer key wins over prefix key")
+    func substitutionDeterministicWithPrefixKeys() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("{{itemCount}}", at: .inches(0.25, 0.25))
         }
-
-        let zpl = label.render()
-        // 4 inches * 300 DPI = 1200 dots
-        XCTAssertTrue(zpl.contains("^PW1200"))
-        // 2 inches * 300 DPI = 600 dots
-        XCTAssertTrue(zpl.contains("^LL600"))
-        // Position: 1 inch * 300 = 300 dots
-        XCTAssertTrue(zpl.contains("^FO300,300"))
+        let zpl = label.render(substituting: ["item": "WRONG", "itemCount": "42"])
+        #expect(zpl.contains("^FD42^FS"))
+        #expect(!zpl.contains("WRONG"))
     }
+}
 
-    func testDPI600Conversion() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi600) {
-            Text("Test", at: .inches(1.0, 1.0))
-        }
+// MARK: - Complex Layouts & Builder Logic
 
-        let zpl = label.render()
-        // 4 inches * 600 DPI = 2400 dots
-        XCTAssertTrue(zpl.contains("^PW2400"))
-        // 2 inches * 600 DPI = 1200 dots
-        XCTAssertTrue(zpl.contains("^LL1200"))
-        // Position: 1 inch * 600 = 600 dots
-        XCTAssertTrue(zpl.contains("^FO600,600"))
-    }
+@Suite("Complex Layouts")
+struct ComplexLayoutTests {
 
-    func testDPIMillimeterConversion() {
-        // 25.4mm = 1 inch
-        let label152 = ZPLLabel(width: 4, height: 2, dpi: .dpi152) {
-            Box(at: .mm(25.4, 25.4), width: .mm(25.4), height: .mm(25.4))
-        }
-        let label300 = ZPLLabel(width: 4, height: 2, dpi: .dpi300) {
-            Box(at: .mm(25.4, 25.4), width: .mm(25.4), height: .mm(25.4))
-        }
-
-        // 152 DPI: 1 inch = 152 dots
-        XCTAssertTrue(label152.render().contains("^FO152,152"))
-        XCTAssertTrue(label152.render().contains("^GB152,152,"))
-
-        // 300 DPI: 1 inch = 300 dots
-        XCTAssertTrue(label300.render().contains("^FO300,300"))
-        XCTAssertTrue(label300.render().contains("^GB300,300,"))
-    }
-
-    func testDPIDotsUnaffected() {
-        // Dots should be the same regardless of DPI
-        let label152 = ZPLLabel(width: 4, height: 2, dpi: .dpi152) {
-            Box(at: .dots(100, 100), width: .dots(200), height: .dots(150))
-        }
-        let label600 = ZPLLabel(width: 4, height: 2, dpi: .dpi600) {
-            Box(at: .dots(100, 100), width: .dots(200), height: .dots(150))
-        }
-
-        // Both should have same position and dimensions in dots
-        XCTAssertTrue(label152.render().contains("^FO100,100"))
-        XCTAssertTrue(label152.render().contains("^GB200,150,"))
-        XCTAssertTrue(label600.render().contains("^FO100,100"))
-        XCTAssertTrue(label600.render().contains("^GB200,150,"))
-    }
-
-    func testDPIAllBarcodeTypes() {
-        // Test that barcodes render at different DPIs
-        for dpi in [DPI.dpi152, .dpi200, .dpi203, .dpi300, .dpi600] {
-            let label = ZPLLabel(width: 4, height: 4, dpi: dpi) {
-                Barcode128("TEST", at: .inches(0.5, 0.5))
-                QRCode("TEST", at: .inches(0.5, 1.5))
-            }
-            let zpl = label.render()
-            XCTAssertTrue(zpl.contains("^BC"))
-            XCTAssertTrue(zpl.contains("^BQ"))
-        }
-    }
-
-    func testDPIShapesAtAllResolutions() {
-        for dpi in [DPI.dpi152, .dpi200, .dpi203, .dpi300, .dpi600] {
-            let label = ZPLLabel(width: 4, height: 4, dpi: dpi) {
-                Box(at: .inches(0.25, 0.25), width: .inches(0.5), height: .inches(0.5))
-                Circle(at: .inches(1.0, 0.25), diameter: .inches(0.5))
-                Ellipse(at: .inches(1.75, 0.25), width: .inches(0.75), height: .inches(0.5))
-            }
-            let zpl = label.render()
-            XCTAssertTrue(zpl.contains("^GB"))
-            XCTAssertTrue(zpl.contains("^GC"))
-            XCTAssertTrue(zpl.contains("^GE"))
-        }
-    }
-
-    // MARK: - Complex Layout Tests
-
-    func testMultipleOverlappingElements() {
+    @Test("Overlapping elements all render")
+    func multipleOverlappingElements() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            // Background box
             Box(at: .dots(50, 50), width: .dots(300), height: .dots(200))
                 .filled()
-            // Overlapping text (white on black)
             Text("OVERLAPPING", at: .dots(100, 100))
                 .font(.default, height: .dots(40))
                 .reversed()
-            // Another shape on top
             Circle(at: .dots(200, 100), diameter: .dots(80))
                 .white()
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GB300,200,"))  // Filled box
-        XCTAssertTrue(zpl.contains("^FR"))  // Reversed text
-        XCTAssertTrue(zpl.contains("^GC80,"))  // Circle
+        #expect(zpl.contains("^GB300,200,"))  // Filled box
+        #expect(zpl.contains("^FR"))           // Reversed text
+        #expect(zpl.contains("^GC80,"))        // Circle
     }
 
-    func testManyElementsLabel() {
+    @Test("Many element types render in a shipping label")
+    func manyElementsLabel() {
         let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
-            // Header
             Text("SHIPPING LABEL", at: .dots(50, 30))
                 .font(.default, height: .dots(40))
             HorizontalLine(at: .dots(50, 80), length: .dots(700), thickness: .dots(3))
-
-            // Address block
             TextBlock("John Doe\n123 Main Street\nAnytown, ST 12345", at: .dots(50, 100), width: .dots(400))
                 .maxLines(4)
-
-            // Barcode section
             Barcode128("1Z999AA10123456784", at: .dots(50, 300))?
                 .height(.dots(100))
                 .moduleWidth(2)
-
-            // QR code
             QRCode("https://track.example.com/1Z999AA10123456784", at: .dots(500, 100))
                 .magnification(4)
-
-            // Footer
             HorizontalLine(at: .dots(50, 500), length: .dots(700), thickness: .dots(2))
             Text("Thank you for your order!", at: .dots(50, 520))
         }
-
         let zpl = label.render()
-        // Verify all elements are present
-        XCTAssertTrue(zpl.contains("^FDSHIPPING LABEL"))
-        XCTAssertTrue(zpl.contains("^FB"))  // TextBlock
-        XCTAssertTrue(zpl.contains("^BC"))  // Barcode128
-        XCTAssertTrue(zpl.contains("^BQ"))  // QRCode
-        XCTAssertTrue(zpl.contains("Thank you"))
+        #expect(zpl.contains("^FDSHIPPING LABEL"))
+        #expect(zpl.contains("^FB"))
+        #expect(zpl.contains("^BC"))
+        #expect(zpl.contains("^BQ"))
+        #expect(zpl.contains("Thank you"))
     }
 
-    func testConditionalBuilderLogic() {
+    @Test("Conditional builder logic includes/excludes elements")
+    func conditionalBuilderLogic() {
         let showBarcode = true
         let showQR = false
 
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Product", at: .dots(50, 50))
-
             if showBarcode {
                 Barcode128("ABC123", at: .dots(50, 100))
             }
-
             if showQR {
                 QRCode("https://example.com", at: .dots(300, 50))
             }
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^BC"))  // Barcode should be present
-        XCTAssertFalse(zpl.contains("^BQ"))  // QR should not be present
+        #expect(zpl.contains("^BC"))
+        #expect(!zpl.contains("^BQ"))
     }
 
-    func testLoopBuilderLogic() {
+    @Test("Loop builder logic renders each item")
+    func loopBuilderLogic() {
         let items = ["Apple", "Banana", "Cherry"]
-
         let label = ZPLLabel(width: 4, height: 3, dpi: .dpi203) {
             for (index, item) in items.enumerated() {
                 Text(item, at: .dots(50, 50 + index * 60))
             }
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FDApple"))
-        XCTAssertTrue(zpl.contains("^FDBanana"))
-        XCTAssertTrue(zpl.contains("^FDCherry"))
+        #expect(zpl.contains("^FDApple"))
+        #expect(zpl.contains("^FDBanana"))
+        #expect(zpl.contains("^FDCherry"))
     }
 
-    func testOptionalElementsInBuilder() {
+    @Test("Failable barcode in builder: valid present, invalid dropped")
+    func optionalElementsInBuilder() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Text("Always present", at: .dots(50, 50))
-
-            // Failable barcode that succeeds
             Barcode128("VALID123", at: .dots(50, 100))
-
-            // Failable barcode that fails (non-ASCII)
             Barcode128("INVALID\u{0080}", at: .dots(50, 200))
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FDVALID123"))
-        XCTAssertFalse(zpl.contains("INVALID"))  // Invalid barcode should not appear
+        #expect(zpl.contains("^FDVALID123"))
+        #expect(!zpl.contains("INVALID"))
     }
 
-    func testMixedElementTypesLabel() {
+    @Test("Mixed element types all render")
+    func mixedElementTypesLabel() {
         let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
-            // Text elements
             Text("Title", at: .dots(50, 30))
             TextBlock("Description here", at: .dots(50, 70), width: .dots(300))
-
-            // Shapes
             Box(at: .dots(400, 30), width: .dots(100), height: .dots(80))
             Circle(at: .dots(550, 50), diameter: .dots(60))
             Ellipse(at: .dots(650, 30), width: .dots(100), height: .dots(60))
             HorizontalLine(at: .dots(50, 150), length: .dots(700))
             VerticalLine(at: .dots(400, 200), length: .dots(300))
             DiagonalLine(at: .dots(450, 200), width: .dots(100), height: .dots(100))
-
-            // 1D Barcodes
             Barcode128("BC128", at: .dots(50, 200))
             Code39("CODE39", at: .dots(50, 350))
-
-            // 2D Barcodes
             QRCode("QR", at: .dots(50, 500))
             DataMatrix("DM", at: .dots(200, 500))
-
-            // Comment (non-printing)
             Comment("End of label")
         }
-
         let zpl = label.render()
-
-        // Verify all element types present
-        XCTAssertTrue(zpl.contains("^FDTitle"))
-        XCTAssertTrue(zpl.contains("^FB"))
-        XCTAssertTrue(zpl.contains("^GB"))  // Box and lines
-        XCTAssertTrue(zpl.contains("^GC"))  // Circle
-        XCTAssertTrue(zpl.contains("^GE"))  // Ellipse
-        XCTAssertTrue(zpl.contains("^GD"))  // Diagonal
-        XCTAssertTrue(zpl.contains("^BC"))  // Code128
-        XCTAssertTrue(zpl.contains("^B3"))  // Code39
-        XCTAssertTrue(zpl.contains("^BQ"))  // QR
-        XCTAssertTrue(zpl.contains("^BX"))  // DataMatrix
-        XCTAssertTrue(zpl.contains("^FX"))  // Comment
+        #expect(zpl.contains("^FDTitle"))
+        #expect(zpl.contains("^FB"))
+        #expect(zpl.contains("^GB"))  // Box and lines
+        #expect(zpl.contains("^GC"))  // Circle
+        #expect(zpl.contains("^GE"))  // Ellipse
+        #expect(zpl.contains("^GD"))  // Diagonal
+        #expect(zpl.contains("^BC"))  // Code128
+        #expect(zpl.contains("^B3"))  // Code39
+        #expect(zpl.contains("^BQ"))  // QR
+        #expect(zpl.contains("^BX"))  // DataMatrix
+        #expect(zpl.contains("^FX"))  // Comment
     }
 
-    func testLargeNumberOfElements() {
-        // Test with 50 text elements
+    @Test("Large number of elements all render with correct field separator count")
+    func largeNumberOfElements() {
         let label = ZPLLabel(width: 10, height: 10, dpi: .dpi203) {
             for i in 0..<50 {
                 Text("Item \(i)", at: .dots(50, 20 + i * 40))
             }
         }
-
         let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FDItem 0"))
-        XCTAssertTrue(zpl.contains("^FDItem 49"))
-
-        // Count field separators to verify all elements rendered
+        #expect(zpl.contains("^FDItem 0"))
+        #expect(zpl.contains("^FDItem 49"))
         let fsCount = zpl.components(separatedBy: "^FS").count - 1
-        XCTAssertEqual(fsCount, 50)
+        #expect(fsCount == 50)
     }
 
-    func testNestedBoxLayout() {
+    @Test("Nested box layout with distinct thicknesses")
+    func nestedBoxLayout() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            // Outer border
             Box(at: .dots(20, 20), width: .dots(760), height: .dots(760))
                 .thickness(.dots(4))
-
-            // Inner border
             Box(at: .dots(40, 40), width: .dots(720), height: .dots(720))
                 .thickness(.dots(2))
-
-            // Content area
             Box(at: .dots(60, 60), width: .dots(680), height: .dots(680))
                 .thickness(.dots(1))
-
-            // Center content
             Text("CENTERED", at: .dots(300, 380))
         }
-
         let zpl = label.render()
-        // Should have 3 boxes with different thicknesses
-        XCTAssertTrue(zpl.contains("^GB760,760,4"))
-        XCTAssertTrue(zpl.contains("^GB720,720,2"))
-        XCTAssertTrue(zpl.contains("^GB680,680,1"))
+        #expect(zpl.contains("^GB760,760,4"))
+        #expect(zpl.contains("^GB720,720,2"))
+        #expect(zpl.contains("^GB680,680,1"))
+    }
+}
+
+// MARK: - Printer Commands
+
+@Suite("Printer Commands")
+struct PrinterCommandTests {
+
+    @Test("printNetworkConfig zpl and rawValue are ~WL")
+    func printerCommandPrintNetworkConfig() {
+        #expect(PrinterCommand.printNetworkConfig.zpl == "~WL")
+        #expect(PrinterCommand.printNetworkConfig.rawValue == "~WL")
     }
 
-    #if canImport(CoreGraphics)
-    func testGraphicBasic() {
-        // Create a simple 8x8 test pattern (checkerboard)
-        let width = 8
-        let height = 8
-        let bytesPerRow = width
-        var pixelData = [UInt8](repeating: 0, count: width * height)
-
-        // Create checkerboard: black pixels where (x+y) is even
-        for y in 0..<height {
-            for x in 0..<width {
-                pixelData[y * width + x] = ((x + y) % 2 == 0) ? 0 : 255
-            }
-        }
-
-        let colorSpace = CGColorSpace(name: CGColorSpace.linearGray)!
-        let context = CGContext(
-            data: &pixelData,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: bytesPerRow,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.none.rawValue
-        )!
-
-        let cgImage = context.makeImage()!
-
-        let label = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
-            Graphic(cgImage, at: .dots(10, 10), width: .dots(8))
-        }
-
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^GFA,"))  // ASCII format
-        XCTAssertTrue(zpl.contains("^FO10,10"))  // Position
+    // Remaining commands: zpl matches expected control code.
+    @Test(arguments: [
+        (PrinterCommand.calibrate, "~JC"),
+        (PrinterCommand.reset, "~JR"),
+        (PrinterCommand.cancelJob, "~JA")
+    ])
+    func printerCommandZPL(command: PrinterCommand, expected: String) {
+        #expect(command.zpl == expected)
     }
+}
 
-    func testGraphicWithInvert() {
-        // Create a simple black square
-        let width = 8
-        let height = 8
-        var pixelData = [UInt8](repeating: 0, count: width * height)  // All black
+// MARK: - Graphics (CoreGraphics only)
 
-        let colorSpace = CGColorSpace(name: CGColorSpace.linearGray)!
-        let context = CGContext(
-            data: &pixelData,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: width,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.none.rawValue
-        )!
-
-        let cgImage = context.makeImage()!
-
-        let labelNormal = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
-            Graphic(cgImage, at: .dots(10, 10), width: .dots(8), invert: false)
-        }
-
-        let labelInverted = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
-            Graphic(cgImage, at: .dots(10, 10), width: .dots(8), invert: true)
-        }
-
-        let zplNormal = labelNormal.render()
-        let zplInverted = labelInverted.render()
-
-        // The hex data should be different when inverted
-        XCTAssertNotEqual(zplNormal, zplInverted)
-    }
-
-    // MARK: - Graphic Dithering Tests
+#if canImport(CoreGraphics)
+@Suite("Graphics")
+struct GraphicTests {
 
     /// Helper: creates a grayscale gradient CGImage (left=black, right=white).
     private func makeGradientImage(width: Int, height: Int) -> CGImage {
@@ -1959,9 +1636,16 @@ final class ZPLKitTests: XCTestCase {
         return context.makeImage()!
     }
 
-    /// Helper: creates a solid gray CGImage.
-    private func makeSolidImage(width: Int, height: Int, gray: UInt8) -> CGImage {
-        var pixelData = [UInt8](repeating: gray, count: width * height)
+    @Test("Graphic basic checkerboard renders ^GFA and position")
+    func graphicBasic() {
+        let width = 8
+        let height = 8
+        var pixelData = [UInt8](repeating: 0, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width {
+                pixelData[y * width + x] = ((x + y) % 2 == 0) ? 0 : 255
+            }
+        }
         let colorSpace = CGColorSpace(name: CGColorSpace.linearGray)!
         let context = CGContext(
             data: &pixelData,
@@ -1972,12 +1656,45 @@ final class ZPLKitTests: XCTestCase {
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.none.rawValue
         )!
-        return context.makeImage()!
+        let cgImage = context.makeImage()!
+
+        let label = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(cgImage, at: .dots(10, 10), width: .dots(8))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^GFA,"))     // ASCII format
+        #expect(zpl.contains("^FO10,10"))  // Position
     }
 
-    func testGraphicDitherNoneMatchesDefault() {
-        let gradient = makeGradientImage(width: 32, height: 32)
+    @Test("Graphic invert produces different hex data")
+    func graphicWithInvert() {
+        let width = 8
+        let height = 8
+        var pixelData = [UInt8](repeating: 0, count: width * height)  // All black
+        let colorSpace = CGColorSpace(name: CGColorSpace.linearGray)!
+        let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        )!
+        let cgImage = context.makeImage()!
 
+        let labelNormal = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(cgImage, at: .dots(10, 10), width: .dots(8), invert: false)
+        }
+        let labelInverted = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+            Graphic(cgImage, at: .dots(10, 10), width: .dots(8), invert: true)
+        }
+        #expect(labelNormal.render() != labelInverted.render())
+    }
+
+    @Test("Dither .none matches default (threshold)")
+    func graphicDitherNoneMatchesDefault() {
+        let gradient = makeGradientImage(width: 32, height: 32)
         let labelDefault = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
             Graphic(gradient, at: .dots(0, 0), width: .dots(32))
         }
@@ -1985,62 +1702,30 @@ final class ZPLKitTests: XCTestCase {
             Graphic(gradient, at: .dots(0, 0), width: .dots(32))
                 .dither(.none)
         }
-
-        XCTAssertEqual(labelDefault.render(), labelNone.render())
+        #expect(labelDefault.render() == labelNone.render())
     }
 
-    func testGraphicFloydSteinbergDiffersFromThreshold() {
+    // Each non-default dither mode must differ from the default threshold rendering.
+    @Test(arguments: [DitherMethod.floydSteinberg, .atkinson, .threshold(64)])
+    func graphicDitherDiffersFromThreshold(mode: DitherMethod) {
         let gradient = makeGradientImage(width: 32, height: 32)
-
         let labelThreshold = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
             Graphic(gradient, at: .dots(0, 0), width: .dots(32))
         }
-        let labelFS = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
+        let labelDithered = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
             Graphic(gradient, at: .dots(0, 0), width: .dots(32))
-                .dither(.floydSteinberg)
+                .dither(mode)
         }
-
-        XCTAssertNotEqual(labelThreshold.render(), labelFS.render())
+        #expect(labelThreshold.render() != labelDithered.render())
     }
 
-    func testGraphicAtkinsonDiffersFromThreshold() {
-        let gradient = makeGradientImage(width: 32, height: 32)
-
-        let labelThreshold = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
-            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
-        }
-        let labelAtkinson = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
-            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
-                .dither(.atkinson)
-        }
-
-        XCTAssertNotEqual(labelThreshold.render(), labelAtkinson.render())
-    }
-
-    func testGraphicCustomThreshold() {
-        let gradient = makeGradientImage(width: 32, height: 32)
-
-        let labelDefault = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
-            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
-        }
-        let labelLow = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
-            Graphic(gradient, at: .dots(0, 0), width: .dots(32))
-                .dither(.threshold(64))
-        }
-
-        // Lower threshold means fewer pixels become black
-        XCTAssertNotEqual(labelDefault.render(), labelLow.render())
-    }
-
-    func testGraphicAspectFillCrop() {
-        // Wide source (32x8) with black edges, white center.
-        // Stretch squishes the whole image; aspectFill crops to center (white) portion.
+    @Test("Aspect fill crops differently from stretch")
+    func graphicAspectFillCrop() {
         let width = 32
         let height = 8
         var pixelData = [UInt8](repeating: 0, count: width * height)
         for y in 0..<height {
             for x in 0..<width {
-                // Left quarter and right quarter are black (0), middle half is white (255)
                 let isEdge = x < 8 || x >= 24
                 pixelData[y * width + x] = isEdge ? 0 : 255
             }
@@ -2064,14 +1749,12 @@ final class ZPLKitTests: XCTestCase {
             Graphic(wideImage, at: .dots(0, 0), width: .dots(8), height: .dots(8))
                 .contentMode(.aspectFill)
         }
-
-        // Stretch keeps the black edges; aspectFill crops to center (mostly white)
-        XCTAssertNotEqual(labelStretch.render(), labelFill.render())
+        #expect(labelStretch.render() != labelFill.render())
     }
 
-    func testGraphicContentModeStretchIsDefault() {
+    @Test("Content mode .stretch is the default")
+    func graphicContentModeStretchIsDefault() {
         let gradient = makeGradientImage(width: 32, height: 16)
-
         let labelDefault = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
             Graphic(gradient, at: .dots(0, 0), width: .dots(16), height: .dots(16))
         }
@@ -2079,168 +1762,7 @@ final class ZPLKitTests: XCTestCase {
             Graphic(gradient, at: .dots(0, 0), width: .dots(16), height: .dots(16))
                 .contentMode(.stretch)
         }
-
-        XCTAssertEqual(labelDefault.render(), labelStretch.render())
-    }
-    #endif
-
-    // MARK: - Printer Commands
-
-    func testPrinterCommandPrintNetworkConfig() {
-        XCTAssertEqual(PrinterCommand.printNetworkConfig.zpl, "~WL")
-        XCTAssertEqual(PrinterCommand.printNetworkConfig.rawValue, "~WL")
-    }
-
-    func testPrinterCommandCalibrate() {
-        XCTAssertEqual(PrinterCommand.calibrate.zpl, "~JC")
-    }
-
-    func testPrinterCommandReset() {
-        XCTAssertEqual(PrinterCommand.reset.zpl, "~JR")
-    }
-
-    func testPrinterCommandCancelJob() {
-        XCTAssertEqual(PrinterCommand.cancelJob.zpl, "~JA")
-    }
-
-    // MARK: - Barcode Field-Data Escaping
-
-    func testBarcode128EscapesSpecialChars() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Barcode128("A^B~C_D", at: .inches(0.25, 0.5))
-        }
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))           // hex mode enabled
-        XCTAssertTrue(zpl.contains("^FDA_5EB_7EC_5FD^FS"))
-        // The raw control sequence must NOT leak into the command stream
-        XCTAssertFalse(zpl.contains("^FDA^B~C_D^FS"))
-    }
-
-    func testBarcode128NormalDataUnchanged() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Barcode128("ABC123", at: .inches(0.25, 0.5))
-        }
-        let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("^FDABC123^FS"))
-    }
-
-    func testQRCodeEscapesSpecialCharsKeepingPrefix() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            QRCode("a^b~c_d", at: .inches(0.5, 0.5))
-        }
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))
-        // Error-correction + input-mode prefix ("MA,") stays UNescaped,
-        // only the user payload is hex-escaped.
-        XCTAssertTrue(zpl.contains("^FDMA,a_5Eb_7Ec_5Fd^FS"))
-    }
-
-    func testQRCodeNormalDataUnchanged() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            QRCode("https://example.com", at: .inches(0.5, 0.5))
-        }
-        let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("^FDMA,https://example.com^FS"))
-    }
-
-    func testPDF417EscapesSpecialChars() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            PDF417("x^y~z_w", at: .inches(0.25, 0.25))
-        }
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("^FDx_5Ey_7Ez_5Fw^FS"))
-    }
-
-    func testPDF417NormalDataUnchanged() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            PDF417("SHIPPING-MANIFEST-12345", at: .inches(0.25, 0.25))
-        }
-        let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("^FDSHIPPING-MANIFEST-12345^FS"))
-    }
-
-    func testDataMatrixEscapesSpecialChars() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            DataMatrix("d^m~x_y", at: .inches(0.5, 0.5))
-        }
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("^FDd_5Em_7Ex_5Fy^FS"))
-    }
-
-    func testDataMatrixNormalDataUnchanged() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            DataMatrix("SERIAL123", at: .inches(0.5, 0.5))
-        }
-        let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("^FDSERIAL123^FS"))
-    }
-
-    func testAztecEscapesSpecialChars() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Aztec("a^z~q_r", at: .inches(0.5, 0.5))
-        }
-        let zpl = label.render()
-        XCTAssertTrue(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("^FDa_5Ez_7Eq_5Fr^FS"))
-    }
-
-    func testAztecNormalDataUnchanged() {
-        let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            Aztec("TICKET-DATA-12345", at: .inches(0.5, 0.5))
-        }
-        let zpl = label.render()
-        XCTAssertFalse(zpl.contains("^FH"))
-        XCTAssertTrue(zpl.contains("^FDTICKET-DATA-12345^FS"))
-    }
-
-    // MARK: - DataMatrix Column/Row Clamping
-
-    func testDataMatrixColumnsRowsClamped() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            DataMatrix("DATA", at: .inches(0.5, 0.5))
-                .columns(1000)
-                .rows(0)
-        }
-        let zpl = label.render()
-        // Clamped to the ^BX range 9-49
-        XCTAssertTrue(zpl.contains(",49,9^FD"))
-    }
-
-    // MARK: - Substitution Escaping
-
-    func testSubstitutionEscapesInjectionValue() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("{{val}}", at: .inches(0.25, 0.25))
-        }
-        // A value attempting to inject ^XZ (end-of-label) must be neutralized.
-        let zpl = label.render(substituting: ["val": "X^XZ"])
-        XCTAssertFalse(zpl.contains("X^XZ"))      // injection sequence neutralized
-        XCTAssertTrue(zpl.contains("X_5EXZ"))     // caret hex-escaped
-        // Only the closing ^XZ emitted by the renderer should remain.
-        XCTAssertEqual(zpl.components(separatedBy: "^XZ").count - 1, 1)
-    }
-
-    func testSubstitutionNormalValueUnchanged() {
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("Order: {{orderNumber}}", at: .inches(0.25, 0.25))
-        }
-        let zpl = label.render(substituting: ["orderNumber": "12345"])
-        XCTAssertTrue(zpl.contains("^FDOrder: 12345^FS"))
-    }
-
-    func testSubstitutionDeterministicWithPrefixKeys() {
-        // "item" is a prefix of "itemCount"; the longer key must win.
-        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-            Text("{{itemCount}}", at: .inches(0.25, 0.25))
-        }
-        let zpl = label.render(substituting: ["item": "WRONG", "itemCount": "42"])
-        XCTAssertTrue(zpl.contains("^FD42^FS"))
-        XCTAssertFalse(zpl.contains("WRONG"))
+        #expect(labelDefault.render() == labelStretch.render())
     }
 }
+#endif
