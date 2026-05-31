@@ -1,6 +1,29 @@
 import Foundation
 import Network
 
+/// Thread-safe replacement for `strerror`, which returns a pointer to a shared
+/// static buffer and is therefore not reentrant. `send()` runs its blocking
+/// socket work on `DispatchQueue.global()`, so concurrent calls can race on
+/// that buffer. `strerror_r` writes into a caller-provided buffer instead.
+///
+/// On Darwin (and other XSI-compliant platforms) `strerror_r` returns an
+/// `Int32` (0 on success); the GNU variant that returns a `char *` is not used
+/// here.
+private func posixErrorString(_ code: Int32) -> String {
+    var buffer = [UInt8](repeating: 0, count: 256)
+    let result = buffer.withUnsafeMutableBytes { raw -> Int32 in
+        guard let base = raw.baseAddress else { return -1 }
+        return strerror_r(code, base.assumingMemoryBound(to: CChar.self), raw.count)
+    }
+    // XSI-compliant strerror_r returns 0 on success.
+    if result == 0 {
+        // Decode up to the NUL terminator written by strerror_r.
+        let bytes = buffer.prefix { $0 != 0 }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+    return "Unknown error \(code)"
+}
+
 /// Actor to safely manage query (send + receive) state across async callbacks.
 private actor QueryState {
     private var continuation: CheckedContinuation<Data, Error>?
@@ -205,7 +228,8 @@ public struct ZPLPrinter: Sendable {
                 // Non-blocking connect with poll() for connect timeout.
                 let getFlags = fcntl(sock, F_GETFL, 0)
                 guard getFlags >= 0 else {
-                    let err = String(cString: strerror(errno))
+                    let savedErrno = errno
+                    let err = posixErrorString(savedErrno)
                     Darwin.close(sock)
                     continuation.resume(throwing: PrinterError.connectionFailed(
                         host: host, port: port, underlying: "fcntl(F_GETFL) failed: \(err)"))
@@ -230,9 +254,10 @@ public struct ZPLPrinter: Sendable {
                         Darwin.connect(sock, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
                     }
                 }
+                let connectErrno = errno
 
-                if connectResult != 0 && errno != EINPROGRESS {
-                    let err = String(cString: strerror(errno))
+                if connectResult != 0 && connectErrno != EINPROGRESS {
+                    let err = posixErrorString(connectErrno)
                     Darwin.close(sock)
                     continuation.resume(throwing: PrinterError.connectionFailed(
                         host: host, port: port, underlying: err))
@@ -254,7 +279,8 @@ public struct ZPLPrinter: Sendable {
                     var soLen = socklen_t(MemoryLayout<Int32>.size)
                     let getsockoptResult = getsockopt(sock, SOL_SOCKET, SO_ERROR, &soError, &soLen)
                     if getsockoptResult != 0 {
-                        let err = String(cString: strerror(errno))
+                        let savedErrno = errno
+                        let err = posixErrorString(savedErrno)
                         Darwin.close(sock)
                         continuation.resume(throwing: PrinterError.connectionFailed(
                             host: host, port: port, underlying: "getsockopt(SO_ERROR) failed: \(err)"))
@@ -268,7 +294,7 @@ public struct ZPLPrinter: Sendable {
                             continuation.resume(throwing: PrinterError.connectionFailed(
                                 host: host, port: port, underlying: "Connection refused"))
                         } else {
-                            let err = String(cString: strerror(soError))
+                            let err = posixErrorString(soError)
                             continuation.resume(throwing: PrinterError.connectionFailed(
                                 host: host, port: port, underlying: err))
                         }
@@ -308,7 +334,7 @@ public struct ZPLPrinter: Sendable {
                 if sent == count {
                     continuation.resume()
                 } else if writeErrno != 0 {
-                    let err = String(cString: strerror(writeErrno))
+                    let err = posixErrorString(writeErrno)
                     continuation.resume(throwing: PrinterError.sendFailed(underlying: err))
                 } else {
                     continuation.resume(throwing: PrinterError.sendFailed(
