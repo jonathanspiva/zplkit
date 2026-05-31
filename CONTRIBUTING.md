@@ -39,12 +39,15 @@ Tests/
 ├── ZPLKitRendererTests/  # Parser and renderer tests
 ├── ZPLKitPrinterTests/   # Printer communication tests
 ├── ZPLVerifierTests/     # Verification tests
-└── VisualTestHarness/    # 114 ZPL fixtures + comparison tools
+└── VisualTestHarness/    # 124 ZPL fixtures + comparison tools
 
 Tools/
 ├── RenderFixtures/   # Render all fixtures to PNG
 ├── VisualTests/      # Generate comparison HTML
-└── GraphicsTest/     # FontAwesome icon testing
+├── PrinterTests/     # Network printing integration checks
+├── GraphicPrintTest/ # Graphic/image printing checks
+├── DitherTestPrint/  # Dithering output checks
+└── StatusCheck/      # Printer status query checks
 ```
 
 ## Running Tests

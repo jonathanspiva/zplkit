@@ -45,9 +45,7 @@ let package = Package(
             targets: ["ZPLKitPrinter"]
         ),
     ],
-    dependencies: [
-        .package(url: "https://github.com/LiveUI/Awesome", from: "2.0.0"),
-    ],
+    dependencies: [],
     targets: [
         .target(
             name: "ZPLKit",
@@ -100,12 +98,6 @@ let package = Package(
             name: "VisualTests",
             dependencies: ["ZPLKitRenderer", "ZPLVerifier"],
             path: "Tools/VisualTests",
-            swiftSettings: sharedSwiftSettings
-        ),
-        .executableTarget(
-            name: "GraphicsTest",
-            dependencies: ["ZPLKit", "Awesome"],
-            path: "Tools/GraphicsTest",
             swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
