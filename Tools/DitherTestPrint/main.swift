@@ -4,10 +4,15 @@ import ImageIO
 import ZPLKit
 import ZPLKitPrinter
 
-// Load the car photo
-let imagePath = CommandLine.arguments.count > 1
-    ? CommandLine.arguments[1]
-    : "/Users/jonathanspiva/code/personal-technology/test-images/car.jpeg"
+// Load the image from the required path argument.
+guard CommandLine.arguments.count > 1 else {
+    print("Usage: swift run DitherTestPrint <image-path>")
+    print("  Prints a dithered photo to the configured printers.")
+    print("  Hosts come from ZPLTOOL_ZM400_HOST / ZPLTOOL_GX420T_HOST")
+    print("  (each defaults to 192.168.1.100 if unset).")
+    exit(1)
+}
+let imagePath = CommandLine.arguments[1]
 
 let imageURL = URL(fileURLWithPath: imagePath)
 guard let dataProvider = CGDataProvider(url: imageURL as CFURL),
@@ -21,9 +26,10 @@ print("Loaded image: \(cgImage.width)x\(cgImage.height)")
 
 // Both printers are 203 DPI, 4" wide labels
 // ZM400: 4x6 labels, GX420t: 4x2 labels (direct thermal)
+let env = ProcessInfo.processInfo.environment
 let printers: [(name: String, host: String, labelHeight: Double)] = [
-    ("ZM400", "192.168.7.4", 6.0),
-    ("GX420t", "192.168.7.5", 2.0),
+    ("ZM400", env["ZPLTOOL_ZM400_HOST"] ?? "192.168.1.100", 6.0),
+    ("GX420t", env["ZPLTOOL_GX420T_HOST"] ?? "192.168.1.100", 2.0),
 ]
 
 for printer in printers {

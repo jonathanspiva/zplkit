@@ -18,16 +18,16 @@ private let liveTestsEnabled = ProcessInfo.processInfo.environment["ZPLTOOL_LIVE
 ///
 /// Environment variables:
 /// - `ZPLTOOL_LIVE_TESTS`: Set to "1" to enable live tests
-/// - `ZPLTOOL_ZM400_HOST`: ZM400 IP (default: 192.168.7.4)
-/// - `ZPLTOOL_GX420T_HOST`: GX420t IP (default: 192.168.7.5)
+/// - `ZPLTOOL_ZM400_HOST`: ZM400 IP (default: 192.168.1.100)
+/// - `ZPLTOOL_GX420T_HOST`: GX420t IP (default: 192.168.1.100)
 @Suite("Live Printer Tests", .tags(.live), .serialized, .enabled(if: liveTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable"))
 struct LivePrinterTests {
     let zm400: ZPLPrinter
     let gx420t: ZPLPrinter
 
     init() {
-        let zm400Host = ProcessInfo.processInfo.environment["ZPLTOOL_ZM400_HOST"] ?? "192.168.7.4"
-        let gx420tHost = ProcessInfo.processInfo.environment["ZPLTOOL_GX420T_HOST"] ?? "192.168.7.5"
+        let zm400Host = ProcessInfo.processInfo.environment["ZPLTOOL_ZM400_HOST"] ?? "192.168.1.100"
+        let gx420tHost = ProcessInfo.processInfo.environment["ZPLTOOL_GX420T_HOST"] ?? "192.168.1.100"
 
         zm400 = ZPLPrinter(host: zm400Host, timeout: 10)
         gx420t = ZPLPrinter(host: gx420tHost, timeout: 10)

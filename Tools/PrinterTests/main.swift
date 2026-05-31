@@ -10,8 +10,8 @@ import ZPLKitPrinter
 /// correct results from real printer responses.
 ///
 /// Usage:
-///   swift run PrinterTests 192.168.7.4 192.168.7.5 192.168.7.6
-///   swift run PrinterTests --timeout 15 192.168.7.4
+///   swift run PrinterTests 192.168.1.100 192.168.1.101 192.168.1.102
+///   swift run PrinterTests --timeout 15 192.168.1.100
 
 // MARK: - Test Infrastructure
 
@@ -650,7 +650,7 @@ func parseArgs() -> (hosts: [String], timeout: TimeInterval) {
               --help, -h           Show this help
 
             Example:
-              swift run PrinterTests 192.168.7.4 192.168.7.5 192.168.7.6
+              swift run PrinterTests 192.168.1.100 192.168.1.101 192.168.1.102
             """)
             exit(0)
         } else {

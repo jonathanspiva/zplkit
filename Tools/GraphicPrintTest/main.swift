@@ -6,7 +6,9 @@ import ZPLKitPrinter
 
 // MARK: - Render a 4x2 label entirely as a bitmap graphic
 
-let host = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "192.168.7.4"
+let host = CommandLine.arguments.count > 1
+    ? CommandLine.arguments[1]
+    : (ProcessInfo.processInfo.environment["ZPLTOOL_ZM400_HOST"] ?? "192.168.1.100")
 let dpi = 203
 let widthDots = 812   // 4 inches at 203 DPI
 let heightDots = 406  // 2 inches at 203 DPI

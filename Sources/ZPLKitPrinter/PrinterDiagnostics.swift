@@ -12,7 +12,7 @@ import Foundation
 /// ## Example
 ///
 /// ```swift
-/// let printer = ZPLPrinter(host: "192.168.7.4")
+/// let printer = ZPLPrinter(host: "192.168.1.100")
 /// let diag = try await printer.queryDiagnostics()
 ///
 /// print("Model: \(diag.info.model)")
