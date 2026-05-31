@@ -5,12 +5,23 @@ import Network
 private actor QueryState {
     private var continuation: CheckedContinuation<Data, Error>?
     private var hasCompleted = false
+    private var pendingResult: Result<Data, Error>?
     private var responseBuffer = Data()
     private var hasSentCommand = false
     private var lastReceiveTime: UInt64 = 0
 
     func setContinuation(_ continuation: CheckedContinuation<Data, Error>) {
-        self.continuation = continuation
+        // If a result was already produced before the continuation was
+        // registered (e.g. the connection failed before the detached
+        // setup task ran), resume immediately with that result rather than
+        // storing the continuation. Otherwise the continuation would never
+        // be resumed and query() would hang forever.
+        if let pending = pendingResult {
+            self.pendingResult = nil
+            QueryState.resume(continuation, with: pending)
+        } else {
+            self.continuation = continuation
+        }
     }
 
     func markCommandSent() {
@@ -35,18 +46,34 @@ private actor QueryState {
     }
 
     func complete(with result: Result<Data, Error>) {
-        guard !hasCompleted, let continuation = continuation else { return }
+        // Only the first completion wins; subsequent calls are ignored.
+        guard !hasCompleted else { return }
         hasCompleted = true
+
+        if let continuation = continuation {
+            self.continuation = nil
+            QueryState.resume(continuation, with: result)
+        } else {
+            // The continuation hasn't been registered yet. Stash the result
+            // so setContinuation() can resume it as soon as it arrives.
+            pendingResult = result
+        }
+    }
+
+    func isCompleted() -> Bool {
+        hasCompleted
+    }
+
+    private static func resume(
+        _ continuation: CheckedContinuation<Data, Error>,
+        with result: Result<Data, Error>
+    ) {
         switch result {
         case .success(let data):
             continuation.resume(returning: data)
         case .failure(let error):
             continuation.resume(throwing: error)
         }
-    }
-
-    func isCompleted() -> Bool {
-        hasCompleted
     }
 }
 
@@ -142,9 +169,22 @@ public struct ZPLPrinter: Sendable {
     /// - Parameter data: The data to send.
     /// - Throws: `PrinterError` if the connection or send fails.
     public func send(_ data: Data) async throws {
+        // An empty send is a no-op success. Returning early also avoids a
+        // trap on `baseAddress` being nil for empty Data in withUnsafeBytes.
+        guard !data.isEmpty else { return }
+
+        // Honor cancellation before committing to blocking C socket work.
+        try Task.checkCancellation()
+
         let host = self.host
         let port = self.port
         let timeout = self.timeout
+
+        // Validate the port up front for parity with query(). A zero port
+        // cannot be connected to and would otherwise fail opaquely.
+        guard port != 0 else {
+            throw PrinterError.invalidConfiguration("Port \(port) is not valid")
+        }
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             DispatchQueue.global().async {
@@ -155,13 +195,23 @@ public struct ZPLPrinter: Sendable {
                     return
                 }
 
-                // Set send timeout
-                var tv = timeval(tv_sec: Int(timeout), tv_usec: 0)
+                // Set send timeout, preserving fractional seconds.
+                let clampedTimeout = max(0, timeout)
+                let timeoutSeconds = Int(clampedTimeout)
+                let timeoutMicros = Int32((clampedTimeout - Double(timeoutSeconds)) * 1_000_000)
+                var tv = timeval(tv_sec: timeoutSeconds, tv_usec: timeoutMicros)
                 setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
-                // Non-blocking connect with poll() for connect timeout
-                var flags = fcntl(sock, F_GETFL, 0)
-                _ = fcntl(sock, F_SETFL, flags | O_NONBLOCK)
+                // Non-blocking connect with poll() for connect timeout.
+                let getFlags = fcntl(sock, F_GETFL, 0)
+                guard getFlags >= 0 else {
+                    let err = String(cString: strerror(errno))
+                    Darwin.close(sock)
+                    continuation.resume(throwing: PrinterError.connectionFailed(
+                        host: host, port: port, underlying: "fcntl(F_GETFL) failed: \(err)"))
+                    return
+                }
+                _ = fcntl(sock, F_SETFL, getFlags | O_NONBLOCK)
 
                 var addr = sockaddr_in()
                 addr.sin_family = sa_family_t(AF_INET)
@@ -190,8 +240,10 @@ public struct ZPLPrinter: Sendable {
                 }
 
                 if connectResult != 0 {
+                    // poll() expects milliseconds; preserve fractional timeout.
+                    let pollTimeoutMillis = Int32((clampedTimeout * 1000).rounded())
                     var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
-                    let pollResult = poll(&pfd, 1, Int32(timeout) * 1000)
+                    let pollResult = poll(&pfd, 1, pollTimeoutMillis)
                     if pollResult <= 0 {
                         Darwin.close(sock)
                         continuation.resume(throwing: PrinterError.timeout(host: host, port: port))
@@ -200,7 +252,14 @@ public struct ZPLPrinter: Sendable {
 
                     var soError: Int32 = 0
                     var soLen = socklen_t(MemoryLayout<Int32>.size)
-                    getsockopt(sock, SOL_SOCKET, SO_ERROR, &soError, &soLen)
+                    let getsockoptResult = getsockopt(sock, SOL_SOCKET, SO_ERROR, &soError, &soLen)
+                    if getsockoptResult != 0 {
+                        let err = String(cString: strerror(errno))
+                        Darwin.close(sock)
+                        continuation.resume(throwing: PrinterError.connectionFailed(
+                            host: host, port: port, underlying: "getsockopt(SO_ERROR) failed: \(err)"))
+                        return
+                    }
                     if soError != 0 {
                         Darwin.close(sock)
                         if soError == ETIMEDOUT {
@@ -217,28 +276,53 @@ public struct ZPLPrinter: Sendable {
                     }
                 }
 
-                // Restore blocking mode for write
-                flags = fcntl(sock, F_GETFL, 0)
-                _ = fcntl(sock, F_SETFL, flags & ~O_NONBLOCK)
+                // Restore blocking mode for write.
+                let blockingFlags = fcntl(sock, F_GETFL, 0)
+                if blockingFlags >= 0 {
+                    _ = fcntl(sock, F_SETFL, blockingFlags & ~O_NONBLOCK)
+                }
 
-                let writeResult = data.withUnsafeBytes { buffer in
-                    Darwin.write(sock, buffer.baseAddress!, buffer.count)
+                // Loop until all bytes are written. A single blocking write()
+                // can short-write large payloads (e.g. ^GFA graphics) and can
+                // be interrupted (EINTR) on a healthy socket.
+                let count = data.count
+                var sent = 0
+                var writeErrno: Int32 = 0
+                data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                    guard let base = raw.baseAddress else { return }
+                    while sent < count {
+                        let n = Darwin.write(sock, base + sent, count - sent)
+                        if n < 0 {
+                            if errno == EINTR { continue }
+                            writeErrno = errno
+                            break
+                        }
+                        if n == 0 { break }
+                        sent += n
+                    }
                 }
 
                 // close() sends TCP FIN for graceful shutdown.
                 Darwin.close(sock)
 
-                if writeResult < 0 {
-                    let err = String(cString: strerror(errno))
-                    continuation.resume(throwing: PrinterError.sendFailed(underlying: err))
-                } else if writeResult != data.count {
-                    continuation.resume(throwing: PrinterError.sendFailed(
-                        underlying: "Partial write: \(writeResult) of \(data.count) bytes"))
-                } else {
+                if sent == count {
                     continuation.resume()
+                } else if writeErrno != 0 {
+                    let err = String(cString: strerror(writeErrno))
+                    continuation.resume(throwing: PrinterError.sendFailed(underlying: err))
+                } else {
+                    continuation.resume(throwing: PrinterError.sendFailed(
+                        underlying: "Partial write: \(sent) of \(count) bytes"))
                 }
             }
         }
+    }
+
+    /// Converts a `TimeInterval` (seconds) to nanoseconds, clamped to a
+    /// non-negative range so the `UInt64` conversion can never trap.
+    private func nanoseconds(from interval: TimeInterval) -> UInt64 {
+        let clamped = min(max(0, interval), TimeInterval(UInt64.max) / 1_000_000_000)
+        return UInt64(clamped * 1_000_000_000)
     }
 
     // MARK: - Query (Bidirectional Communication)
@@ -280,12 +364,22 @@ public struct ZPLPrinter: Sendable {
     public func query(_ data: Data, responseTimeout: TimeInterval = 5) async throws -> Data {
         let host = self.host
         let port = self.port
-        let connectionTimeoutNanos = UInt64(timeout * 1_000_000_000)
-        let responseTimeoutNanos = UInt64(responseTimeout * 1_000_000_000)
+        // Clamp timeouts to a non-negative range to avoid trapping when
+        // converting a negative or absurdly large TimeInterval to UInt64.
+        let connectionTimeoutNanos = nanoseconds(from: timeout)
+        let responseTimeoutNanos = nanoseconds(from: responseTimeout)
+
+        // Reject port 0 explicitly. NWEndpoint.Port(rawValue:) accepts 0 (so the
+        // original force-unwrap would not have crashed on 0 specifically), but 0
+        // is not a connectable port and connecting to it just hangs until the
+        // timeout. Guarding also covers any future rawValue that returns nil.
+        guard port != 0, let endpointPort = NWEndpoint.Port(rawValue: port) else {
+            throw PrinterError.invalidConfiguration("Port \(port) is not valid")
+        }
 
         let connection = NWConnection(
             host: NWEndpoint.Host(host),
-            port: NWEndpoint.Port(rawValue: port)!,
+            port: endpointPort,
             using: .tcp
         )
 

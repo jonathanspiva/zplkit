@@ -123,15 +123,18 @@ extension MemoryStatus {
 
     /// Extracts content between STX and ETX from response data.
     private static func extractContent(from data: Data) -> String? {
+        // Normalize to a 0-based byte array so enumerated offsets line up with
+        // subscripting (Data's subscript is offset by startIndex for slices).
+        let bytes = [UInt8](data)
         var startIndex: Int?
 
-        for (index, byte) in data.enumerated() {
+        for (index, byte) in bytes.enumerated() {
             if byte == ControlChar.stx {
                 startIndex = index + 1
             } else if byte == ControlChar.etx, let start = startIndex {
                 if start < index {
-                    let content = data[start..<index]
-                    return String(data: content, encoding: .utf8)
+                    let content = bytes[start..<index]
+                    return String(bytes: content, encoding: .utf8)
                 }
             }
         }

@@ -210,17 +210,21 @@ extension PrinterStatus {
     ///
     /// Each string in the response is wrapped: `<STX>content<ETX><CR><LF>`
     private static func extractStrings(from data: Data) -> [String] {
+        // Normalize to a 0-based byte array. `Data`'s subscript is relative to
+        // `startIndex`, which is not guaranteed to be 0 for a slice, so indexing
+        // the original Data with enumerated offsets would read the wrong bytes.
+        let bytes = [UInt8](data)
         var strings: [String] = []
         var currentStart: Int?
 
-        for (index, byte) in data.enumerated() {
+        for (index, byte) in bytes.enumerated() {
             if byte == ControlChar.stx {
                 currentStart = index + 1  // Start after STX
             } else if byte == ControlChar.etx, let start = currentStart {
                 // Extract content between STX and ETX
                 if start < index {
-                    let content = data[start..<index]
-                    if let str = String(data: content, encoding: .utf8) {
+                    let content = bytes[start..<index]
+                    if let str = String(bytes: content, encoding: .utf8) {
                         strings.append(str)
                     }
                 }

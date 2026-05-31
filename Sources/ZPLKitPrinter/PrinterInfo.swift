@@ -32,9 +32,17 @@ public struct PrinterInfo: Sendable, Equatable, Codable {
 
     /// Print resolution in dots per inch.
     ///
-    /// Calculated from `dotsPerMillimeter` (approximately dpm * 25.4).
+    /// Standard Zebra resolutions are mapped exactly; other values fall back to
+    /// rounding `dotsPerMillimeter * 25.4` (rounded, not truncated, so e.g.
+    /// dpm 12 yields 305 rather than 304).
     public var dpi: Int {
-        Int(Double(dotsPerMillimeter) * 25.4)
+        switch dotsPerMillimeter {
+        case 6: return 150
+        case 8: return 203
+        case 12: return 300
+        case 24: return 600
+        default: return Int((Double(dotsPerMillimeter) * 25.4).rounded())
+        }
     }
 
     /// Available memory in kilobytes.
@@ -144,15 +152,18 @@ extension PrinterInfo {
 
     /// Extracts content between STX and ETX from response data.
     private static func extractContent(from data: Data) -> String? {
+        // Normalize to a 0-based byte array so enumerated offsets line up with
+        // subscripting (Data's subscript is offset by startIndex for slices).
+        let bytes = [UInt8](data)
         var startIndex: Int?
 
-        for (index, byte) in data.enumerated() {
+        for (index, byte) in bytes.enumerated() {
             if byte == ControlChar.stx {
                 startIndex = index + 1
             } else if byte == ControlChar.etx, let start = startIndex {
                 if start < index {
-                    let content = data[start..<index]
-                    return String(data: content, encoding: .utf8)
+                    let content = bytes[start..<index]
+                    return String(bytes: content, encoding: .utf8)
                 }
             }
         }

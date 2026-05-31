@@ -2,6 +2,14 @@ import Foundation
 import Testing
 @testable import ZPLKitPrinter
 
+/// Whether network-touching tests are enabled via environment variable.
+///
+/// These tests perform real socket / Bonjour operations (connection-refused,
+/// timeouts, browser lifecycle) that are slow and flaky on CI runners, so they
+/// are gated behind the same `ZPLTOOL_LIVE_TESTS` switch used by
+/// `LivePrinterTests`. Hermetic parsing tests always run.
+private let networkTestsEnabled = ProcessInfo.processInfo.environment["ZPLTOOL_LIVE_TESTS"] == "1"
+
 @Suite("ZPLKitPrinter Tests")
 struct ZPLKitPrinterTests {
 
@@ -112,7 +120,9 @@ struct ZPLKitPrinterTests {
 
     // MARK: - Network Error Tests
 
-    @Test("ZPLPrinter times out on non-routable address")
+    @Test("ZPLPrinter times out on non-routable address",
+          .tags(.live),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"))
     func printerTimeout() async throws {
         // 10.255.255.1 is a non-routable address that should timeout
         let printer = ZPLPrinter(host: "10.255.255.1", timeout: 1)
@@ -135,7 +145,9 @@ struct ZPLKitPrinterTests {
         }
     }
 
-    @Test("ZPLPrinter fails on connection refused")
+    @Test("ZPLPrinter fails on connection refused",
+          .tags(.live),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"))
     func printerConnectionRefused() async throws {
         // localhost on an unlikely port should refuse connection
         let printer = ZPLPrinter(host: "127.0.0.1", port: 59999, timeout: 2)
@@ -159,16 +171,19 @@ struct ZPLKitPrinterTests {
 
     // MARK: - Browser Lifecycle Tests
 
-    @Test("ZPLPrinterBrowser starts and stops without crashing")
+    @Test("ZPLPrinterBrowser starts and stops without crashing",
+          .tags(.live),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"))
     func browserLifecycle() {
         let browser = ZPLPrinterBrowser()
 
         // Start browsing
         browser.start()
 
-        // Should be able to get empty list immediately
+        // Immediately after start (before mDNS resolution completes) the
+        // discovered set is empty.
         let printers = browser.discoveredPrinters
-        #expect(printers.isEmpty || !printers.isEmpty)  // Just verify it doesn't crash
+        #expect(printers.isEmpty)
 
         // Stop browsing
         browser.stop()
@@ -183,7 +198,9 @@ struct ZPLKitPrinterTests {
         #expect(browser.discoveredPrinters.isEmpty)
     }
 
-    @Test("ZPLPrinterBrowser can restart after stop")
+    @Test("ZPLPrinterBrowser can restart after stop",
+          .tags(.live),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"))
     func browserRestart() {
         let browser = ZPLPrinterBrowser()
 
@@ -197,7 +214,9 @@ struct ZPLKitPrinterTests {
 
     // MARK: - Query (Bidirectional) Tests
 
-    @Test("ZPLPrinter query times out on non-routable address")
+    @Test("ZPLPrinter query times out on non-routable address",
+          .tags(.live),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"))
     func queryTimeout() async throws {
         // 10.255.255.1 is a non-routable address that should timeout
         let printer = ZPLPrinter(host: "10.255.255.1", timeout: 1)
@@ -219,7 +238,9 @@ struct ZPLKitPrinterTests {
         }
     }
 
-    @Test("ZPLPrinter query fails on connection refused")
+    @Test("ZPLPrinter query fails on connection refused",
+          .tags(.live),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"))
     func queryConnectionRefused() async throws {
         // localhost on an unlikely port should refuse connection
         let printer = ZPLPrinter(host: "127.0.0.1", port: 59999, timeout: 2)
@@ -241,7 +262,49 @@ struct ZPLKitPrinterTests {
         }
     }
 
-    @Test("ZPLPrinter query static method works with discovered printer")
+    @Test("query() returns promptly on fast connection-refused (no hang)",
+          .tags(.live), .timeLimit(.minutes(1)),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"))
+    func queryFastFailureDoesNotHang() async throws {
+        // Connecting to a closed local port fails almost instantly. This
+        // exercises the H1 race where the connection can fail before the
+        // detached task registers the continuation. With the pending-result
+        // fix the continuation is always resumed, so this must throw rather
+        // than hang. The .timeLimit catches a regression as a failure.
+        let printer = ZPLPrinter(host: "127.0.0.1", port: 59997, timeout: 2)
+
+        await #expect(throws: PrinterError.self) {
+            _ = try await printer.query("~HS", responseTimeout: 2)
+        }
+    }
+
+    @Test("query() rejects invalid (zero) port instead of crashing")
+    func queryRejectsZeroPort() async throws {
+        let printer = ZPLPrinter(host: "127.0.0.1", port: 0)
+        await #expect(throws: PrinterError.self) {
+            _ = try await printer.query("~HS", responseTimeout: 1)
+        }
+    }
+
+    @Test("send() rejects invalid (zero) port instead of crashing")
+    func sendRejectsZeroPort() async throws {
+        let printer = ZPLPrinter(host: "127.0.0.1", port: 0)
+        await #expect(throws: PrinterError.self) {
+            try await printer.send("^XA^XZ")
+        }
+    }
+
+    @Test("send() of empty data is a no-op success")
+    func sendEmptyDataSucceeds() async throws {
+        // Empty data must not trap on baseAddress and must not perform any
+        // socket work. Port 0 would otherwise throw, proving the early return.
+        let printer = ZPLPrinter(host: "127.0.0.1", port: 0)
+        try await printer.send(Data())
+    }
+
+    @Test("ZPLPrinter query static method works with discovered printer",
+          .tags(.live),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"))
     func queryStaticMethod() async throws {
         let discovered = DiscoveredPrinter(
             name: "Test Printer",
@@ -450,6 +513,22 @@ struct ZPLKitPrinterTests {
         }
     }
 
+    @Test("PrinterStatus parses identically from a non-zero-startIndex slice")
+    func printerStatusParsesFromSlice() throws {
+        let response = buildHSResponse(
+            string1: "000,0,0,0799,000,0,0,0,000,0,0,0",
+            string2: "0,0,0,1,0,0,0,0000"
+        )
+        // Prepend bytes, then slice them off so startIndex != 0.
+        let prefixed = Data([0x00, 0x00]) + response
+        let slice = prefixed[2...]
+        #expect(slice.startIndex != 0)
+
+        let fromSlice = try PrinterStatus.parse(from: slice)
+        let fromFull = try PrinterStatus.parse(from: response)
+        #expect(fromSlice == fromFull)
+    }
+
     @Test("PrinterStatus description is readable")
     func printerStatusDescription() {
         let ready = PrinterStatus()
@@ -524,7 +603,7 @@ struct ZPLKitPrinterTests {
         let info = try PrinterInfo.parse(from: response)
 
         #expect(info.dotsPerMillimeter == 12)
-        #expect(info.dpi == 304)  // 12 * 25.4 = 304.8
+        #expect(info.dpi == 300)  // 12 dpm maps to the standard 300 dpi
     }
 
     @Test("PrinterInfo parses with options")
@@ -619,6 +698,18 @@ struct ZPLKitPrinterTests {
         let decoded = try decoder.decode(PrinterInfo.self, from: data)
 
         #expect(decoded == info)
+    }
+
+    @Test("PrinterInfo parses identically from a non-zero-startIndex slice")
+    func printerInfoParsesFromSlice() throws {
+        let response = buildHIResponse("ZT410-203dpi,V53.17.14Z,8,49152KB,NONE")
+        let prefixed = Data([0x00, 0x00]) + response
+        let slice = prefixed[2...]
+        #expect(slice.startIndex != 0)
+
+        let fromSlice = try PrinterInfo.parse(from: slice)
+        let fromFull = try PrinterInfo.parse(from: response)
+        #expect(fromSlice == fromFull)
     }
 
     @Test("PrinterInfo parses without STX/ETX framing")
@@ -720,6 +811,18 @@ struct ZPLKitPrinterTests {
         let decoded = try decoder.decode(MemoryStatus.self, from: data)
 
         #expect(decoded == memory)
+    }
+
+    @Test("MemoryStatus parses identically from a non-zero-startIndex slice")
+    func memoryStatusParsesFromSlice() throws {
+        let response = buildHMResponse("2097152,2097152,1847296")
+        let prefixed = Data([0x00, 0x00]) + response
+        let slice = prefixed[2...]
+        #expect(slice.startIndex != 0)
+
+        let fromSlice = try MemoryStatus.parse(from: slice)
+        let fromFull = try MemoryStatus.parse(from: response)
+        #expect(fromSlice == fromFull)
     }
 
     @Test("MemoryStatus parses without STX/ETX framing")

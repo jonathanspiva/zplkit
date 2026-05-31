@@ -119,8 +119,10 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
     private func setupBrowser() {
         browser.stateUpdateHandler = { [weak self] state in
             switch state {
-            case .failed(let error):
-                print("Browser failed: \(error)")
+            case .failed:
+                // NOTE: NWBrowser failed. There is no error channel on the
+                // public AsyncStream API, so we stop browsing (which finishes
+                // the stream) rather than leaking to the host app's console.
                 self?.stop()
             case .cancelled:
                 break
