@@ -161,7 +161,7 @@ public struct ZPLPrinter: Sendable {
 
                 // Non-blocking connect with poll() for connect timeout
                 var flags = fcntl(sock, F_GETFL, 0)
-                fcntl(sock, F_SETFL, flags | O_NONBLOCK)
+                _ = fcntl(sock, F_SETFL, flags | O_NONBLOCK)
 
                 var addr = sockaddr_in()
                 addr.sin_family = sa_family_t(AF_INET)
@@ -219,7 +219,7 @@ public struct ZPLPrinter: Sendable {
 
                 // Restore blocking mode for write
                 flags = fcntl(sock, F_GETFL, 0)
-                fcntl(sock, F_SETFL, flags & ~O_NONBLOCK)
+                _ = fcntl(sock, F_SETFL, flags & ~O_NONBLOCK)
 
                 let writeResult = data.withUnsafeBytes { buffer in
                     Darwin.write(sock, buffer.baseAddress!, buffer.count)

@@ -151,7 +151,7 @@ public enum CoreGraphicsRenderer {
         }
 
         // Create paragraph style using CoreText
-        var alignment: CTTextAlignment
+        let alignment: CTTextAlignment
         switch textBlock.alignment {
         case "C":
             alignment = .center
@@ -163,14 +163,18 @@ public enum CoreGraphicsRenderer {
             alignment = .left
         }
 
-        let alignmentSetting = [
-            CTParagraphStyleSetting(
+        // Pass the alignment value through a scoped pointer so it outlives the
+        // CTParagraphStyleSetting initializer (avoids a temporary-pointer warning).
+        let paragraphStyle = withUnsafeBytes(of: alignment) { alignmentBytes in
+            let setting = CTParagraphStyleSetting(
                 spec: .alignment,
                 valueSize: MemoryLayout<CTTextAlignment>.size,
-                value: &alignment
+                value: alignmentBytes.baseAddress!
             )
-        ]
-        let paragraphStyle = CTParagraphStyleCreate(alignmentSetting, alignmentSetting.count)
+            return [setting].withUnsafeBufferPointer { buffer in
+                CTParagraphStyleCreate(buffer.baseAddress!, buffer.count)
+            }
+        }
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,

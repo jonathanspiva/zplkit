@@ -3,7 +3,7 @@ import Vision
 /// Barcode symbology types supported by ZPLVerifier.
 ///
 /// These map to Vision framework's `VNBarcodeSymbology` types that are
-/// available on macOS 12+.
+/// available on macOS 26+.
 @frozen
 public enum BarcodeSymbology: String, Sendable, Codable, Hashable, CaseIterable, CustomStringConvertible {
     case aztec

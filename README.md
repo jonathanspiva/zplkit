@@ -2,7 +2,7 @@
 
 <img src="logo.svg" width="128" height="128" alt="ZPLKit logo">
 
-![Swift 6.0+](https://img.shields.io/badge/Swift-6.0+-orange.svg)
+![Swift 6.3+](https://img.shields.io/badge/Swift-6.3+-orange.svg)
 ![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 [![CI](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml)
@@ -200,8 +200,8 @@ POSIX `close()` sends a proper TCP FIN (graceful shutdown) that printers handle 
 
 ## Requirements
 
-- Swift 6.0+
-- iOS 15+ / macOS 12+ / tvOS 15+ / watchOS 8+
+- Swift 6.3+
+- iOS 26+ / macOS 26+ / tvOS 26+ / watchOS 26+
 
 ## Resources
 

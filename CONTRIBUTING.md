@@ -6,9 +6,9 @@ Thanks for your interest in contributing to ZPLKit! This document covers the dev
 
 ### Requirements
 
-- macOS 12+ (required for Vision framework in tests)
-- Swift 6.0+
-- Xcode 16+ or VSCode with Swift extension
+- macOS 26+ (required for Vision framework in tests)
+- Swift 6.3+
+- Xcode 26+ or VSCode with Swift extension
 
 ### Getting Started
 
