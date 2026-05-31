@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Internal
 - Gated flaky live-network printer tests behind an env var so CI is hermetic by default; added hermetic regression tests for the fixes above.
+- Migrated the entire test suite from XCTest to Swift Testing and parameterized the repetitive barcode-validity, clamping, parser-per-command, and verification matrices into `@Test(arguments:)` tables. The package no longer uses XCTest. Coverage was preserved (verified per target); the formerly hidden `SKIP`-prefixed Data Matrix test is now a tracked `@Test(.disabled(...))` skip.
 
 ## [1.0.0] - 2025-02-01
 
