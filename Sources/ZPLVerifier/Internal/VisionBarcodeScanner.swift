@@ -19,48 +19,33 @@ struct VisionBarcodeScanner {
     }
 
     /// Scan an image for barcodes.
-    func scan(_ image: CGImage) throws -> [DetectedBarcode] {
-        var detectedBarcodes: [DetectedBarcode] = []
-        var scanError: Error?
-
-        let request = VNDetectBarcodesRequest { request, error in
-            if let error = error {
-                scanError = error
-                return
-            }
-
-            guard let observations = request.results as? [VNBarcodeObservation] else {
-                return
-            }
-
-            for observation in observations {
-                guard let payload = observation.payloadStringValue else { continue }
-                guard observation.confidence >= self.configuration.minimumConfidence else { continue }
-
-                guard let symbology = BarcodeSymbology(vnSymbology: observation.symbology) else {
-                    continue
-                }
-
-                let barcode = DetectedBarcode(
-                    symbology: symbology,
-                    payload: payload,
-                    boundingBox: observation.boundingBox,
-                    confidence: observation.confidence
-                )
-                detectedBarcodes.append(barcode)
-            }
-        }
+    func scan(_ image: CGImage) async throws -> [DetectedBarcode] {
+        var request = DetectBarcodesRequest()
 
         // Set symbology hints if provided
         if !configuration.symbologies.isEmpty {
             request.symbologies = configuration.symbologies.map { $0.vnSymbology }
         }
 
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try handler.perform([request])
+        let handler = ImageRequestHandler(image)
+        let observations = try await handler.perform(request)
 
-        if let error = scanError {
-            throw error
+        var detectedBarcodes: [DetectedBarcode] = []
+        for observation in observations {
+            guard let payload = observation.payloadString else { continue }
+            guard observation.confidence >= configuration.minimumConfidence else { continue }
+
+            guard let symbology = BarcodeSymbology(vnSymbology: observation.symbology) else {
+                continue
+            }
+
+            let barcode = DetectedBarcode(
+                symbology: symbology,
+                payload: payload,
+                boundingBox: observation.boundingBox.cgRect,
+                confidence: observation.confidence
+            )
+            detectedBarcodes.append(barcode)
         }
 
         return detectedBarcodes

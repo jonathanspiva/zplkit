@@ -198,7 +198,7 @@ struct VisualTests {
 
             do {
                 // Discovery mode - find all barcodes and text
-                let analysis = try verifier.analyze(image)
+                let analysis = try await verifier.analyze(image)
 
                 // Check expectations if we have them
                 var passedExpectations = 0

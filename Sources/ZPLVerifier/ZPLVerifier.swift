@@ -92,7 +92,7 @@ public final class ZPLVerifier: Sendable {
         /// More accurate but slower.
         case accurate
 
-        var vnLevel: VNRequestTextRecognitionLevel {
+        var vnLevel: RecognizeTextRequest.RecognitionLevel {
             switch self {
             case .fast: return .fast
             case .accurate: return .accurate
@@ -114,11 +114,11 @@ public final class ZPLVerifier: Sendable {
     /// - Parameter image: The rendered label image to analyze.
     /// - Returns: Analysis results containing all detected content.
     /// - Throws: `VerifierError` if analysis fails.
-    public func analyze(_ image: CGImage) throws -> AnalysisResult {
+    public func analyze(_ image: CGImage) async throws -> AnalysisResult {
         let startTime = CFAbsoluteTimeGetCurrent()
 
-        let barcodes = try scanBarcodes(image, hints: .empty)
-        let textRegions = try scanText(image, hints: .empty)
+        let barcodes = try await scanBarcodes(image, hints: .empty)
+        let textRegions = try await scanText(image, hints: .empty)
 
         let allBoundingBoxes = barcodes.map(\.boundingBox) + textRegions.map(\.boundingBox)
         let boundsInfo = BoundsInfo.from(boundingBoxes: allBoundingBoxes)
@@ -145,9 +145,9 @@ public final class ZPLVerifier: Sendable {
     public func verify(
         _ image: CGImage,
         @VerificationBuilder expectations: () -> [any Expectation]
-    ) throws -> VerificationResult {
+    ) async throws -> VerificationResult {
         let expectationList = expectations()
-        return try verify(image, expectations: expectationList)
+        return try await verify(image, expectations: expectationList)
     }
 
     /// Verify that an image contains expected content.
@@ -160,15 +160,15 @@ public final class ZPLVerifier: Sendable {
     public func verify(
         _ image: CGImage,
         expectations: [any Expectation]
-    ) throws -> VerificationResult {
+    ) async throws -> VerificationResult {
         let startTime = CFAbsoluteTimeGetCurrent()
 
         // Merge hints from all expectations
         let hints = VisionHints.merge(expectations.map(\.visionHints))
 
         // Scan with optimized hints
-        let barcodes = try scanBarcodes(image, hints: hints)
-        let textRegions = try scanText(image, hints: hints)
+        let barcodes = try await scanBarcodes(image, hints: hints)
+        let textRegions = try await scanText(image, hints: hints)
 
         // Check each expectation
         let results = expectations.map { expectation in
@@ -192,7 +192,7 @@ public final class ZPLVerifier: Sendable {
 
     // MARK: - Private
 
-    private func scanBarcodes(_ image: CGImage, hints: VisionHints) throws -> [DetectedBarcode] {
+    private func scanBarcodes(_ image: CGImage, hints: VisionHints) async throws -> [DetectedBarcode] {
         let scannerConfig = VisionBarcodeScanner.Configuration(
             symbologies: Array(hints.symbologies),
             minimumConfidence: configuration.minimumConfidence
@@ -200,13 +200,13 @@ public final class ZPLVerifier: Sendable {
         let scanner = VisionBarcodeScanner(configuration: scannerConfig)
 
         do {
-            return try scanner.scan(image)
+            return try await scanner.scan(image)
         } catch {
             throw VerifierError.barcodeDetectionFailed(underlying: error.localizedDescription)
         }
     }
 
-    private func scanText(_ image: CGImage, hints: VisionHints) throws -> [DetectedText] {
+    private func scanText(_ image: CGImage, hints: VisionHints) async throws -> [DetectedText] {
         let scannerConfig = VisionTextScanner.Configuration(
             recognitionLevel: configuration.textRecognitionLevel.vnLevel,
             recognitionLanguages: configuration.recognitionLanguages,
@@ -217,7 +217,7 @@ public final class ZPLVerifier: Sendable {
         let scanner = VisionTextScanner(configuration: scannerConfig)
 
         do {
-            return try scanner.scan(image)
+            return try await scanner.scan(image)
         } catch {
             throw VerifierError.textRecognitionFailed(underlying: error.localizedDescription)
         }

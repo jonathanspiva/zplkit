@@ -2,7 +2,7 @@ import Vision
 
 /// Barcode symbology types supported by ZPLVerifier.
 ///
-/// These map to Vision framework's `VNBarcodeSymbology` types that are
+/// These map to the Vision framework's `BarcodeSymbology` types that are
 /// available on macOS 26+.
 @frozen
 public enum BarcodeSymbology: String, Sendable, Codable, Hashable, CaseIterable, CustomStringConvertible {
@@ -25,7 +25,7 @@ public enum BarcodeSymbology: String, Sendable, Codable, Hashable, CaseIterable,
     case upce
 
     /// Convert to Vision framework symbology.
-    var vnSymbology: VNBarcodeSymbology {
+    var vnSymbology: Vision.BarcodeSymbology {
         switch self {
         case .aztec: return .aztec
         case .code39: return .code39
@@ -65,7 +65,7 @@ public enum BarcodeSymbology: String, Sendable, Codable, Hashable, CaseIterable,
     }
 
     /// Create from Vision framework symbology.
-    init?(vnSymbology: VNBarcodeSymbology) {
+    init?(vnSymbology: Vision.BarcodeSymbology) {
         switch vnSymbology {
         case .aztec: self = .aztec
         case .code39: self = .code39

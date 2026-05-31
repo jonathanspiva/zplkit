@@ -1202,7 +1202,7 @@ final class ZPLKitRendererTests: XCTestCase {
 
     // MARK: - Barcode Decode Verification (using ZPLVerifier)
 
-    func testBarcodeVerificationQRCode() throws {
+    func testBarcodeVerificationQRCode() async throws {
         let testData = "https://zplkit.example.com"
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             QRCode(testData, at: .dots(100, 100))
@@ -1214,14 +1214,14 @@ final class ZPLKitRendererTests: XCTestCase {
         let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
         let verifier = ZPLVerifier()
-        let result = try verifier.verify(renderResult.image) {
+        let result = try await verifier.verify(renderResult.image) {
             Barcode(.qr, containing: testData)
         }
 
         XCTAssertTrue(result.passed, result.summary)
     }
 
-    func testBarcodeVerificationCode128() throws {
+    func testBarcodeVerificationCode128() async throws {
         let testData = "ABC123"
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Barcode128(testData, at: .dots(50, 50))?
@@ -1234,14 +1234,14 @@ final class ZPLKitRendererTests: XCTestCase {
         let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
         let verifier = ZPLVerifier()
-        let result = try verifier.verify(renderResult.image) {
+        let result = try await verifier.verify(renderResult.image) {
             Barcode(.code128, exactly: testData)
         }
 
         XCTAssertTrue(result.passed, result.summary)
     }
 
-    func testBarcodeVerificationCode39() throws {
+    func testBarcodeVerificationCode39() async throws {
         let testData = "HELLO123"
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Code39(testData, at: .dots(50, 50))?
@@ -1253,14 +1253,14 @@ final class ZPLKitRendererTests: XCTestCase {
         let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
         let verifier = ZPLVerifier()
-        let result = try verifier.verify(renderResult.image) {
+        let result = try await verifier.verify(renderResult.image) {
             Barcode(.code39, exactly: testData)
         }
 
         XCTAssertTrue(result.passed, result.summary)
     }
 
-    func testBarcodeVerificationEAN13() throws {
+    func testBarcodeVerificationEAN13() async throws {
         let testData = "5901234123457"
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             EAN13(testData, at: .dots(50, 50))?
@@ -1272,14 +1272,14 @@ final class ZPLKitRendererTests: XCTestCase {
         let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
         let verifier = ZPLVerifier()
-        let result = try verifier.verify(renderResult.image) {
+        let result = try await verifier.verify(renderResult.image) {
             Barcode(.ean13, exactly: testData)
         }
 
         XCTAssertTrue(result.passed, result.summary)
     }
 
-    func testBarcodeVerificationUPCA() throws {
+    func testBarcodeVerificationUPCA() async throws {
         let testData = "012345678905"
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             UPCA(testData, at: .dots(50, 50))?
@@ -1292,7 +1292,7 @@ final class ZPLKitRendererTests: XCTestCase {
 
         let verifier = ZPLVerifier()
         // UPC-A may decode as EAN-13 with leading zero, so check for containing
-        let result = try verifier.verify(renderResult.image) {
+        let result = try await verifier.verify(renderResult.image) {
             Barcode(.ean13, containing: testData)
         }
 
@@ -1302,7 +1302,7 @@ final class ZPLKitRendererTests: XCTestCase {
     /// Data Matrix decode verification
     /// Note: Skipped - CoreImage doesn't have a Data Matrix generator
     /// ZPLKitRenderer uses a placeholder for Data Matrix until we implement it mathematically
-    func SKIPtestBarcodeVerificationDataMatrix() throws {
+    func SKIPtestBarcodeVerificationDataMatrix() async throws {
         let testData = "DM123"
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             DataMatrix(testData, at: .dots(50, 50))
@@ -1314,14 +1314,14 @@ final class ZPLKitRendererTests: XCTestCase {
         let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
         let verifier = ZPLVerifier()
-        let result = try verifier.verify(renderResult.image) {
+        let result = try await verifier.verify(renderResult.image) {
             Barcode(.dataMatrix, exactly: testData)
         }
 
         XCTAssertTrue(result.passed, result.summary)
     }
 
-    func testBarcodeVerificationAztec() throws {
+    func testBarcodeVerificationAztec() async throws {
         let testData = "AZTEC-DATA-123"
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             Aztec(testData, at: .dots(100, 100))
@@ -1333,14 +1333,14 @@ final class ZPLKitRendererTests: XCTestCase {
         let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
         let verifier = ZPLVerifier()
-        let result = try verifier.verify(renderResult.image) {
+        let result = try await verifier.verify(renderResult.image) {
             Barcode(.aztec, exactly: testData)
         }
 
         XCTAssertTrue(result.passed, result.summary)
     }
 
-    func testBarcodeVerificationPDF417() throws {
+    func testBarcodeVerificationPDF417() async throws {
         let testData = "PDF417 TEST DATA"
         let label = ZPLLabel(width: 4, height: 3, dpi: .dpi203) {
             PDF417(testData, at: .dots(50, 50))
@@ -1353,14 +1353,14 @@ final class ZPLKitRendererTests: XCTestCase {
         let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
         let verifier = ZPLVerifier()
-        let result = try verifier.verify(renderResult.image) {
+        let result = try await verifier.verify(renderResult.image) {
             Barcode(.pdf417, exactly: testData)
         }
 
         XCTAssertTrue(result.passed, result.summary)
     }
 
-    func testBarcodeVerificationInterleaved2of5() throws {
+    func testBarcodeVerificationInterleaved2of5() async throws {
         let testData = "12345678"
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Interleaved2of5(testData, at: .dots(50, 50))?
@@ -1372,7 +1372,7 @@ final class ZPLKitRendererTests: XCTestCase {
         let renderResult = try renderer.render(zpl, dpi: .dpi203)
 
         let verifier = ZPLVerifier()
-        let result = try verifier.verify(renderResult.image) {
+        let result = try await verifier.verify(renderResult.image) {
             Barcode(.i2of5, exactly: testData)
         }
 

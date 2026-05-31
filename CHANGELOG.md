@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Raised `swift-tools-version` to 6.3 (Swift 6.3 / Xcode 26.5 toolchain)
 - Raised minimum platforms to iOS 26 / macOS 26 / tvOS 26 / watchOS 26
 - CI now runs on the `macos-26` runner with Xcode 26 selected explicitly
+- Migrated `ZPLVerifier` to the new Swift-native Vision API (`DetectBarcodesRequest`, `RecognizeTextRequest`, `ImageRequestHandler`), replacing the legacy `VN`-prefixed completion-handler API. As a result, `ZPLVerifier.analyze(_:)` and the `verify(...)` overloads are now `async throws`.
 
 ### Fixed
 - Resolved Swift 6 temporary-pointer warning in `CoreGraphicsRenderer` paragraph-style creation
