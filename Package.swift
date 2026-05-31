@@ -37,8 +37,8 @@ let package = Package(
             targets: ["ZPLKitRenderer"]
         ),
         .library(
-            name: "ZPLVerifier",
-            targets: ["ZPLVerifier"]
+            name: "ZPLKitVerifier",
+            targets: ["ZPLKitVerifier"]
         ),
         .library(
             name: "ZPLKitPrinter",
@@ -67,11 +67,11 @@ let package = Package(
         ),
         .testTarget(
             name: "ZPLKitRendererTests",
-            dependencies: ["ZPLKitRenderer", "ZPLVerifier"],
+            dependencies: ["ZPLKitRenderer", "ZPLKitVerifier"],
             swiftSettings: sharedSwiftSettings
         ),
         .target(
-            name: "ZPLVerifier",
+            name: "ZPLKitVerifier",
             swiftSettings: sharedSwiftSettings
         ),
         .target(
@@ -84,8 +84,8 @@ let package = Package(
             swiftSettings: sharedSwiftSettings
         ),
         .testTarget(
-            name: "ZPLVerifierTests",
-            dependencies: ["ZPLVerifier", "ZPLKit", "ZPLKitRenderer"],
+            name: "ZPLKitVerifierTests",
+            dependencies: ["ZPLKitVerifier", "ZPLKit", "ZPLKitRenderer"],
             swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
@@ -96,7 +96,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "VisualTests",
-            dependencies: ["ZPLKitRenderer", "ZPLVerifier"],
+            dependencies: ["ZPLKitRenderer", "ZPLKitVerifier"],
             path: "Tools/VisualTests",
             swiftSettings: sharedSwiftSettings
         ),

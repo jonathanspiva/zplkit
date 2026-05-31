@@ -1,7 +1,7 @@
 import Foundation
 import CoreGraphics
 import Testing
-import ZPLVerifier
+import ZPLKitVerifier
 @testable import ZPLKitRenderer
 @testable import ZPLKit
 

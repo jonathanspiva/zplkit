@@ -1,7 +1,7 @@
 import Foundation
 import ZPLKit
 import ZPLKitRenderer
-import ZPLVerifier
+import ZPLKitVerifier
 import CoreGraphics
 import ImageIO
 

@@ -1,13 +1,13 @@
 import Foundation
 import CoreGraphics
 import Testing
-@testable import ZPLVerifier
+@testable import ZPLKitVerifier
 @testable import ZPLKit
 @testable import ZPLKitRenderer
 
 /// `Testing.Expectation` and the verifier's `Expectation` protocol collide by name.
 /// A specific protocol import disambiguates so the result builder can name the protocol.
-import protocol ZPLVerifier.Expectation
+import protocol ZPLKitVerifier.Expectation
 
 // MARK: - Expectation Construction
 
