@@ -1507,15 +1507,114 @@ final class ZPLKitRendererTests: XCTestCase {
         XCTAssertEqual(graphicCount, 1)
     }
 
-    func testGraphicBinaryFormatIsDroppedNotCrash() throws {
-        // Binary/compressed ^GF is unsupported; it decodes to empty and is dropped.
-        let zpl = "^XA^PW200^LL100^FO10,10^GFB,4,4,1,FF^FS^XZ"
+    func testGraphicBinaryFormatDecodesAndRenders() throws {
+        // ^GFB carries raw binary bytes (one byte == 8 horizontal pixels). Here the
+        // two-character data field "\u{FF}\u{FF}" decodes to two 0xFF bytes, so with
+        // bytesPerRow=1 the graphic is 8 wide x 2 tall, all black.
+        let zpl = "^XA^PW200^LL100^FO10,10^GFB,2,2,1,\u{FF}\u{FF}^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        guard case .graphic(let graphic) = parsed.elements.first(where: {
+            if case .graphic = $0 { return true }
+            return false
+        }) else {
+            XCTFail("Expected a graphic element from ^GFB")
+            return
+        }
+        XCTAssertEqual(graphic.format, .binary)
+        XCTAssertEqual(graphic.bytesPerRow, 1)
+        XCTAssertEqual(graphic.data, [0xFF, 0xFF])
+
+        // And it must render without crashing.
+        let renderer = ZPLRenderer()
+        let result = try renderer.render(zpl, dpi: .dpi203)
+        XCTAssertEqual(result.image.width, 200)
+    }
+
+    func testGraphicAsciiCompressionRepeatAndFill() throws {
+        // Compression scheme:
+        //   - `,`  fills the rest of the current row with 0x00 (white)
+        //   - `!`  fills the rest of the current row with 0xFF (black)
+        //   - `:`  repeats the previous row
+        //   - G-Y => repeat 1-19, g-z => repeat 20-400 (in 20s), preceding a nibble
+        //
+        // Note: two hex nibbles make one byte, so "FF" is a single 0xFF byte.
+        // Row 1: "!"        -> bytesPerRow (4) bytes of 0xFF
+        // Row 2: "FF,"      -> one 0xFF byte, then `,` zero-fills the rest of the row
+        // Row 3: ":"        -> repeat of row 2
+        // Row 4: "IF,"      -> I = repeat 3, so nibble F x3 = FFF; pairs to 0xFF then a
+        //                      trailing 0xF0 (odd nibble padded), then `,` zero-fills.
+        let zpl = "^XA^PW200^LL100^FO10,10^GFA,16,16,4,!FF,:IF,^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        guard case .graphic(let graphic) = parsed.elements.first(where: {
+            if case .graphic = $0 { return true }
+            return false
+        }) else {
+            XCTFail("Expected a graphic element from compressed ^GFA")
+            return
+        }
+        XCTAssertEqual(graphic.bytesPerRow, 4)
+
+        let expected: [UInt8] = [
+            0xFF, 0xFF, 0xFF, 0xFF,   // row 1: `!` fill
+            0xFF, 0x00, 0x00, 0x00,   // row 2: FF then `,` zero fill
+            0xFF, 0x00, 0x00, 0x00,   // row 3: `:` repeat of row 2
+            0xFF, 0xF0, 0x00, 0x00    // row 4: I(=3)F => FFF nibbles -> FF F0, `,` zero fill
+        ]
+        XCTAssertEqual(graphic.data, expected)
+    }
+
+    func testGraphicAsciiHighRepeatCount() throws {
+        // `h` = 20 * (h-g+1) = 20 * 2 = 40 repeats of the following nibble; combined
+        // with `G` (=1) gives 41 nibbles of `0`. With bytesPerRow large enough this
+        // exercises the >19 repeat path without crossing a row boundary mid-run.
+        let zpl = "^XA^PW400^LL100^FO10,10^GFA,40,40,40,hG0,^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        let graphics = parsed.elements.compactMap { element -> ParsedGraphic? in
+            if case .graphic(let g) = element { return g }
+            return nil
+        }
+        XCTAssertEqual(graphics.count, 1)
+        // 41 zero nibbles -> 20 bytes (last nibble padded), then `,` zero-fills the
+        // 40-byte row. All bytes are 0x00.
+        XCTAssertEqual(graphics.first?.data.count, 40)
+        XCTAssertTrue(graphics.first?.data.allSatisfy { $0 == 0 } ?? false)
+
+        // Must render without crashing.
+        let renderer = ZPLRenderer()
+        _ = try renderer.render(zpl, dpi: .dpi203)
+    }
+
+    func testGraphicCompressedB64Decodes() throws {
+        // ^GFC with a `:B64:` payload (base64, uncompressed). Encode 4 bytes of 0xFF.
+        let payload = Data([0xFF, 0xFF, 0xFF, 0xFF]).base64EncodedString()
+        let zpl = "^XA^PW200^LL100^FO10,10^GFC,4,4,1,:B64:\(payload):^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        guard case .graphic(let graphic) = parsed.elements.first(where: {
+            if case .graphic = $0 { return true }
+            return false
+        }) else {
+            XCTFail("Expected a graphic element from ^GFC :B64:")
+            return
+        }
+        XCTAssertEqual(graphic.format, .compressed)
+        XCTAssertEqual(graphic.data, [0xFF, 0xFF, 0xFF, 0xFF])
+    }
+
+    func testGraphicCompressedMalformedDoesNotCrash() throws {
+        // Garbage compressed payload must drop gracefully, not crash.
+        let zpl = "^XA^PW200^LL100^FO10,10^GFC,4,4,1,:Z64:not-valid-base64!!!:^FS^XZ"
         let parsed = try ZPLParser.parse(zpl)
         let graphicCount = parsed.elements.filter {
             if case .graphic = $0 { return true }
             return false
         }.count
         XCTAssertEqual(graphicCount, 0)
+
+        let renderer = ZPLRenderer()
+        _ = try renderer.render(zpl, dpi: .dpi203)
     }
 
     // MARK: - Text Block State Leak (M3)

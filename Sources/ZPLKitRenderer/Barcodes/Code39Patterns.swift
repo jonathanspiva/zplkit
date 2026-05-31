@@ -53,8 +53,13 @@ enum Code39Patterns {
         "*": "NWNNWNWNN"  // Start/stop character
     ]
 
-    /// Encodes a string into Code 39 bar patterns
-    /// Returns array of bools where true = bar, false = space
+    /// Encodes a string into Code 39 bar patterns.
+    /// Returns array of bools where true = bar, false = space.
+    ///
+    /// - Note: Preview-renderer behavior: characters that are not in the Code 39
+    ///   character set (`patterns`) are silently dropped rather than raising an error.
+    ///   The input is upper-cased first, so lowercase letters map to their uppercase
+    ///   equivalents; any remaining unsupported character is omitted from the output.
     static func encode(_ data: String) -> [Bool] {
         var result: [Bool] = []
         let uppercased = data.uppercased()

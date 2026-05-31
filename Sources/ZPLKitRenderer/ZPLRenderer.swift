@@ -62,7 +62,15 @@ public final class ZPLRenderer: Sendable {
         }
     }
 
-    /// Font mappings for ZPL fonts
+    /// Font mappings for ZPL fonts.
+    ///
+    /// Only three font slots are modeled: `font0` (ZPL Font `0`, the scalable
+    /// default), `fontA` (ZPL Font `A`), and `fontDefault` (every other ZPL font
+    /// letter `B`-`Z`). The renderer selects among these based on the parsed
+    /// `^A` font identifier. This is a preview renderer: it does not bundle the full
+    /// set of Zebra bitmap fonts, so any font other than `0`/`A` falls back to
+    /// `fontDefault` (Font 0 in the default configuration) and glyph metrics are
+    /// approximate for those.
     public struct FontConfiguration: Sendable {
         public var font0: FontSource
         public var fontA: FontSource

@@ -98,10 +98,32 @@ public enum CoreGraphicsRenderer {
 
     // MARK: - Text Rendering
 
+    /// Selects the `FontSource` for a parsed ZPL font identifier.
+    ///
+    /// ZPL font slots map to `FontConfiguration` as follows:
+    /// - `"0"` -> `font0` (Zebra's scalable Font 0; bundled by default).
+    /// - `"A"` -> `fontA` (the built-in bitmap Font A slot).
+    /// - anything else -> `fontDefault`.
+    ///
+    /// Only these three slots are modeled. Any ZPL font letter that is not `0` or `A`
+    /// (B-Z and the Unicode fonts) falls back to `fontDefault`, which is Font 0 in the
+    /// default configuration. This is a preview renderer: it does not ship the full
+    /// set of Zebra bitmap fonts, so glyph metrics are approximate for non-Font-0 text.
+    private static func fontSource(
+        for fontIdentifier: String,
+        config: ZPLRenderer.FontConfiguration
+    ) -> ZPLRenderer.FontSource {
+        switch fontIdentifier {
+        case "0": return config.font0
+        case "A": return config.fontA
+        default: return config.fontDefault
+        }
+    }
+
     private static func renderText(_ text: ParsedText, in context: CGContext, fontConfig: ZPLRenderer.FontConfiguration) {
         let fontSize = CGFloat(text.fontHeight)
 
-        guard let font = fontConfig.font0.createFont(size: fontSize) else {
+        guard let font = fontSource(for: text.font, config: fontConfig).createFont(size: fontSize) else {
             return // Skip rendering if font unavailable
         }
 
@@ -159,7 +181,7 @@ public enum CoreGraphicsRenderer {
     private static func renderTextBlock(_ textBlock: ParsedTextBlock, in context: CGContext, fontConfig: ZPLRenderer.FontConfiguration) {
         let fontSize = CGFloat(textBlock.fontHeight)
 
-        guard let font = fontConfig.font0.createFont(size: fontSize) else {
+        guard let font = fontSource(for: textBlock.font, config: fontConfig).createFont(size: fontSize) else {
             return // Skip rendering if font unavailable
         }
 
@@ -323,32 +345,37 @@ public enum CoreGraphicsRenderer {
 
         guard height > 0, width > 0 else { return }
 
-        // Create a bitmap from the 1-bit data
-        // Each byte in data represents 8 horizontal pixels (MSB first)
-        var expandedData = [UInt8](repeating: 255, count: width * height)  // Start with white
+        // Expand the 1-bit data into one grayscale byte per pixel, writing directly
+        // into a single `Data` buffer that backs the CGDataProvider. This avoids the
+        // previous `[UInt8]` -> `Data` round-trip (which copied the buffer twice).
+        // Each source byte represents 8 horizontal pixels, MSB first.
+        var expandedData = Data(repeating: 255, count: width * height)  // Start with white
 
-        for y in 0..<height {
-            for byteIndex in 0..<bytesPerRow {
-                let dataIndex = y * bytesPerRow + byteIndex
-                guard dataIndex < graphic.data.count else { continue }
+        expandedData.withUnsafeMutableBytes { rawBuffer in
+            let pixels = rawBuffer.bindMemory(to: UInt8.self)
+            for y in 0..<height {
+                for byteIndex in 0..<bytesPerRow {
+                    let dataIndex = y * bytesPerRow + byteIndex
+                    guard dataIndex < graphic.data.count else { continue }
 
-                let byte = graphic.data[dataIndex]
+                    let byte = graphic.data[dataIndex]
 
-                for bit in 0..<8 {
-                    let x = byteIndex * 8 + bit
-                    guard x < width else { continue }
+                    for bit in 0..<8 {
+                        let x = byteIndex * 8 + bit
+                        guard x < width else { continue }
 
-                    let pixelIndex = y * width + x
-                    // MSB first: bit 7 is leftmost pixel
-                    let isSet = (byte & (0x80 >> bit)) != 0
-                    expandedData[pixelIndex] = isSet ? 0 : 255  // Black if set, white if not
+                        let pixelIndex = y * width + x
+                        // MSB first: bit 7 is leftmost pixel
+                        let isSet = (byte & (0x80 >> bit)) != 0
+                        pixels[pixelIndex] = isSet ? 0 : 255  // Black if set, white if not
+                    }
                 }
             }
         }
 
         // Create CGImage from the expanded data
         guard let colorSpace = CGColorSpace(name: CGColorSpace.linearGray),
-              let provider = CGDataProvider(data: Data(expandedData) as CFData),
+              let provider = CGDataProvider(data: expandedData as CFData),
               let cgImage = CGImage(
                 width: width,
                 height: height,
@@ -678,7 +705,26 @@ public enum CoreGraphicsRenderer {
         context.setLineWidth(1)
         context.stroke(rect)
 
-        drawBarcodeText("[\(barcode.type.rawValue)]", at: CGPoint(x: CGFloat(barcode.x), y: CGFloat(barcode.y) + CGFloat(barcode.height / 2)), in: context)
+        drawBarcodeText("[\(displayName(for: barcode.type))]", at: CGPoint(x: CGFloat(barcode.x), y: CGFloat(barcode.y) + CGFloat(barcode.height / 2)), in: context)
+    }
+
+    /// Human-readable label for a barcode symbology, used in the placeholder text so
+    /// previews show "DataMatrix" instead of the raw ZPL command code (e.g. "BX").
+    private static func displayName(for type: ParsedBarcode.BarcodeType) -> String {
+        switch type {
+        case .code128: return "Code128"
+        case .code39: return "Code39"
+        case .qrCode: return "QR Code"
+        case .dataMatrix: return "DataMatrix"
+        case .pdf417: return "PDF417"
+        case .interleaved2of5: return "Interleaved 2 of 5"
+        case .ean13: return "EAN-13"
+        case .ean8: return "EAN-8"
+        case .upcA: return "UPC-A"
+        case .upcE: return "UPC-E"
+        case .aztec: return "Aztec"
+        case .intelligentMail: return "Intelligent Mail"
+        }
     }
 
     private static func drawBarcodeText(_ text: String, at point: CGPoint, in context: CGContext) {

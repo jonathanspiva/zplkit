@@ -2,10 +2,13 @@ import Foundation
 
 /// Interleaved 2 of 5 barcode pattern encoder
 enum Interleaved2of5Patterns {
-    // Digit patterns: N = narrow, W = wide
+    // Digit width patterns. Each Bool encodes an element WIDTH: true = wide, false =
+    // narrow (N = narrow, W = wide in the comments). These five widths are applied
+    // alternately to bars (from the first digit of a pair) and spaces (from the
+    // second) by `encode`; the booleans here do NOT encode bar-vs-space.
     private static let digitPatterns: [Character: [Bool]] = [
         "0": [false, false, true, true, false],  // NNWWN
-        "1": [true, false, false, false, true],  // WNNNN -> WNNNW
+        "1": [true, false, false, false, true],  // WNNNW
         "2": [false, true, false, false, true],  // NWNNW
         "3": [true, true, false, false, false],  // WWNNN
         "4": [false, false, true, false, true],  // NNWNW
@@ -16,10 +19,14 @@ enum Interleaved2of5Patterns {
         "9": [false, true, false, true, false]   // NWNWN
     ]
 
-    // Start pattern: NNNN (narrow bar, narrow space, narrow bar, narrow space)
+    // Start/stop guards. Unlike `digitPatterns`, these Bools are appended straight
+    // into the output where true = BAR (black) and false = SPACE (white); all guard
+    // elements are a single (narrow) module wide.
+    // Start guard: bar, space, bar, space.
     private static let startPattern: [Bool] = [true, false, true, false]
 
-    // Stop pattern: WNN (wide bar, narrow space, narrow bar)
+    // Stop guard: bar, bar, bar, space, bar (the leading wide bar is encoded here as
+    // two adjacent bar modules followed by the usual narrow bar/space/bar).
     private static let stopPattern: [Bool] = [true, true, true, false, true]
 
     /// Encodes a numeric string into Interleaved 2 of 5 bar patterns
