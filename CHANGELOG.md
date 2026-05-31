@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `ZPLKitRenderer` now decodes `^GF` binary (`^GFB`), ASCII run-length compression in `^GFA` (repeat-count letters, `,`/`!` row fills, `:` row repeat), and `^GFC` `:B64:`/`:Z64:` (zlib) graphic formats, which were previously dropped.
+
 ### Changed
 - Adopted Swift 6.2's "approachable concurrency" upcoming-feature flags via a shared `swiftSettings` block applied to every first-party target: `NonisolatedNonsendingByDefault` and `InferIsolatedConformances`. (`InferSendableFromCaptures` is already enabled by default in Swift 6 language mode, so it is intentionally not enabled explicitly.) Default isolation remains `nonisolated`; the package is a library and does not force callers onto the main actor.
+- `ZPLVerifier.analyze`/`verify` timing now uses `ContinuousClock`; the reported `*TimeSeconds` fields are documented as wall-clock (including time suspended at `await`).
 - Set `swiftLanguageModes: [.v6]` explicitly in the manifest (Swift 6.3 tools-version already defaults to Swift 6 mode; this makes it explicit)
 - Raised `swift-tools-version` to 6.3 (Swift 6.3 / Xcode 26.5 toolchain)
 - Raised minimum platforms to iOS 26 / macOS 26 / tvOS 26 / watchOS 26
@@ -25,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ZPLVerifier` now covers all 24 Vision barcode symbologies (previously dropped `codabar`, GS1 DataBar variants, `microPDF417`, `microQR`, `msiPlessey`), preserves the underlying error, rethrows `CancellationError`, and validates image dimensions.
 - Renderer: cache the bundled `CGFont` and reuse one `CIContext` per render pass; reset all `^FB` text-block state between fields; apply rotation to barcode render paths.
 - Resolved Swift 6 temporary-pointer warning in `CoreGraphicsRenderer` paragraph-style creation; silenced unused-result `fcntl` warnings in `ZPLPrinter`.
+- `ZPLPrinter` now formats POSIX errors with the thread-safe `strerror_r` (the shared `strerror` buffer could race across concurrent `send()` calls).
+- Renderer: single-allocation graphic buffer (removed a redundant copy); forward-compatible font-slot selection with documented Font 0 fallback; human-readable placeholder barcode names.
+- Removed the deprecated `VerifierError.visionError` case (no consumers); documented the QRCode dual error-correction emission, the barcode `minimumConfidence` no-op, and the `TextExpectation` 3-character hint threshold; replaced a force-unwrapping `PrinterCommand` doc example.
 
 ### Internal
 - Gated flaky live-network printer tests behind an env var so CI is hermetic by default; added hermetic regression tests for the fixes above.
