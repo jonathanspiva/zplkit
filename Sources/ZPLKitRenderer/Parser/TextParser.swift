@@ -3,6 +3,9 @@ import Foundation
 /// Internal parsers for text and font commands (^A, ^CF, ^FD)
 enum TextParser {
 
+    /// Matches `_XX` hex escapes in field data. Compiled once and reused.
+    private static let hexEscapeRegex = try! NSRegularExpression(pattern: #"_([0-9A-Fa-f]{2})"#)
+
     static func parseFontCommand(_ params: String, rotation: inout String, height: inout Int, width: inout Int) {
         // Format: ^A0N,height,width or ^A0R,height,width etc.
         var remaining = params
@@ -38,8 +41,8 @@ enum TextParser {
         }
 
         // Decode hex escapes
-        let hexPattern = #"_([0-9A-Fa-f]{2})"#
-        if let regex = try? NSRegularExpression(pattern: hexPattern) {
+        do {
+            let regex = hexEscapeRegex
             var decoded = result
             let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
             for match in matches.reversed() {

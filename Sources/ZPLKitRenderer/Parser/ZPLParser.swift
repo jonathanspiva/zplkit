@@ -9,6 +9,20 @@ import Foundation
 ///   rendering use. Their structure may change between releases.
 public enum ZPLParser {
 
+    /// Matches a single ZPL command (starting with `^` or `~`) and its parameters.
+    /// Compiled once and reused across parses.
+    private static let commandRegex = try! NSRegularExpression(
+        pattern: #"(\^[A-Z][A-Z0-9]?[^^\~]*|\~[A-Z][A-Z0-9]?[^^\~]*)"#,
+        options: []
+    )
+
+    /// Matches the leading command token (e.g. `^A0`) of a single command string.
+    /// Compiled once and reused across parses.
+    private static let commandPrefixRegex = try! NSRegularExpression(
+        pattern: #"^(\^[A-Z][A-Z0-9]?)"#,
+        options: []
+    )
+
     /// Parses a ZPL string into a ParsedLabel.
     ///
     /// - Parameter zpl: A ZPL command string (typically starting with `^XA` and ending with `^XZ`)
@@ -18,10 +32,8 @@ public enum ZPLParser {
         var state = ParserState()
 
         // Split into commands - ZPL commands start with ^ or ~
-        let pattern = #"(\^[A-Z][A-Z0-9]?[^^\~]*|\~[A-Z][A-Z0-9]?[^^\~]*)"#
-        let regex = try NSRegularExpression(pattern: pattern, options: [])
         let range = NSRange(zpl.startIndex..., in: zpl)
-        let matches = regex.matches(in: zpl, options: [], range: range)
+        let matches = commandRegex.matches(in: zpl, options: [], range: range)
 
         for match in matches {
             guard let cmdRange = Range(match.range, in: zpl) else { continue }
@@ -45,9 +57,7 @@ public enum ZPLParser {
     // MARK: - Command Extraction
 
     private static func extractCommand(_ command: String) -> (type: String, params: String) {
-        let cmdPattern = #"^(\^[A-Z][A-Z0-9]?)"#
-        if let cmdRegex = try? NSRegularExpression(pattern: cmdPattern),
-           let cmdMatch = cmdRegex.firstMatch(in: command, range: NSRange(command.startIndex..., in: command)),
+        if let cmdMatch = commandPrefixRegex.firstMatch(in: command, range: NSRange(command.startIndex..., in: command)),
            let cmdMatchRange = Range(cmdMatch.range(at: 1), in: command) {
             let cmdType = String(command[cmdMatchRange])
             let params = String(command[cmdMatchRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -231,7 +241,9 @@ public enum ZPLParser {
                 hangingIndent: state.textBlockHangingIndent,
                 useBaseline: state.useFieldTypeset
             )))
-            state.textBlockWidth = 0  // Reset for next field
+            // Reset ALL text-block state together so a later `^FB` that omits
+            // parameters does not inherit this block's alignment / maxLines / etc.
+            state.resetTextBlock()
         } else {
             state.elements.append(.text(ParsedText(
                 text: text,
@@ -276,6 +288,16 @@ private struct ParserState {
 
     // Pending barcode (barcode commands come before ^FD with the data)
     var pendingBarcode: ParsedBarcode? = nil
+
+    /// Resets every `^FB` text-block field to its default so the next field does
+    /// not inherit stale values from a previously consumed block.
+    mutating func resetTextBlock() {
+        textBlockWidth = 0
+        textBlockMaxLines = 1
+        textBlockAlignment = "L"
+        textBlockLineSpacing = 0
+        textBlockHangingIndent = 0
+    }
 }
 
 // MARK: - Array Safe Subscript

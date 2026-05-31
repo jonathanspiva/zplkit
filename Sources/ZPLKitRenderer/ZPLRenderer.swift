@@ -1,7 +1,42 @@
 import Foundation
 import CoreGraphics
 import CoreText
+import os
 import ZPLKit
+
+/// Thread-safe cache for size-independent `CGFont` objects built from bundled TTF data.
+///
+/// Building a `CGFont` from a `CGDataProvider` is relatively expensive and was
+/// previously repeated for every text element. The `CGFont` is size-independent
+/// (size is applied when deriving a `CTFont`), so we cache one per unique font
+/// `Data`. Access is serialized with an `OSAllocatedUnfairLock`, keeping the
+/// renderer's clean Sendable story (no unsynchronized mutable static state).
+private enum CGFontCache {
+    // `CGFont` is not `Sendable`, but it is an immutable, thread-safe CoreGraphics
+    // object. We guard all access with a lock and use `nonisolated(unsafe)` to opt
+    // out of the Sendable check, keeping the target's clean concurrency story.
+    //
+    // NSData is hashable by content, and the bundled font Data values are shared
+    // `static let`s, so this dictionary stays tiny (typically one entry).
+    private static let lock = OSAllocatedUnfairLock()
+    nonisolated(unsafe) private static var cache: [NSData: CGFont] = [:]
+
+    static func cgFont(for data: Data) -> CGFont? {
+        let key = data as NSData
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let existing = cache[key] {
+            return existing
+        }
+        guard let provider = CGDataProvider(data: data as CFData),
+              let cgFont = CGFont(provider) else {
+            return nil
+        }
+        cache[key] = cgFont
+        return cgFont
+    }
+}
 
 /// A native Swift renderer for ZPL (Zebra Programming Language) code.
 /// Renders ZPL strings to images for preview purposes.
@@ -18,8 +53,8 @@ public final class ZPLRenderer: Sendable {
             case .system(let name):
                 return CTFontCreateWithName(name as CFString, size, nil)
             case .bundled(let data):
-                guard let provider = CGDataProvider(data: data as CFData),
-                      let cgFont = CGFont(provider) else {
+                // Cache the size-independent CGFont; only the sized CTFont is per-call.
+                guard let cgFont = CGFontCache.cgFont(for: data) else {
                     return nil
                 }
                 return CTFontCreateWithGraphicsFont(cgFont, size, nil, nil)
@@ -110,9 +145,14 @@ public final class ZPLRenderer: Sendable {
     /// Renders a ZPL string to a CGImage.
     /// - Parameters:
     ///   - zpl: The ZPL string to render
-    ///   - dpi: The DPI setting (affects pixel dimensions)
+    ///   - dpi: Currently informational/reserved. Output pixel dimensions are
+    ///     derived from the label's `^PW`/`^LL` dot values in the ZPL (which the
+    ///     ZPLKit DSL already resolves from DPI when generating the ZPL), so this
+    ///     parameter does not change the rendered image. Kept for API stability and
+    ///     possible future use.
     /// - Returns: A RenderResult containing the image and performance metrics
     public func render(_ zpl: String, dpi: DPI = .dpi203) throws -> RenderResult {
+        _ = dpi  // Reserved; see note above.
         let parseStart = CFAbsoluteTimeGetCurrent()
         let parsed = try ZPLParser.parse(zpl)
         let parseEnd = CFAbsoluteTimeGetCurrent()
@@ -120,7 +160,6 @@ public final class ZPLRenderer: Sendable {
         let renderStart = CFAbsoluteTimeGetCurrent()
         let image = try CoreGraphicsRenderer.render(
             parsed,
-            dpi: dpi,
             fontConfiguration: fontConfiguration
         )
         let renderEnd = CFAbsoluteTimeGetCurrent()
@@ -138,7 +177,8 @@ public final class ZPLRenderer: Sendable {
     /// Renders a ZPL string to PNG data.
     /// - Parameters:
     ///   - zpl: The ZPL string to render
-    ///   - dpi: The DPI setting (affects pixel dimensions)
+    ///   - dpi: Currently informational/reserved; does not change output dimensions.
+    ///     See ``render(_:dpi:)`` for details.
     /// - Returns: PNG data and performance metrics
     public func renderToPNG(_ zpl: String, dpi: DPI = .dpi203) throws -> (data: Data, metrics: RenderMetrics) {
         let result = try render(zpl, dpi: dpi)

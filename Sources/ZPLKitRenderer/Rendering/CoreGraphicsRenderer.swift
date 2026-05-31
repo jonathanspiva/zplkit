@@ -16,10 +16,12 @@ import CoreImage
 /// Renders parsed ZPL elements to a CGImage using CoreGraphics
 public enum CoreGraphicsRenderer {
 
-    /// Renders a parsed label to a CGImage
+    /// Renders a parsed label to a CGImage.
+    ///
+    /// Output dimensions come from the label's dot values (`ParsedLabel.width`/`.height`);
+    /// DPI is not a parameter because the dimensions are already expressed in dots.
     public static func render(
         _ label: ParsedLabel,
-        dpi: DPI,
         fontConfiguration: ZPLRenderer.FontConfiguration
     ) throws -> CGImage {
         let width = label.width
@@ -47,6 +49,13 @@ public enum CoreGraphicsRenderer {
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
 
+        // Create a single CIContext for the whole render pass (used by 2D barcode
+        // generators). Constructing a CIContext is expensive, so we avoid building
+        // one per barcode element. `nil` on platforms without CoreImage.
+        #if canImport(CoreImage)
+        let ciContext = CIContext()
+        #endif
+
         // Render each element
         for element in label.elements {
             switch element {
@@ -69,7 +78,11 @@ public enum CoreGraphicsRenderer {
                 renderDiagonalLine(line, in: context)
 
             case .barcode(let barcode):
+                #if canImport(CoreImage)
+                try renderBarcode(barcode, in: context, ciContext: ciContext)
+                #else
                 try renderBarcode(barcode, in: context)
+                #endif
 
             case .graphic(let graphic):
                 renderGraphic(graphic, in: context)
@@ -302,6 +315,9 @@ public enum CoreGraphicsRenderer {
 
     private static func renderGraphic(_ graphic: ParsedGraphic, in context: CGContext) {
         let bytesPerRow = graphic.bytesPerRow
+        // Defense in depth: the parser already rejects `bytesPerRow <= 0`, but guard
+        // here too so a malformed `ParsedGraphic` can never trap on the division below.
+        guard bytesPerRow > 0 else { return }
         let width = bytesPerRow * 8  // Each byte = 8 pixels
         let height = graphic.data.count / bytesPerRow
 
@@ -364,6 +380,51 @@ public enum CoreGraphicsRenderer {
 
     // MARK: - Barcode Rendering
 
+    /// Applies the ZPL field rotation (`N`/`R`/`I`/`B`) to the context, matching the
+    /// convention used by `renderText`. The caller is responsible for `saveGState`/
+    /// `restoreGState` around this and for translating to the field origin first.
+    private static func applyRotation(_ rotation: String, in context: CGContext) {
+        switch rotation {
+        case "R":
+            context.rotate(by: -.pi / 2)
+        case "I":
+            context.rotate(by: -.pi)
+        case "B":
+            context.rotate(by: .pi / 2)
+        default:
+            break
+        }
+    }
+
+    #if canImport(CoreImage)
+    private static func renderBarcode(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
+        switch barcode.type {
+        case .qrCode:
+            try renderQRCode(barcode, in: context, ciContext: ciContext)
+        case .code128:
+            try renderCode128(barcode, in: context, ciContext: ciContext)
+        case .aztec:
+            try renderAztec(barcode, in: context, ciContext: ciContext)
+        case .pdf417:
+            try renderPDF417(barcode, in: context, ciContext: ciContext)
+        case .code39:
+            renderCode39(barcode, in: context)
+        case .ean13:
+            renderEAN13(barcode, in: context)
+        case .ean8:
+            renderEAN8(barcode, in: context)
+        case .upcA:
+            renderUPCA(barcode, in: context)
+        case .upcE:
+            renderUPCE(barcode, in: context)
+        case .interleaved2of5:
+            renderInterleaved2of5(barcode, in: context)
+        case .dataMatrix, .intelligentMail:
+            // Placeholder - draw a box with text
+            renderPlaceholderBarcode(barcode, in: context)
+        }
+    }
+    #else
     private static func renderBarcode(_ barcode: ParsedBarcode, in context: CGContext) throws {
         switch barcode.type {
         case .qrCode:
@@ -391,12 +452,33 @@ public enum CoreGraphicsRenderer {
             renderPlaceholderBarcode(barcode, in: context)
         }
     }
+    #endif
 
     // MARK: - CoreImage Barcodes
 
     #if canImport(CoreImage)
 
-    private static func renderQRCode(_ barcode: ParsedBarcode, in context: CGContext) throws {
+    /// Draws a generated 2D/CoreImage barcode `CGImage` at the barcode's field origin,
+    /// honoring `ParsedBarcode.rotation` (`N`/`R`/`I`/`B`) using the same convention as text.
+    ///
+    /// For the unrotated (`N`) case this is pixel-identical to the previous direct
+    /// `context.draw(cgImage, in: CGRect(x: barcode.x, y: barcode.y, ...))`: the
+    /// translation just relocates that origin, and `applyRotation` is a no-op.
+    private static func drawBarcodeImage(_ cgImage: CGImage, barcode: ParsedBarcode, in context: CGContext) {
+        let width = cgImage.width
+        let height = cgImage.height
+
+        context.saveGState()
+        // Move to the field origin, then rotate about it (same convention as renderText).
+        context.translateBy(x: CGFloat(barcode.x), y: CGFloat(barcode.y))
+        applyRotation(barcode.rotation, in: context)
+        // Draw in the (now possibly rotated) local space. The rect matches the original
+        // draw exactly for rotation "N".
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        context.restoreGState()
+    }
+
+    private static func renderQRCode(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
         guard let filter = CIFilter(name: "CIQRCodeGenerator") else {
             throw ZPLRendererError.renderError("QR Code filter not available")
         }
@@ -415,16 +497,14 @@ public enum CoreGraphicsRenderer {
         let scale = CGFloat(barcode.magnification)
         let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
 
-        let ciContext = CIContext()
         guard let cgImage = ciContext.createCGImage(scaledImage, from: scaledImage.extent) else {
             throw ZPLRendererError.renderError("Failed to create QR code image")
         }
 
-        let rect = CGRect(x: barcode.x, y: barcode.y, width: cgImage.width, height: cgImage.height)
-        context.draw(cgImage, in: rect)
+        drawBarcodeImage(cgImage, barcode: barcode, in: context)
     }
 
-    private static func renderCode128(_ barcode: ParsedBarcode, in context: CGContext) throws {
+    private static func renderCode128(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
         guard let filter = CIFilter(name: "CICode128BarcodeGenerator") else {
             throw ZPLRendererError.renderError("Code128 filter not available")
         }
@@ -445,13 +525,11 @@ public enum CoreGraphicsRenderer {
         let scaleY = CGFloat(barcode.height) / outputImage.extent.height
         let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
 
-        let ciContext = CIContext()
         guard let cgImage = ciContext.createCGImage(scaledImage, from: scaledImage.extent) else {
             throw ZPLRendererError.renderError("Failed to create Code128 image")
         }
 
-        let rect = CGRect(x: barcode.x, y: barcode.y, width: cgImage.width, height: cgImage.height)
-        context.draw(cgImage, in: rect)
+        drawBarcodeImage(cgImage, barcode: barcode, in: context)
 
         // Draw text below if needed
         if barcode.showText {
@@ -459,7 +537,7 @@ public enum CoreGraphicsRenderer {
         }
     }
 
-    private static func renderAztec(_ barcode: ParsedBarcode, in context: CGContext) throws {
+    private static func renderAztec(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
         guard let filter = CIFilter(name: "CIAztecCodeGenerator") else {
             throw ZPLRendererError.renderError("Aztec filter not available")
         }
@@ -477,16 +555,14 @@ public enum CoreGraphicsRenderer {
         let scale = CGFloat(barcode.magnification)
         let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
 
-        let ciContext = CIContext()
         guard let cgImage = ciContext.createCGImage(scaledImage, from: scaledImage.extent) else {
             throw ZPLRendererError.renderError("Failed to create Aztec image")
         }
 
-        let rect = CGRect(x: barcode.x, y: barcode.y, width: cgImage.width, height: cgImage.height)
-        context.draw(cgImage, in: rect)
+        drawBarcodeImage(cgImage, barcode: barcode, in: context)
     }
 
-    private static func renderPDF417(_ barcode: ParsedBarcode, in context: CGContext) throws {
+    private static func renderPDF417(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
         guard let filter = CIFilter(name: "CIPDF417BarcodeGenerator") else {
             throw ZPLRendererError.renderError("PDF417 filter not available")
         }
@@ -504,13 +580,11 @@ public enum CoreGraphicsRenderer {
         let scale = CGFloat(barcode.magnification) / 5.0
         let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
 
-        let ciContext = CIContext()
         guard let cgImage = ciContext.createCGImage(scaledImage, from: scaledImage.extent) else {
             throw ZPLRendererError.renderError("Failed to create PDF417 image")
         }
 
-        let rect = CGRect(x: barcode.x, y: barcode.y, width: cgImage.width, height: cgImage.height)
-        context.draw(cgImage, in: rect)
+        drawBarcodeImage(cgImage, barcode: barcode, in: context)
     }
 
     #else
@@ -568,25 +642,33 @@ public enum CoreGraphicsRenderer {
     private static func render1DBarcode(patterns: [Bool], barcode: ParsedBarcode, in context: CGContext) {
         guard !patterns.isEmpty else { return }
 
-        context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
-
         let moduleWidth = CGFloat(barcode.moduleWidth)
-        var x = CGFloat(barcode.x)
-        let y = CGFloat(barcode.y)
         let height = CGFloat(barcode.height)
 
+        context.saveGState()
+        // Move to the field origin and rotate about it (same convention as renderText).
+        // Bars/text are then drawn in local coordinates starting at (0, 0); for
+        // rotation "N" this is pixel-identical to the previous absolute-position draw.
+        context.translateBy(x: CGFloat(barcode.x), y: CGFloat(barcode.y))
+        applyRotation(barcode.rotation, in: context)
+
+        context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
+
+        var x: CGFloat = 0
         for isBar in patterns {
             if isBar {
-                context.fill(CGRect(x: x, y: y, width: moduleWidth, height: height))
+                context.fill(CGRect(x: x, y: 0, width: moduleWidth, height: height))
             }
             x += moduleWidth
         }
 
-        // Draw text below if needed
+        // Draw text below (or above) if needed, in the same rotated local space.
         if barcode.showText {
-            let textY = barcode.textAbove ? CGFloat(barcode.y) - 20 : CGFloat(barcode.y) + height + 5
-            drawBarcodeText(barcode.data, at: CGPoint(x: CGFloat(barcode.x), y: textY), in: context)
+            let textY = barcode.textAbove ? -20 : height + 5
+            drawBarcodeText(barcode.data, at: CGPoint(x: 0, y: textY), in: context)
         }
+
+        context.restoreGState()
     }
 
     private static func renderPlaceholderBarcode(_ barcode: ParsedBarcode, in context: CGContext) {

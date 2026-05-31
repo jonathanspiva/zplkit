@@ -1457,6 +1457,127 @@ final class ZPLKitRendererTests: XCTestCase {
             XCTFail("Metadata entries without matching fixture files:\n  \(orphaned.sorted().joined(separator: "\n  "))")
         }
     }
+
+    // MARK: - Malformed Graphic Handling (H1)
+
+    func testGraphicZeroBytesPerRowIsDroppedNotCrash() throws {
+        // ^GFA,0,0,0,FF previously trapped with an integer divide-by-zero because
+        // bytesPerRow == 0 reached `data.count / bytesPerRow`. It must now be dropped.
+        let zpl = "^XA^PW200^LL100^FO10,10^GFA,0,0,0,FF^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        // No graphic element should be produced from the malformed command.
+        let graphicCount = parsed.elements.filter {
+            if case .graphic = $0 { return true }
+            return false
+        }.count
+        XCTAssertEqual(graphicCount, 0)
+
+        // And rendering must not crash.
+        let renderer = ZPLRenderer()
+        let result = try renderer.render(zpl, dpi: .dpi203)
+        XCTAssertEqual(result.image.width, 200)
+        XCTAssertEqual(result.image.height, 100)
+    }
+
+    func testGraphicBytesPerRowZeroWithDataIsDropped() throws {
+        // bytesPerRow of 0 with non-zero counts/data must also be rejected.
+        let zpl = "^XA^PW200^LL100^FO10,10^GFA,4,4,0,FFFFFFFF^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+
+        let graphicCount = parsed.elements.filter {
+            if case .graphic = $0 { return true }
+            return false
+        }.count
+        XCTAssertEqual(graphicCount, 0)
+
+        // Rendering still succeeds.
+        let renderer = ZPLRenderer()
+        _ = try renderer.render(zpl, dpi: .dpi203)
+    }
+
+    func testGraphicValidStillParses() throws {
+        // Sanity: a well-formed ^GF with positive bytesPerRow still produces a graphic.
+        let zpl = "^XA^PW200^LL100^FO10,10^GFA,4,4,1,FF^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        let graphicCount = parsed.elements.filter {
+            if case .graphic = $0 { return true }
+            return false
+        }.count
+        XCTAssertEqual(graphicCount, 1)
+    }
+
+    func testGraphicBinaryFormatIsDroppedNotCrash() throws {
+        // Binary/compressed ^GF is unsupported; it decodes to empty and is dropped.
+        let zpl = "^XA^PW200^LL100^FO10,10^GFB,4,4,1,FF^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        let graphicCount = parsed.elements.filter {
+            if case .graphic = $0 { return true }
+            return false
+        }.count
+        XCTAssertEqual(graphicCount, 0)
+    }
+
+    // MARK: - Text Block State Leak (M3)
+
+    func testTextBlockStateDoesNotLeakBetweenFields() throws {
+        // First ^FB sets alignment=C and maxLines=3. The second ^FB omits those
+        // params (only width), so it must NOT inherit the first block's values.
+        let zpl = """
+        ^XA
+        ^PW600^LL400
+        ^FO50,50^FB300,3,0,C,0^FDFirst block^FS
+        ^FO50,200^FB300^FDSecond block^FS
+        ^XZ
+        """
+        let parsed = try ZPLParser.parse(zpl)
+
+        let blocks = parsed.elements.compactMap { element -> ParsedTextBlock? in
+            if case .textBlock(let b) = element { return b }
+            return nil
+        }
+        XCTAssertEqual(blocks.count, 2)
+
+        XCTAssertEqual(blocks[0].alignment, "C")
+        XCTAssertEqual(blocks[0].maxLines, 3)
+
+        // Second block must use defaults, not the first block's stale state.
+        XCTAssertEqual(blocks[1].alignment, "L")
+        XCTAssertEqual(blocks[1].maxLines, 1)
+        XCTAssertEqual(blocks[1].lineSpacing, 0)
+        XCTAssertEqual(blocks[1].hangingIndent, 0)
+    }
+
+    // MARK: - Barcode Rotation (M5)
+
+    func testRotatedBarcodeRendersAndDiffersFromUnrotated() throws {
+        let renderer = ZPLRenderer()
+
+        let upright = """
+        ^XA^PW400^LL400^FO50,50^BCN,80,N,N,N^FD12345^FS^XZ
+        """
+        let rotated = """
+        ^XA^PW400^LL400^FO50,50^BCR,80,N,N,N^FD12345^FS^XZ
+        """
+
+        let (uprightPNG, _) = try renderer.renderToPNG(upright, dpi: .dpi203)
+        let (rotatedPNG, _) = try renderer.renderToPNG(rotated, dpi: .dpi203)
+
+        XCTAssertGreaterThan(uprightPNG.count, 0)
+        XCTAssertGreaterThan(rotatedPNG.count, 0)
+        // A 90-degree rotated barcode must produce a different bitmap.
+        XCTAssertNotEqual(uprightPNG, rotatedPNG)
+    }
+
+    func testRotatedQRCodeRendersWithoutError() throws {
+        let renderer = ZPLRenderer()
+        let rotated = """
+        ^XA^PW400^LL400^FO50,50^BQR,2,5^FDMA,ROTATED^FS^XZ
+        """
+        // Rotated 2D barcode must render without throwing.
+        let result = try renderer.render(rotated, dpi: .dpi203)
+        XCTAssertEqual(result.image.width, 400)
+    }
 }
 
 // MARK: - Fixture Metadata Model

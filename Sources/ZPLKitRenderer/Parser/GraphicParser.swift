@@ -35,8 +35,12 @@ enum GraphicParser {
         let parts = remaining.split(separator: ",", maxSplits: 3)
         guard parts.count >= 4 else { return nil }
 
-        guard let totalBytes = Int(parts[1]),
-              let bytesPerRow = Int(parts[2]) else { return nil }
+        // `totalBytes` must be non-negative and `bytesPerRow` must be strictly
+        // positive: the renderer divides `data.count / bytesPerRow`, so a value of
+        // 0 (e.g. from a malformed `^GFA,0,0,0,FF`) would otherwise trap with an
+        // integer divide-by-zero. Drop the element instead of crashing the render.
+        guard let totalBytes = Int(parts[1]), totalBytes >= 0,
+              let bytesPerRow = Int(parts[2]), bytesPerRow > 0 else { return nil }
 
         let hexData = String(parts[3])
 
@@ -46,8 +50,12 @@ enum GraphicParser {
         case .ascii:
             data = decodeAsciiHex(hexData)
         case .binary, .compressed:
-            // For now, only support ASCII format
-            // Binary and compressed would need different handling
+            // LIMITATION: Binary (`B`) and compressed (`C`) `^GF` payloads are not
+            // decoded. Full support would require handling raw binary byte counts
+            // and Zebra's Z64/LZ77-style compression, which is out of scope here.
+            // These formats decode to an empty bitmap and the element is dropped
+            // below (the render does not fail). See `ZPLRendererError.unsupportedCommand`.
+            // TODO: implement binary/compressed `^GF` decoding.
             data = []
         }
 
