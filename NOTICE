@@ -1,0 +1,29 @@
+ZPLKit
+Copyright (c) 2026 Jonathan Spiva
+
+This product includes third-party components listed below.
+
+--------------------------------------------------------------------------------
+Bundled font: Roboto Condensed (Bold)
+--------------------------------------------------------------------------------
+
+ZPLKitRenderer bundles a binary font file:
+
+    Sources/ZPLKitRenderer/Resources/RobotoCondensed-Bold.ttf
+
+Roboto Condensed (Bold), Copyright 2015 Google Inc., designed by Christian
+Robertson. Licensed under the Apache License, Version 2.0.
+
+The full text of the applicable license is included at:
+
+    Sources/ZPLKitRenderer/Resources/Roboto-LICENSE.txt
+
+Roboto Condensed is a trademark of Google.
+
+--------------------------------------------------------------------------------
+Trademark acknowledgement
+--------------------------------------------------------------------------------
+
+ZPL, Zebra Programming Language, and Zebra are trademarks of Zebra Technologies
+Corporation. ZPLKit is an independent project and is not affiliated with or
+endorsed by Zebra Technologies.

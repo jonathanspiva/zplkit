@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.ttf binary
+*.png binary
+*.zpl text eol=lf linguist-detectable=false
+Tests/** linguist-vendored
+Sources/**/Resources/** linguist-vendored
+Examples/** linguist-documentation

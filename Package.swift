@@ -56,7 +56,7 @@ let package = Package(
             dependencies: ["ZPLKit"],
             resources: [
                 .copy("Resources/RobotoCondensed-Bold.ttf"),
-                .copy("Resources/OFL.txt")
+                .copy("Resources/Roboto-LICENSE.txt")
             ],
             swiftSettings: sharedSwiftSettings
         ),
