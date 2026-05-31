@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Adopted Swift 6.2's "approachable concurrency" upcoming-feature flags via a shared `swiftSettings` block applied to every first-party target: `NonisolatedNonsendingByDefault` and `InferIsolatedConformances`. (`InferSendableFromCaptures` is already enabled by default in Swift 6 language mode, so it is intentionally not enabled explicitly.) Default isolation remains `nonisolated`; the package is a library and does not force callers onto the main actor. No source isolation changes (including to `ZPLPrinter`) were required to keep the build warning-free and all tests green.
+- Set `swiftLanguageModes: [.v6]` explicitly in the manifest (Swift 6.3 tools-version already defaults to Swift 6 mode; this makes it explicit)
 - Raised `swift-tools-version` to 6.3 (Swift 6.3 / Xcode 26.5 toolchain)
 - Raised minimum platforms to iOS 26 / macOS 26 / tvOS 26 / watchOS 26
 - CI now runs on the `macos-26` runner with Xcode 26 selected explicitly

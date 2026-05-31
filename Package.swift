@@ -3,6 +3,22 @@
 
 import PackageDescription
 
+// Shared Swift settings applied to every first-party target.
+//
+// These adopt Swift 6.2's "approachable concurrency" upcoming-feature flags.
+// This is a library: default isolation stays `nonisolated` (we deliberately do
+// NOT set `defaultIsolation(MainActor.self)`), so callers are never forced onto
+// the main actor.
+let sharedSwiftSettings: [SwiftSetting] = [
+    // `nonisolated async` functions run on the caller's executor.
+    .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+    // Infer isolated conformances for isolated types.
+    .enableUpcomingFeature("InferIsolatedConformances"),
+    // Note: `InferSendableFromCaptures` is intentionally omitted. It is already
+    // enabled by default in Swift 6 language mode, and enabling it explicitly
+    // produces a "feature already enabled" warning.
+]
+
 let package = Package(
     name: "ZPLKit",
     platforms: [
@@ -34,7 +50,8 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "ZPLKit"
+            name: "ZPLKit",
+            swiftSettings: sharedSwiftSettings
         ),
         .target(
             name: "ZPLKitRenderer",
@@ -42,64 +59,79 @@ let package = Package(
             resources: [
                 .copy("Resources/RobotoCondensed-Bold.ttf"),
                 .copy("Resources/OFL.txt")
-            ]
+            ],
+            swiftSettings: sharedSwiftSettings
         ),
         .testTarget(
             name: "ZPLKitTests",
-            dependencies: ["ZPLKit"]
+            dependencies: ["ZPLKit"],
+            swiftSettings: sharedSwiftSettings
         ),
         .testTarget(
             name: "ZPLKitRendererTests",
-            dependencies: ["ZPLKitRenderer", "ZPLVerifier"]
+            dependencies: ["ZPLKitRenderer", "ZPLVerifier"],
+            swiftSettings: sharedSwiftSettings
         ),
         .target(
-            name: "ZPLVerifier"
+            name: "ZPLVerifier",
+            swiftSettings: sharedSwiftSettings
         ),
         .target(
-            name: "ZPLKitPrinter"
+            name: "ZPLKitPrinter",
+            swiftSettings: sharedSwiftSettings
         ),
         .testTarget(
             name: "ZPLKitPrinterTests",
-            dependencies: ["ZPLKitPrinter", "ZPLKit"]
+            dependencies: ["ZPLKitPrinter", "ZPLKit"],
+            swiftSettings: sharedSwiftSettings
         ),
         .testTarget(
             name: "ZPLVerifierTests",
-            dependencies: ["ZPLVerifier", "ZPLKit", "ZPLKitRenderer"]
+            dependencies: ["ZPLVerifier", "ZPLKit", "ZPLKitRenderer"],
+            swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
             name: "RenderFixtures",
             dependencies: ["ZPLKitRenderer"],
-            path: "Tools/RenderFixtures"
+            path: "Tools/RenderFixtures",
+            swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
             name: "VisualTests",
             dependencies: ["ZPLKitRenderer", "ZPLVerifier"],
-            path: "Tools/VisualTests"
+            path: "Tools/VisualTests",
+            swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
             name: "GraphicsTest",
             dependencies: ["ZPLKit", "Awesome"],
-            path: "Tools/GraphicsTest"
+            path: "Tools/GraphicsTest",
+            swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
             name: "PrinterTests",
             dependencies: ["ZPLKit", "ZPLKitPrinter"],
-            path: "Tools/PrinterTests"
+            path: "Tools/PrinterTests",
+            swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
             name: "GraphicPrintTest",
             dependencies: ["ZPLKit", "ZPLKitPrinter"],
-            path: "Tools/GraphicPrintTest"
+            path: "Tools/GraphicPrintTest",
+            swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
             name: "DitherTestPrint",
             dependencies: ["ZPLKit", "ZPLKitPrinter"],
-            path: "Tools/DitherTestPrint"
+            path: "Tools/DitherTestPrint",
+            swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
             name: "StatusCheck",
             dependencies: ["ZPLKit", "ZPLKitPrinter"],
-            path: "Tools/StatusCheck"
+            path: "Tools/StatusCheck",
+            swiftSettings: sharedSwiftSettings
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )
