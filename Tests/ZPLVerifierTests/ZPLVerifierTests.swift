@@ -1,50 +1,61 @@
-import XCTest
+import Foundation
+import CoreGraphics
+import Testing
 @testable import ZPLVerifier
 @testable import ZPLKit
 @testable import ZPLKitRenderer
 
-final class ZPLVerifierTests: XCTestCase {
+/// `Testing.Expectation` and the verifier's `Expectation` protocol collide by name.
+/// A specific protocol import disambiguates so the result builder can name the protocol.
+import protocol ZPLVerifier.Expectation
 
-    // MARK: - Expectation Unit Tests
+// MARK: - Expectation Construction
 
-    func testBarcodeExpectationAny() {
+@Suite("Expectation Construction")
+struct ExpectationConstructionTests {
+
+    @Test("Barcode(any) description and vision hints")
+    func barcodeExpectationAny() {
         let expectation = Barcode(.code128)
-
-        XCTAssertEqual(expectation.description, "Barcode(code128)")
-        XCTAssertEqual(expectation.visionHints.symbologies, [.code128])
+        #expect(expectation.description == "Barcode(code128)")
+        #expect(expectation.visionHints.symbologies == [.code128])
     }
 
-    func testBarcodeExpectationContaining() {
+    @Test("Barcode(containing:) description and vision hints")
+    func barcodeExpectationContaining() {
         let expectation = Barcode(.qr, containing: "example.com")
-
-        XCTAssertEqual(expectation.description, "Barcode(qr, containing: \"example.com\")")
-        XCTAssertEqual(expectation.visionHints.symbologies, [.qr])
+        #expect(expectation.description == "Barcode(qr, containing: \"example.com\")")
+        #expect(expectation.visionHints.symbologies == [.qr])
     }
 
-    func testBarcodeExpectationExactly() {
+    @Test("Barcode(exactly:) description")
+    func barcodeExpectationExactly() {
         let expectation = Barcode(.code128, exactly: "ABC123")
-
-        XCTAssertEqual(expectation.description, "Barcode(code128, exactly: \"ABC123\")")
+        #expect(expectation.description == "Barcode(code128, exactly: \"ABC123\")")
     }
 
-    func testTextExpectationContaining() {
+    @Test("Text(containing:) description and custom words")
+    func textExpectationContaining() {
         let expectation = Text("FRAGILE")
-
-        XCTAssertEqual(expectation.description, "Text(containing: \"FRAGILE\")")
-        XCTAssertTrue(expectation.visionHints.customWords.contains("FRAGILE"))
+        #expect(expectation.description == "Text(containing: \"FRAGILE\")")
+        #expect(expectation.visionHints.customWords.contains("FRAGILE"))
     }
 
-    func testTextExpectationExactly() {
+    @Test("Text(exactly:) description")
+    func textExpectationExactly() {
         let expectation = Text(exactly: "Hello World")
-
-        XCTAssertEqual(expectation.description, "Text(exactly: \"Hello World\")")
+        #expect(expectation.description == "Text(exactly: \"Hello World\")")
     }
+}
 
-    // MARK: - Expectation Check Tests
+// MARK: - Expectation Checks
 
-    func testBarcodeExpectationCheckPass() {
+@Suite("Expectation Checks")
+struct ExpectationCheckTests {
+
+    @Test("Barcode exact match passes with matched item")
+    func barcodeExpectationCheckPass() {
         let expectation = Barcode(.code128, exactly: "ABC123")
-
         let barcodes = [
             DetectedBarcode(
                 symbology: .code128,
@@ -56,14 +67,14 @@ final class ZPLVerifierTests: XCTestCase {
 
         let result = expectation.check(barcodes: barcodes, textRegions: [])
 
-        XCTAssertTrue(result.passed)
-        XCTAssertNil(result.failureMessage)
-        XCTAssertNotNil(result.matchedItem)
+        #expect(result.passed)
+        #expect(result.failureMessage == nil)
+        #expect(result.matchedItem != nil)
     }
 
-    func testBarcodeExpectationCheckFailMissingSymbology() {
+    @Test("Barcode missing symbology fails with No <symbology> message")
+    func barcodeExpectationCheckFailMissingSymbology() {
         let expectation = Barcode(.code128)
-
         let barcodes = [
             DetectedBarcode(
                 symbology: .qr,
@@ -75,13 +86,13 @@ final class ZPLVerifierTests: XCTestCase {
 
         let result = expectation.check(barcodes: barcodes, textRegions: [])
 
-        XCTAssertFalse(result.passed)
-        XCTAssertTrue(result.failureMessage?.contains("No code128") ?? false)
+        #expect(!result.passed)
+        #expect(result.failureMessage?.contains("No code128") ?? false)
     }
 
-    func testBarcodeExpectationCheckFailWrongPayload() {
+    @Test("Barcode wrong payload fails and surfaces actual payload")
+    func barcodeExpectationCheckFailWrongPayload() {
         let expectation = Barcode(.code128, exactly: "ABC123")
-
         let barcodes = [
             DetectedBarcode(
                 symbology: .code128,
@@ -93,13 +104,13 @@ final class ZPLVerifierTests: XCTestCase {
 
         let result = expectation.check(barcodes: barcodes, textRegions: [])
 
-        XCTAssertFalse(result.passed)
-        XCTAssertTrue(result.failureMessage?.contains("XYZ789") ?? false)
+        #expect(!result.passed)
+        #expect(result.failureMessage?.contains("XYZ789") ?? false)
     }
 
-    func testBarcodeExpectationCheckContaining() {
+    @Test("Barcode containing match passes on substring payload")
+    func barcodeExpectationCheckContaining() {
         let expectation = Barcode(.qr, containing: "example")
-
         let barcodes = [
             DetectedBarcode(
                 symbology: .qr,
@@ -111,12 +122,12 @@ final class ZPLVerifierTests: XCTestCase {
 
         let result = expectation.check(barcodes: barcodes, textRegions: [])
 
-        XCTAssertTrue(result.passed)
+        #expect(result.passed)
     }
 
-    func testTextExpectationCheckPass() {
+    @Test("Text containing match passes")
+    func textExpectationCheckPass() {
         let expectation = Text("FRAGILE")
-
         let textRegions = [
             DetectedText(
                 text: "HANDLE WITH CARE - FRAGILE",
@@ -127,12 +138,12 @@ final class ZPLVerifierTests: XCTestCase {
 
         let result = expectation.check(barcodes: [], textRegions: textRegions)
 
-        XCTAssertTrue(result.passed)
+        #expect(result.passed)
     }
 
-    func testTextExpectationCheckPassCaseInsensitive() {
+    @Test("Text containing match is case-insensitive")
+    func textExpectationCheckPassCaseInsensitive() {
         let expectation = Text("fragile")
-
         let textRegions = [
             DetectedText(
                 text: "FRAGILE",
@@ -143,12 +154,12 @@ final class ZPLVerifierTests: XCTestCase {
 
         let result = expectation.check(barcodes: [], textRegions: textRegions)
 
-        XCTAssertTrue(result.passed)
+        #expect(result.passed)
     }
 
-    func testTextExpectationCheckFailNotFound() {
+    @Test("Text not found fails and surfaces missing text")
+    func textExpectationCheckFailNotFound() {
         let expectation = Text("MISSING")
-
         let textRegions = [
             DetectedText(
                 text: "HELLO WORLD",
@@ -159,13 +170,13 @@ final class ZPLVerifierTests: XCTestCase {
 
         let result = expectation.check(barcodes: [], textRegions: textRegions)
 
-        XCTAssertFalse(result.passed)
-        XCTAssertTrue(result.failureMessage?.contains("MISSING") ?? false)
+        #expect(!result.passed)
+        #expect(result.failureMessage?.contains("MISSING") ?? false)
     }
 
-    func testTextExpectationExactlyCheckPass() {
+    @Test("Text exact match passes")
+    func textExpectationExactlyCheckPass() {
         let expectation = Text(exactly: "Hello World")
-
         let textRegions = [
             DetectedText(
                 text: "Hello World",
@@ -176,12 +187,12 @@ final class ZPLVerifierTests: XCTestCase {
 
         let result = expectation.check(barcodes: [], textRegions: textRegions)
 
-        XCTAssertTrue(result.passed)
+        #expect(result.passed)
     }
 
-    func testTextExpectationExactlyCheckFailPartialMatch() {
+    @Test("Text exact match fails on partial match")
+    func textExpectationExactlyCheckFailPartialMatch() {
         let expectation = Text(exactly: "Hello")
-
         let textRegions = [
             DetectedText(
                 text: "Hello World",
@@ -192,35 +203,46 @@ final class ZPLVerifierTests: XCTestCase {
 
         let result = expectation.check(barcodes: [], textRegions: textRegions)
 
-        XCTAssertFalse(result.passed)
+        #expect(!result.passed)
     }
+}
 
-    // MARK: - VisionHints Tests
+// MARK: - VisionHints
 
-    func testVisionHintsMerge() {
+@Suite("VisionHints")
+struct VisionHintsTests {
+
+    @Test("merge([_]) unions symbologies and custom words")
+    func visionHintsMerge() {
         let hints1 = VisionHints(symbologies: [.code128], customWords: ["HELLO"])
         let hints2 = VisionHints(symbologies: [.qr], customWords: ["WORLD"])
 
         let merged = VisionHints.merge([hints1, hints2])
 
-        XCTAssertEqual(merged.symbologies, [.code128, .qr])
-        XCTAssertEqual(merged.customWords, ["HELLO", "WORLD"])
+        #expect(merged.symbologies == [.code128, .qr])
+        #expect(merged.customWords == ["HELLO", "WORLD"])
     }
 
-    func testVisionHintsMerging() {
+    @Test("merging(_:) deduplicates symbologies")
+    func visionHintsMerging() {
         let hints1 = VisionHints(symbologies: [.code128])
         let hints2 = VisionHints(symbologies: [.code128, .qr])
 
         let merged = hints1.merging(hints2)
 
-        XCTAssertEqual(merged.symbologies.count, 2)
-        XCTAssertTrue(merged.symbologies.contains(.code128))
-        XCTAssertTrue(merged.symbologies.contains(.qr))
+        #expect(merged.symbologies.count == 2)
+        #expect(merged.symbologies.contains(.code128))
+        #expect(merged.symbologies.contains(.qr))
     }
+}
 
-    // MARK: - BoundsInfo Tests
+// MARK: - BoundsInfo
 
-    func testBoundsInfoEdgeDetection() {
+@Suite("BoundsInfo")
+struct BoundsInfoTests {
+
+    @Test("Edge detection flags left/top edges")
+    func boundsInfoEdgeDetection() {
         let boxes = [
             CGRect(x: 0.0, y: 0.5, width: 0.1, height: 0.1),  // left edge
             CGRect(x: 0.5, y: 0.99, width: 0.1, height: 0.01) // top edge
@@ -228,25 +250,27 @@ final class ZPLVerifierTests: XCTestCase {
 
         let boundsInfo = BoundsInfo.from(boundingBoxes: boxes)
 
-        XCTAssertTrue(boundsInfo.hasLeftEdgeContent)
-        XCTAssertTrue(boundsInfo.hasTopEdgeContent)
-        XCTAssertFalse(boundsInfo.hasRightEdgeContent)
-        XCTAssertFalse(boundsInfo.hasBottomEdgeContent)
-        XCTAssertTrue(boundsInfo.hasEdgeContent)
+        #expect(boundsInfo.hasLeftEdgeContent)
+        #expect(boundsInfo.hasTopEdgeContent)
+        #expect(!boundsInfo.hasRightEdgeContent)
+        #expect(!boundsInfo.hasBottomEdgeContent)
+        #expect(boundsInfo.hasEdgeContent)
     }
 
-    func testBoundsInfoNoEdgeContent() {
+    @Test("No edge content when boxes are interior")
+    func boundsInfoNoEdgeContent() {
         let boxes = [
             CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.3)
         ]
 
         let boundsInfo = BoundsInfo.from(boundingBoxes: boxes)
 
-        XCTAssertFalse(boundsInfo.hasEdgeContent)
-        XCTAssertTrue(boundsInfo.affectedEdges.isEmpty)
+        #expect(!boundsInfo.hasEdgeContent)
+        #expect(boundsInfo.affectedEdges.isEmpty)
     }
 
-    func testDetectedBarcodeMayBeClipped() {
+    @Test("DetectedBarcode mayBeClipped reflects edge-touching bounds")
+    func detectedBarcodeMayBeClipped() {
         let clipped = DetectedBarcode(
             symbology: .code128,
             payload: "TEST",
@@ -261,13 +285,18 @@ final class ZPLVerifierTests: XCTestCase {
             confidence: 0.95
         )
 
-        XCTAssertTrue(clipped.mayBeClipped)
-        XCTAssertFalse(notClipped.mayBeClipped)
+        #expect(clipped.mayBeClipped)
+        #expect(!notClipped.mayBeClipped)
     }
+}
 
-    // MARK: - VerificationResult Tests
+// MARK: - VerificationResult
 
-    func testVerificationResultSummaryPassed() {
+@Suite("VerificationResult")
+struct VerificationResultTests {
+
+    @Test("Summary reports all passed")
+    func verificationResultSummaryPassed() {
         let result = VerificationResult(
             passed: true,
             expectations: [
@@ -277,10 +306,11 @@ final class ZPLVerifierTests: XCTestCase {
             verificationTimeSeconds: 0.1
         )
 
-        XCTAssertEqual(result.summary, "All 1 expectation(s) passed")
+        #expect(result.summary == "All 1 expectation(s) passed")
     }
 
-    func testVerificationResultSummaryFailed() {
+    @Test("Summary reports first failure message")
+    func verificationResultSummaryFailed() {
         let result = VerificationResult(
             passed: false,
             expectations: [
@@ -291,10 +321,11 @@ final class ZPLVerifierTests: XCTestCase {
             verificationTimeSeconds: 0.1
         )
 
-        XCTAssertEqual(result.summary, "Failed: Not found")
+        #expect(result.summary == "Failed: Not found")
     }
 
-    func testVerificationResultPassedFailedExpectations() {
+    @Test("passedExpectations / failedExpectations partition results")
+    func verificationResultPassedFailedExpectations() {
         let result = VerificationResult(
             passed: false,
             expectations: [
@@ -306,13 +337,18 @@ final class ZPLVerifierTests: XCTestCase {
             verificationTimeSeconds: 0.1
         )
 
-        XCTAssertEqual(result.passedExpectations.count, 2)
-        XCTAssertEqual(result.failedExpectations.count, 1)
+        #expect(result.passedExpectations.count == 2)
+        #expect(result.failedExpectations.count == 1)
     }
+}
 
-    // MARK: - AnalysisResult Tests
+// MARK: - AnalysisResult
 
-    func testAnalysisResultAllText() {
+@Suite("AnalysisResult")
+struct AnalysisResultTests {
+
+    @Test("allText joins text regions with newlines")
+    func analysisResultAllText() {
         let result = AnalysisResult(
             barcodes: [],
             textRegions: [
@@ -323,10 +359,11 @@ final class ZPLVerifierTests: XCTestCase {
             analysisTimeSeconds: 0.1
         )
 
-        XCTAssertEqual(result.allText, "Hello\nWorld")
+        #expect(result.allText == "Hello\nWorld")
     }
 
-    func testAnalysisResultAllPayloads() {
+    @Test("allPayloads lists barcode payloads in order")
+    func analysisResultAllPayloads() {
         let result = AnalysisResult(
             barcodes: [
                 DetectedBarcode(symbology: .code128, payload: "ABC", boundingBox: .zero, confidence: 0.9),
@@ -337,10 +374,11 @@ final class ZPLVerifierTests: XCTestCase {
             analysisTimeSeconds: 0.1
         )
 
-        XCTAssertEqual(result.allPayloads, ["ABC", "XYZ"])
+        #expect(result.allPayloads == ["ABC", "XYZ"])
     }
 
-    func testAnalysisResultFilterBySymbology() {
+    @Test("barcodes(of:) filters by symbology")
+    func analysisResultFilterBySymbology() {
         let result = AnalysisResult(
             barcodes: [
                 DetectedBarcode(symbology: .code128, payload: "ABC", boundingBox: .zero, confidence: 0.9),
@@ -353,23 +391,28 @@ final class ZPLVerifierTests: XCTestCase {
         )
 
         let code128Barcodes = result.barcodes(of: .code128)
-        XCTAssertEqual(code128Barcodes.count, 2)
+        #expect(code128Barcodes.count == 2)
     }
+}
 
-    // MARK: - Result Builder Tests
+// MARK: - Result Builder
 
-    func testVerificationBuilder() {
+@Suite("VerificationBuilder")
+struct ResultBuilderTests {
+
+    @Test("Two expectations collect into an array")
+    func verificationBuilder() {
         @VerificationBuilder
         func buildExpectations() -> [any Expectation] {
             Barcode(.code128)
             Text("HELLO")
         }
 
-        let expectations = buildExpectations()
-        XCTAssertEqual(expectations.count, 2)
+        #expect(buildExpectations().count == 2)
     }
 
-    func testVerificationBuilderMultipleExpectations() {
+    @Test("Multiple expectations collect into an array")
+    func verificationBuilderMultipleExpectations() {
         @VerificationBuilder
         func buildExpectations() -> [any Expectation] {
             Barcode(.code128)
@@ -377,98 +420,125 @@ final class ZPLVerifierTests: XCTestCase {
             Text("HELLO")
         }
 
-        let expectations = buildExpectations()
-        XCTAssertEqual(expectations.count, 3)
+        #expect(buildExpectations().count == 3)
+    }
+}
+
+// MARK: - VerifierError
+
+@Suite("VerifierError")
+struct VerifierErrorTests {
+
+    /// Stub error used to exercise the underlying-error contract on VerifierError.
+    private struct StubError: Error, LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
     }
 
-    // MARK: - VerifierError Tests
-
-    func testVerifierErrorDescriptions() {
+    @Test("invalidImage has fixed description and no underlying message")
+    func verifierErrorInvalidImage() {
         let invalidImage = VerifierError.invalidImage
-        XCTAssertEqual(invalidImage.errorDescription, "The provided image could not be processed")
-        XCTAssertNil(invalidImage.underlyingMessage)
-
-        struct StubError: Error, LocalizedError {
-            let message: String
-            var errorDescription: String? { message }
-        }
-
-        let barcodeUnderlying = StubError(message: "No barcodes found")
-        let barcodeError = VerifierError.barcodeDetectionFailed(underlying: barcodeUnderlying)
-        XCTAssertTrue(barcodeError.errorDescription?.contains("Barcode detection failed") ?? false)
-        XCTAssertEqual(barcodeError.underlyingMessage, "No barcodes found")
-        XCTAssertTrue(barcodeError.underlyingError is StubError)
-
-        let textUnderlying = StubError(message: "OCR failed")
-        let textError = VerifierError.textRecognitionFailed(underlying: textUnderlying)
-        XCTAssertTrue(textError.errorDescription?.contains("Text recognition failed") ?? false)
-        XCTAssertEqual(textError.underlyingMessage, "OCR failed")
-        XCTAssertTrue(textError.underlyingError is StubError)
-
-        let unexpectedError = VerifierError.unexpected("Something went wrong")
-        XCTAssertTrue(unexpectedError.errorDescription?.contains("Unexpected error") ?? false)
-        XCTAssertEqual(unexpectedError.underlyingMessage, "Something went wrong")
+        #expect(invalidImage.errorDescription == "The provided image could not be processed")
+        #expect(invalidImage.underlyingMessage == nil)
     }
 
-    // MARK: - BarcodeSymbology Tests
-
-    func testBarcodeSymbologyDescriptions() {
-        XCTAssertEqual(BarcodeSymbology.qr.description, "QR Code")
-        XCTAssertEqual(BarcodeSymbology.code128.description, "Code 128")
-        XCTAssertEqual(BarcodeSymbology.ean13.description, "EAN-13")
-        XCTAssertEqual(BarcodeSymbology.aztec.description, "Aztec")
-        XCTAssertEqual(BarcodeSymbology.pdf417.description, "PDF417")
-        XCTAssertEqual(BarcodeSymbology.dataMatrix.description, "Data Matrix")
-        XCTAssertEqual(BarcodeSymbology.i2of5.description, "Interleaved 2 of 5")
+    @Test("barcodeDetectionFailed wraps underlying error and message")
+    func verifierErrorBarcodeDetectionFailed() {
+        let underlying = StubError(message: "No barcodes found")
+        let error = VerifierError.barcodeDetectionFailed(underlying: underlying)
+        #expect(error.errorDescription?.contains("Barcode detection failed") ?? false)
+        #expect(error.underlyingMessage == "No barcodes found")
+        #expect(error.underlyingError is StubError)
     }
 
-    func testBarcodeSymbologyRawValues() {
-        XCTAssertEqual(BarcodeSymbology.qr.rawValue, "qr")
-        XCTAssertEqual(BarcodeSymbology.code128.rawValue, "code128")
-        XCTAssertEqual(BarcodeSymbology.ean13.rawValue, "ean13")
+    @Test("textRecognitionFailed wraps underlying error and message")
+    func verifierErrorTextRecognitionFailed() {
+        let underlying = StubError(message: "OCR failed")
+        let error = VerifierError.textRecognitionFailed(underlying: underlying)
+        #expect(error.errorDescription?.contains("Text recognition failed") ?? false)
+        #expect(error.underlyingMessage == "OCR failed")
+        #expect(error.underlyingError is StubError)
     }
 
-    func testBarcodeSymbologyCodable() throws {
+    @Test("unexpected carries the provided message")
+    func verifierErrorUnexpected() {
+        let error = VerifierError.unexpected("Something went wrong")
+        #expect(error.errorDescription?.contains("Unexpected error") ?? false)
+        #expect(error.underlyingMessage == "Something went wrong")
+    }
+}
+
+// MARK: - BarcodeSymbology
+
+@Suite("BarcodeSymbology")
+struct BarcodeSymbologyTests {
+
+    // description mapping per representative case.
+    @Test(arguments: [
+        (BarcodeSymbology.qr, "QR Code"),
+        (.code128, "Code 128"),
+        (.ean13, "EAN-13"),
+        (.aztec, "Aztec"),
+        (.pdf417, "PDF417"),
+        (.dataMatrix, "Data Matrix"),
+        (.i2of5, "Interleaved 2 of 5")
+    ])
+    func symbologyDescription(symbology: BarcodeSymbology, expected: String) {
+        #expect(symbology.description == expected)
+    }
+
+    // rawValue mapping per representative case.
+    @Test(arguments: [
+        (BarcodeSymbology.qr, "qr"),
+        (.code128, "code128"),
+        (.ean13, "ean13")
+    ])
+    func symbologyRawValue(symbology: BarcodeSymbology, expected: String) {
+        #expect(symbology.rawValue == expected)
+    }
+
+    @Test("Codable round-trips through JSON")
+    func symbologyCodable() throws {
         let symbology = BarcodeSymbology.code128
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(symbology)
-        let decoder = JSONDecoder()
-        let decoded = try decoder.decode(BarcodeSymbology.self, from: data)
-        XCTAssertEqual(decoded, symbology)
+        let data = try JSONEncoder().encode(symbology)
+        let decoded = try JSONDecoder().decode(BarcodeSymbology.self, from: data)
+        #expect(decoded == symbology)
     }
 
-    func testBarcodeSymbologyVisionRoundTripIsComplete() {
-        // Every local case must round-trip cleanly through Vision and back.
-        for symbology in BarcodeSymbology.allCases {
-            let roundTripped = BarcodeSymbology(vnSymbology: symbology.vnSymbology)
-            XCTAssertEqual(roundTripped, symbology,
-                           "\(symbology) did not round-trip through Vision.BarcodeSymbology")
-        }
+    // Every local case must round-trip cleanly through Vision and back.
+    @Test(arguments: BarcodeSymbology.allCases)
+    func symbologyVisionRoundTripIsComplete(symbology: BarcodeSymbology) {
+        let roundTripped = BarcodeSymbology(vnSymbology: symbology.vnSymbology)
+        #expect(roundTripped == symbology,
+                "\(symbology) did not round-trip through Vision.BarcodeSymbology")
     }
 
-    func testBarcodeSymbologyNewlyAddedSymbologiesMapped() {
-        // Symbologies that were previously dropped by the scanner.
-        let newlyAdded: [BarcodeSymbology] = [
-            .codabar, .gs1DataBar, .gs1DataBarExpanded, .gs1DataBarLimited,
-            .microPDF417, .microQR, .msiPlessey
-        ]
-        for symbology in newlyAdded {
-            XCTAssertNotNil(BarcodeSymbology(vnSymbology: symbology.vnSymbology),
-                            "\(symbology) is dropped by init?(vnSymbology:)")
-            XCTAssertFalse(symbology.description.isEmpty)
-        }
+    // Symbologies that were previously dropped by the scanner must map and describe.
+    @Test(arguments: [
+        BarcodeSymbology.codabar, .gs1DataBar, .gs1DataBarExpanded, .gs1DataBarLimited,
+        .microPDF417, .microQR, .msiPlessey
+    ])
+    func symbologyNewlyAddedMapped(symbology: BarcodeSymbology) {
+        #expect(BarcodeSymbology(vnSymbology: symbology.vnSymbology) != nil,
+                "\(symbology) is dropped by init?(vnSymbology:)")
+        #expect(!symbology.description.isEmpty)
     }
 
-    func testBarcodeSymbologyCaseIterable() {
-        // Verify CaseIterable works and has expected count
-        XCTAssertGreaterThan(BarcodeSymbology.allCases.count, 10)
-        XCTAssertTrue(BarcodeSymbology.allCases.contains(.qr))
-        XCTAssertTrue(BarcodeSymbology.allCases.contains(.code128))
+    @Test("CaseIterable exposes expected cases and count")
+    func symbologyCaseIterable() {
+        #expect(BarcodeSymbology.allCases.count > 10)
+        #expect(BarcodeSymbology.allCases.contains(.qr))
+        #expect(BarcodeSymbology.allCases.contains(.code128))
     }
+}
 
-    // MARK: - DetectedBarcode/DetectedText Codable Tests
+// MARK: - Detected* Codable
 
-    func testDetectedBarcodeCodable() throws {
+@Suite("Detected Types Codable")
+struct DetectedCodableTests {
+
+    @Test("DetectedBarcode round-trips through JSON")
+    func detectedBarcodeCodable() throws {
         let barcode = DetectedBarcode(
             symbology: .code128,
             payload: "TEST123",
@@ -476,54 +546,55 @@ final class ZPLVerifierTests: XCTestCase {
             confidence: 0.95
         )
 
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(barcode)
-        let decoder = JSONDecoder()
-        let decoded = try decoder.decode(DetectedBarcode.self, from: data)
+        let data = try JSONEncoder().encode(barcode)
+        let decoded = try JSONDecoder().decode(DetectedBarcode.self, from: data)
 
-        XCTAssertEqual(decoded.symbology, barcode.symbology)
-        XCTAssertEqual(decoded.payload, barcode.payload)
-        XCTAssertEqual(decoded.confidence, barcode.confidence)
+        #expect(decoded.symbology == barcode.symbology)
+        #expect(decoded.payload == barcode.payload)
+        #expect(decoded.confidence == barcode.confidence)
     }
 
-    func testDetectedTextCodable() throws {
+    @Test("DetectedText round-trips through JSON")
+    func detectedTextCodable() throws {
         let text = DetectedText(
             text: "HELLO WORLD",
             boundingBox: CGRect(x: 0.1, y: 0.5, width: 0.8, height: 0.1),
             confidence: 0.9
         )
 
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(text)
-        let decoder = JSONDecoder()
-        let decoded = try decoder.decode(DetectedText.self, from: data)
+        let data = try JSONEncoder().encode(text)
+        let decoded = try JSONDecoder().decode(DetectedText.self, from: data)
 
-        XCTAssertEqual(decoded.text, text.text)
-        XCTAssertEqual(decoded.confidence, text.confidence)
+        #expect(decoded.text == text.text)
+        #expect(decoded.confidence == text.confidence)
     }
+}
 
-    // MARK: - Integration Tests
+// MARK: - Integration (Vision)
 
-    func testVerifierAnalyzeQRCode() async throws {
+@Suite("Verifier Integration")
+struct VerifierIntegrationTests {
+
+    @Test("analyze decodes a rendered QR code")
+    func verifierAnalyzeQRCode() async throws {
         let testData = "https://zplkit.example.com"
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             QRCode(testData, at: .dots(100, 100))
                 .magnification(8)
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier()
         let result = try await verifier.analyze(renderResult.image)
 
-        XCTAssertGreaterThan(result.barcodes.count, 0)
-        XCTAssertTrue(result.barcodes.contains(where: { $0.symbology == .qr }))
-        XCTAssertTrue(result.allPayloads.contains(where: { $0.contains(testData) }))
+        #expect(result.barcodes.count > 0)
+        #expect(result.barcodes.contains(where: { $0.symbology == .qr }))
+        #expect(result.allPayloads.contains(where: { $0.contains(testData) }))
     }
 
-    func testVerifierAnalyzeCode128() async throws {
+    @Test("analyze decodes a rendered Code 128 payload")
+    func verifierAnalyzeCode128() async throws {
         let testData = "ABC123"
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Barcode128(testData, at: .dots(50, 50))?
@@ -531,17 +602,16 @@ final class ZPLVerifierTests: XCTestCase {
                 .moduleWidth(3)
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier()
         let result = try await verifier.analyze(renderResult.image)
 
-        XCTAssertTrue(result.barcodes.contains(where: { $0.payload == testData }))
+        #expect(result.barcodes.contains(where: { $0.payload == testData }))
     }
 
-    func testVerifierVerifyBarcode() async throws {
+    @Test("verify passes for exact Code 128 barcode")
+    func verifierVerifyBarcode() async throws {
         let testData = "TEST123"
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Barcode128(testData, at: .dots(50, 50))?
@@ -549,58 +619,55 @@ final class ZPLVerifierTests: XCTestCase {
                 .moduleWidth(3)
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
             Barcode(.code128, exactly: testData)
         }
 
-        XCTAssertTrue(result.passed, result.summary)
+        #expect(result.passed, "\(result.summary)")
     }
 
-    func testVerifierVerifyBarcodeContaining() async throws {
+    @Test("verify passes for containing Code 128 barcode")
+    func verifierVerifyBarcodeContaining() async throws {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Barcode128("SKU-12345-ABC", at: .dots(50, 50))?
                 .height(.dots(100))
                 .moduleWidth(3)
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
             Barcode(.code128, containing: "12345")
         }
 
-        XCTAssertTrue(result.passed, result.summary)
+        #expect(result.passed, "\(result.summary)")
     }
 
-    func testVerifierVerifyMissingBarcode() async throws {
+    @Test("verify fails when expected barcode symbology is absent")
+    func verifierVerifyMissingBarcode() async throws {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Barcode128("ABC123", at: .dots(50, 50))?
                 .height(.dots(100))
                 .moduleWidth(3)
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
             Barcode(.qr)  // Looking for QR but only Code128 present
         }
 
-        XCTAssertFalse(result.passed)
-        XCTAssertTrue(result.summary.contains("No qr"))
+        #expect(!result.passed)
+        #expect(result.summary.contains("No qr"))
     }
 
-    func testVerifierVerifyMultipleExpectations() async throws {
+    @Test("verify passes for multiple expectations")
+    func verifierVerifyMultipleExpectations() async throws {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             Barcode128("SKU-001", at: .dots(50, 50))?
                 .height(.dots(80))
@@ -609,9 +676,7 @@ final class ZPLVerifierTests: XCTestCase {
                 .magnification(6)
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
@@ -619,75 +684,71 @@ final class ZPLVerifierTests: XCTestCase {
             Barcode(.qr, containing: "example")
         }
 
-        XCTAssertTrue(result.passed, result.summary)
-        XCTAssertEqual(result.expectations.count, 2)
+        #expect(result.passed, "\(result.summary)")
+        #expect(result.expectations.count == 2)
     }
 
-    func testVerifierVerifyText() async throws {
+    @Test("verify passes for recognized text")
+    func verifierVerifyText() async throws {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             ZPLKit.Text("SHIPPING LABEL", at: .dots(50, 50))
                 .font(.default, height: .dots(50), width: .dots(50))
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
             Text("SHIPPING")
         }
 
-        XCTAssertTrue(result.passed, result.summary)
+        #expect(result.passed, "\(result.summary)")
     }
 
-    func testVerifierConfigurationFast() async throws {
+    @Test("fast configuration still decodes a barcode")
+    func verifierConfigurationFast() async throws {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             QRCode("FAST-TEST", at: .dots(100, 100))
                 .magnification(8)
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier(configuration: .fast)
         let result = try await verifier.analyze(renderResult.image)
 
-        XCTAssertGreaterThan(result.barcodes.count, 0)
+        #expect(result.barcodes.count > 0)
     }
 
-    func testVerifierAnalysisTime() async throws {
+    @Test("analyze reports a positive analysis time")
+    func verifierAnalysisTime() async throws {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Barcode128("TEST", at: .dots(50, 50))?
                 .height(.dots(100))
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier()
         let result = try await verifier.analyze(renderResult.image)
 
-        XCTAssertGreaterThan(result.analysisTimeSeconds, 0)
+        #expect(result.analysisTimeSeconds > 0)
     }
 
-    func testVerifierVerificationTime() async throws {
+    @Test("verify reports a positive verification time")
+    func verifierVerificationTime() async throws {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             Barcode128("TEST", at: .dots(50, 50))?
                 .height(.dots(100))
         }
 
-        let zpl = label.render()
-        let renderer = ZPLRenderer()
-        let renderResult = try renderer.render(zpl, dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
             Barcode(.code128)
         }
 
-        XCTAssertGreaterThan(result.verificationTimeSeconds, 0)
+        #expect(result.verificationTimeSeconds > 0)
     }
 }
