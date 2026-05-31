@@ -388,13 +388,22 @@ final class ZPLVerifierTests: XCTestCase {
         XCTAssertEqual(invalidImage.errorDescription, "The provided image could not be processed")
         XCTAssertNil(invalidImage.underlyingMessage)
 
-        let barcodeError = VerifierError.barcodeDetectionFailed(underlying: "No barcodes found")
+        struct StubError: Error, LocalizedError {
+            let message: String
+            var errorDescription: String? { message }
+        }
+
+        let barcodeUnderlying = StubError(message: "No barcodes found")
+        let barcodeError = VerifierError.barcodeDetectionFailed(underlying: barcodeUnderlying)
         XCTAssertTrue(barcodeError.errorDescription?.contains("Barcode detection failed") ?? false)
         XCTAssertEqual(barcodeError.underlyingMessage, "No barcodes found")
+        XCTAssertTrue(barcodeError.underlyingError is StubError)
 
-        let textError = VerifierError.textRecognitionFailed(underlying: "OCR failed")
+        let textUnderlying = StubError(message: "OCR failed")
+        let textError = VerifierError.textRecognitionFailed(underlying: textUnderlying)
         XCTAssertTrue(textError.errorDescription?.contains("Text recognition failed") ?? false)
         XCTAssertEqual(textError.underlyingMessage, "OCR failed")
+        XCTAssertTrue(textError.underlyingError is StubError)
 
         let unexpectedError = VerifierError.unexpected("Something went wrong")
         XCTAssertTrue(unexpectedError.errorDescription?.contains("Unexpected error") ?? false)
@@ -426,6 +435,28 @@ final class ZPLVerifierTests: XCTestCase {
         let decoder = JSONDecoder()
         let decoded = try decoder.decode(BarcodeSymbology.self, from: data)
         XCTAssertEqual(decoded, symbology)
+    }
+
+    func testBarcodeSymbologyVisionRoundTripIsComplete() {
+        // Every local case must round-trip cleanly through Vision and back.
+        for symbology in BarcodeSymbology.allCases {
+            let roundTripped = BarcodeSymbology(vnSymbology: symbology.vnSymbology)
+            XCTAssertEqual(roundTripped, symbology,
+                           "\(symbology) did not round-trip through Vision.BarcodeSymbology")
+        }
+    }
+
+    func testBarcodeSymbologyNewlyAddedSymbologiesMapped() {
+        // Symbologies that were previously dropped by the scanner.
+        let newlyAdded: [BarcodeSymbology] = [
+            .codabar, .gs1DataBar, .gs1DataBarExpanded, .gs1DataBarLimited,
+            .microPDF417, .microQR, .msiPlessey
+        ]
+        for symbology in newlyAdded {
+            XCTAssertNotNil(BarcodeSymbology(vnSymbology: symbology.vnSymbology),
+                            "\(symbology) is dropped by init?(vnSymbology:)")
+            XCTAssertFalse(symbology.description.isEmpty)
+        }
     }
 
     func testBarcodeSymbologyCaseIterable() {

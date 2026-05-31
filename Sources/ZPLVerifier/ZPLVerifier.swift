@@ -111,14 +111,26 @@ public final class ZPLVerifier: Sendable {
 
     /// Analyze an image to discover all barcodes and text.
     ///
+    /// An image with no detectable barcodes or text is not an error: it returns
+    /// an ``AnalysisResult`` with empty `barcodes` and `textRegions`. This method
+    /// throws ``VerifierError`` only when the image is invalid (zero width or
+    /// height) or when the Vision framework reports a failure. If the surrounding
+    /// task is cancelled, `CancellationError` is rethrown unchanged.
+    ///
     /// - Parameter image: The rendered label image to analyze.
     /// - Returns: Analysis results containing all detected content.
-    /// - Throws: `VerifierError` if analysis fails.
+    /// - Throws: ``VerifierError/invalidImage`` for an empty image,
+    ///   ``VerifierError`` on Vision failure, or `CancellationError` on cancellation.
     public func analyze(_ image: CGImage) async throws -> AnalysisResult {
+        guard image.width > 0, image.height > 0 else {
+            throw VerifierError.invalidImage
+        }
+
         let startTime = CFAbsoluteTimeGetCurrent()
 
-        let barcodes = try await scanBarcodes(image, hints: .empty)
-        let textRegions = try await scanText(image, hints: .empty)
+        async let barcodesTask = scanBarcodes(image, hints: .empty)
+        async let textRegionsTask = scanText(image, hints: .empty)
+        let (barcodes, textRegions) = try await (barcodesTask, textRegionsTask)
 
         let allBoundingBoxes = barcodes.map(\.boundingBox) + textRegions.map(\.boundingBox)
         let boundsInfo = BoundsInfo.from(boundingBoxes: allBoundingBoxes)
@@ -137,11 +149,18 @@ public final class ZPLVerifier: Sendable {
 
     /// Verify that an image contains expected content.
     ///
+    /// An image with no detectable content is not an error: expectations simply
+    /// report as not satisfied in the returned ``VerificationResult``. This method
+    /// throws ``VerifierError`` only when the image is invalid (zero width or
+    /// height) or when the Vision framework reports a failure. If the surrounding
+    /// task is cancelled, `CancellationError` is rethrown unchanged.
+    ///
     /// - Parameters:
     ///   - image: The rendered label image to verify.
     ///   - expectations: A builder closure specifying what content to expect.
     /// - Returns: Verification results indicating which expectations passed or failed.
-    /// - Throws: `VerifierError` if verification fails.
+    /// - Throws: ``VerifierError/invalidImage`` for an empty image,
+    ///   ``VerifierError`` on Vision failure, or `CancellationError` on cancellation.
     public func verify(
         _ image: CGImage,
         @VerificationBuilder expectations: () -> [any Expectation]
@@ -156,19 +175,25 @@ public final class ZPLVerifier: Sendable {
     ///   - image: The rendered label image to verify.
     ///   - expectations: Array of expectations to check.
     /// - Returns: Verification results indicating which expectations passed or failed.
-    /// - Throws: `VerifierError` if verification fails.
+    /// - Throws: ``VerifierError/invalidImage`` for an empty image,
+    ///   ``VerifierError`` on Vision failure, or `CancellationError` on cancellation.
     public func verify(
         _ image: CGImage,
         expectations: [any Expectation]
     ) async throws -> VerificationResult {
+        guard image.width > 0, image.height > 0 else {
+            throw VerifierError.invalidImage
+        }
+
         let startTime = CFAbsoluteTimeGetCurrent()
 
         // Merge hints from all expectations
         let hints = VisionHints.merge(expectations.map(\.visionHints))
 
-        // Scan with optimized hints
-        let barcodes = try await scanBarcodes(image, hints: hints)
-        let textRegions = try await scanText(image, hints: hints)
+        // Scan with optimized hints, concurrently — the two scans are independent.
+        async let barcodesTask = scanBarcodes(image, hints: hints)
+        async let textRegionsTask = scanText(image, hints: hints)
+        let (barcodes, textRegions) = try await (barcodesTask, textRegionsTask)
 
         // Check each expectation
         let results = expectations.map { expectation in
@@ -201,8 +226,10 @@ public final class ZPLVerifier: Sendable {
 
         do {
             return try await scanner.scan(image)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            throw VerifierError.barcodeDetectionFailed(underlying: error.localizedDescription)
+            throw VerifierError.barcodeDetectionFailed(underlying: error)
         }
     }
 
@@ -218,8 +245,10 @@ public final class ZPLVerifier: Sendable {
 
         do {
             return try await scanner.scan(image)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            throw VerifierError.textRecognitionFailed(underlying: error.localizedDescription)
+            throw VerifierError.textRecognitionFailed(underlying: error)
         }
     }
 }

@@ -6,10 +6,14 @@ public enum VerifierError: Error, LocalizedError, Sendable {
     case invalidImage
 
     /// Vision framework failed during barcode detection.
-    case barcodeDetectionFailed(underlying: String)
+    ///
+    /// The associated value carries the underlying error thrown by Vision.
+    case barcodeDetectionFailed(underlying: any Error)
 
     /// Vision framework failed during text recognition.
-    case textRecognitionFailed(underlying: String)
+    ///
+    /// The associated value carries the underlying error thrown by Vision.
+    case textRecognitionFailed(underlying: any Error)
 
     /// Vision framework failed to process the image.
     @available(*, deprecated, renamed: "barcodeDetectionFailed")
@@ -23,9 +27,9 @@ public enum VerifierError: Error, LocalizedError, Sendable {
         case .invalidImage:
             return "The provided image could not be processed"
         case .barcodeDetectionFailed(let underlying):
-            return "Barcode detection failed: \(underlying)"
+            return "Barcode detection failed: \(underlying.localizedDescription)"
         case .textRecognitionFailed(let underlying):
-            return "Text recognition failed: \(underlying)"
+            return "Text recognition failed: \(underlying.localizedDescription)"
         case .visionError(let message):
             return "Vision framework error: \(message)"
         case .unexpected(let message):
@@ -36,9 +40,21 @@ public enum VerifierError: Error, LocalizedError, Sendable {
     /// The underlying error message, if available.
     public var underlyingMessage: String? {
         switch self {
-        case .barcodeDetectionFailed(let msg), .textRecognitionFailed(let msg), .visionError(let msg), .unexpected(let msg):
+        case .barcodeDetectionFailed(let error), .textRecognitionFailed(let error):
+            return error.localizedDescription
+        case .visionError(let msg), .unexpected(let msg):
             return msg
         case .invalidImage:
+            return nil
+        }
+    }
+
+    /// The underlying error, if this case carries one.
+    public var underlyingError: (any Error)? {
+        switch self {
+        case .barcodeDetectionFailed(let error), .textRecognitionFailed(let error):
+            return error
+        case .visionError, .unexpected, .invalidImage:
             return nil
         }
     }
