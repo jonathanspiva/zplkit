@@ -15,6 +15,10 @@
 - [ ] Delete leftover `Tools/GraphicPrintTest/status.swift` placeholder (also tracked under StatusCheck cleanup)
 - [ ] Consider an Examples build target / CI typecheck step so example drift is caught automatically
 
+### Verifier API findings (from coverage pass, non-security)
+- [ ] **VerificationBuilder control-flow methods are dead code** - `buildBlock` is variadic-of-single-expectation, so `buildArray`/`buildOptional`/`buildEither`/`buildLimitedAvailability` can't be consumed; `if`/`for` inside a `@VerificationBuilder` block won't compile. Fix: `buildBlock(_ components: [any Expectation]...)` + flatten.
+- [ ] **`Text(containing:)` is case-insensitive but `Barcode(containing:)` is case-sensitive** - undocumented asymmetry. Decide intended behavior and document/align.
+
 - [ ] **Open source release**
   - [ ] Tag v1.0.0 release
   - [ ] Make repo public
