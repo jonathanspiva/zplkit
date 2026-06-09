@@ -68,6 +68,11 @@ private actor QueryState {
         lastReceiveTime
     }
 
+    /// Number of complete ETX-terminated frames in the response buffer.
+    func etxFrameCount() -> Int {
+        responseBuffer.reduce(0) { $1 == 0x03 ? $0 + 1 : $0 }
+    }
+
     func complete(with result: Result<Data, Error>) {
         // Only the first completion wins; subsequent calls are ignored.
         guard !hasCompleted else { return }
@@ -211,96 +216,138 @@ public struct ZPLPrinter: Sendable {
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             DispatchQueue.global().async {
-                let sock = socket(AF_INET, SOCK_STREAM, 0)
-                guard sock >= 0 else {
-                    continuation.resume(throwing: PrinterError.connectionFailed(
-                        host: host, port: port, underlying: "Failed to create socket"))
-                    return
-                }
-
                 // Set send timeout, preserving fractional seconds.
                 let clampedTimeout = max(0, timeout)
                 let timeoutSeconds = Int(clampedTimeout)
                 let timeoutMicros = Int32((clampedTimeout - Double(timeoutSeconds)) * 1_000_000)
-                var tv = timeval(tv_sec: timeoutSeconds, tv_usec: timeoutMicros)
-                setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
-                // Non-blocking connect with poll() for connect timeout.
-                let getFlags = fcntl(sock, F_GETFL, 0)
-                guard getFlags >= 0 else {
-                    let savedErrno = errno
-                    let err = posixErrorString(savedErrno)
-                    Darwin.close(sock)
-                    continuation.resume(throwing: PrinterError.connectionFailed(
-                        host: host, port: port, underlying: "fcntl(F_GETFL) failed: \(err)"))
-                    return
-                }
-                _ = fcntl(sock, F_SETFL, getFlags | O_NONBLOCK)
+                // Resolve the host with getaddrinfo, supporting both IPv4 and
+                // IPv6 (and DNS hostnames). The original code only accepted IPv4
+                // dotted-quad literals via inet_pton, but the API promises
+                // "hostname or IP address" and DiscoveredPrinter.host can be a
+                // hostname or an IPv6 string.
+                var hints = addrinfo()
+                hints.ai_family = AF_UNSPEC
+                hints.ai_socktype = SOCK_STREAM
+                hints.ai_protocol = IPPROTO_TCP
 
-                var addr = sockaddr_in()
-                addr.sin_family = sa_family_t(AF_INET)
-                addr.sin_port = port.bigEndian
-                addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-
-                guard host.withCString({ inet_pton(AF_INET, $0, &addr.sin_addr) }) == 1 else {
-                    Darwin.close(sock)
-                    continuation.resume(throwing: PrinterError.connectionFailed(
-                        host: host, port: port, underlying: "Invalid IP address"))
-                    return
-                }
-
-                let connectResult = withUnsafePointer(to: &addr) { ptr in
-                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-                        Darwin.connect(sock, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+                var addrList: UnsafeMutablePointer<addrinfo>?
+                let gaiResult = host.withCString { hostPtr in
+                    String(port).withCString { portPtr in
+                        getaddrinfo(hostPtr, portPtr, &hints, &addrList)
                     }
                 }
-                let connectErrno = errno
 
-                if connectResult != 0 && connectErrno != EINPROGRESS {
-                    let err = posixErrorString(connectErrno)
-                    Darwin.close(sock)
+                guard gaiResult == 0, let resolved = addrList else {
+                    if let addrList { freeaddrinfo(addrList) }
+                    let detail = String(cString: gai_strerror(gaiResult))
                     continuation.resume(throwing: PrinterError.connectionFailed(
-                        host: host, port: port, underlying: err))
+                        host: host, port: port, underlying: "Could not resolve host: \(detail)"))
                     return
                 }
+                // freeaddrinfo must run on every exit path below.
+                defer { freeaddrinfo(resolved) }
 
-                if connectResult != 0 {
-                    // poll() expects milliseconds; preserve fractional timeout.
-                    let pollTimeoutMillis = Int32((clampedTimeout * 1000).rounded())
-                    var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
-                    let pollResult = poll(&pfd, 1, pollTimeoutMillis)
-                    if pollResult <= 0 {
-                        Darwin.close(sock)
-                        continuation.resume(throwing: PrinterError.timeout(host: host, port: port))
-                        return
+                // Try each resolved address until one connects.
+                var lastError: PrinterError?
+                var connectedSock: Int32 = -1
+
+                var candidate: UnsafeMutablePointer<addrinfo>? = resolved
+                connectLoop: while let info = candidate {
+                    defer { candidate = info.pointee.ai_next }
+
+                    let sock = socket(info.pointee.ai_family,
+                                      info.pointee.ai_socktype,
+                                      info.pointee.ai_protocol)
+                    guard sock >= 0 else {
+                        lastError = PrinterError.connectionFailed(
+                            host: host, port: port, underlying: "Failed to create socket")
+                        continue
                     }
 
-                    var soError: Int32 = 0
-                    var soLen = socklen_t(MemoryLayout<Int32>.size)
-                    let getsockoptResult = getsockopt(sock, SOL_SOCKET, SO_ERROR, &soError, &soLen)
-                    if getsockoptResult != 0 {
+                    // Prevent SIGPIPE (which terminates the host process by
+                    // default) if the printer resets the connection mid-write.
+                    // Darwin has no MSG_NOSIGNAL, so SO_NOSIGPIPE is the right
+                    // mechanism.
+                    var on: Int32 = 1
+                    setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+
+                    var tv = timeval(tv_sec: timeoutSeconds, tv_usec: timeoutMicros)
+                    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+                    // Non-blocking connect with poll() for connect timeout.
+                    let getFlags = fcntl(sock, F_GETFL, 0)
+                    guard getFlags >= 0 else {
                         let savedErrno = errno
                         let err = posixErrorString(savedErrno)
                         Darwin.close(sock)
-                        continuation.resume(throwing: PrinterError.connectionFailed(
-                            host: host, port: port, underlying: "getsockopt(SO_ERROR) failed: \(err)"))
-                        return
+                        lastError = PrinterError.connectionFailed(
+                            host: host, port: port, underlying: "fcntl(F_GETFL) failed: \(err)")
+                        continue
                     }
-                    if soError != 0 {
+                    _ = fcntl(sock, F_SETFL, getFlags | O_NONBLOCK)
+
+                    let connectResult = Darwin.connect(sock, info.pointee.ai_addr, info.pointee.ai_addrlen)
+                    let connectErrno = errno
+
+                    if connectResult != 0 && connectErrno != EINPROGRESS {
+                        let err = posixErrorString(connectErrno)
                         Darwin.close(sock)
-                        if soError == ETIMEDOUT {
-                            continuation.resume(throwing: PrinterError.timeout(host: host, port: port))
-                        } else if soError == ECONNREFUSED {
-                            continuation.resume(throwing: PrinterError.connectionFailed(
-                                host: host, port: port, underlying: "Connection refused"))
-                        } else {
-                            let err = posixErrorString(soError)
-                            continuation.resume(throwing: PrinterError.connectionFailed(
-                                host: host, port: port, underlying: err))
-                        }
-                        return
+                        lastError = PrinterError.connectionFailed(
+                            host: host, port: port, underlying: err)
+                        continue
                     }
+
+                    if connectResult != 0 {
+                        // poll() expects milliseconds; preserve fractional timeout.
+                        let pollTimeoutMillis = Int32((clampedTimeout * 1000).rounded())
+                        var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
+                        let pollResult = poll(&pfd, 1, pollTimeoutMillis)
+                        if pollResult <= 0 {
+                            Darwin.close(sock)
+                            lastError = PrinterError.timeout(host: host, port: port)
+                            continue
+                        }
+
+                        var soError: Int32 = 0
+                        var soLen = socklen_t(MemoryLayout<Int32>.size)
+                        let getsockoptResult = getsockopt(sock, SOL_SOCKET, SO_ERROR, &soError, &soLen)
+                        if getsockoptResult != 0 {
+                            let savedErrno = errno
+                            let err = posixErrorString(savedErrno)
+                            Darwin.close(sock)
+                            lastError = PrinterError.connectionFailed(
+                                host: host, port: port, underlying: "getsockopt(SO_ERROR) failed: \(err)")
+                            continue
+                        }
+                        if soError != 0 {
+                            Darwin.close(sock)
+                            if soError == ETIMEDOUT {
+                                lastError = PrinterError.timeout(host: host, port: port)
+                            } else if soError == ECONNREFUSED {
+                                lastError = PrinterError.connectionFailed(
+                                    host: host, port: port, underlying: "Connection refused")
+                            } else {
+                                let err = posixErrorString(soError)
+                                lastError = PrinterError.connectionFailed(
+                                    host: host, port: port, underlying: err)
+                            }
+                            continue
+                        }
+                    }
+
+                    // Connected successfully.
+                    connectedSock = sock
+                    break connectLoop
                 }
+
+                guard connectedSock >= 0 else {
+                    continuation.resume(throwing: lastError ?? PrinterError.connectionFailed(
+                        host: host, port: port, underlying: "Could not connect to any resolved address"))
+                    return
+                }
+
+                let sock = connectedSock
 
                 // Restore blocking mode for write.
                 let blockingFlags = fcntl(sock, F_GETFL, 0)
@@ -409,6 +456,15 @@ public struct ZPLPrinter: Sendable {
             using: .tcp
         )
 
+        // The ~HS (Host Status) query returns three separate
+        // <STX>...<ETX><CR><LF> frames, which can arrive in separate TCP
+        // segments. Detect it so the receive handler waits for all three
+        // frames rather than completing on the first ETX. Other queries
+        // (~HI, ~HM, ...) return a single frame and complete on one ETX.
+        let isStatusQuery = (String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased() == "~HS")
+
         let state = QueryState()
 
         return try await withTaskCancellationHandler {
@@ -479,7 +535,7 @@ public struct ZPLPrinter: Sendable {
                                 }
 
                                 // Start receiving response
-                                self.receiveResponse(connection: connection, state: state)
+                                self.receiveResponse(connection: connection, state: state, isStatusQuery: isStatusQuery)
                             }
                         })
 
@@ -494,7 +550,16 @@ public struct ZPLPrinter: Sendable {
                         connection.cancel()
 
                     case .cancelled:
-                        break
+                        // The connection was cancelled (e.g. the awaiting task
+                        // was cancelled via onCancel). Complete with
+                        // CancellationError so query() resolves immediately
+                        // rather than hanging until the connection-timeout task
+                        // fires. complete() is idempotent, so if a real result
+                        // was already produced before cancellation this is a
+                        // no-op.
+                        Task {
+                            await state.complete(with: .failure(CancellationError()))
+                        }
 
                     default:
                         break
@@ -509,7 +574,12 @@ public struct ZPLPrinter: Sendable {
     }
 
     /// Recursively receives response data until complete or connection closes.
-    private func receiveResponse(connection: NWConnection, state: QueryState) {
+    ///
+    /// - Parameter isStatusQuery: When true (a `~HS` query), the response is
+    ///   three `<STX>...<ETX><CR><LF>` frames and may span multiple TCP
+    ///   segments, so completion waits until all three ETX frames have arrived.
+    ///   Single-frame queries (~HI, ~HM, ...) complete on their single ETX.
+    private func receiveResponse(connection: NWConnection, state: QueryState, isStatusQuery: Bool) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { content, _, isComplete, error in
             Task {
                 if await state.isCompleted() {
@@ -529,10 +599,12 @@ public struct ZPLPrinter: Sendable {
                     // ZPL control responses end with ETX CR LF (0x03 0x0D 0x0A)
                     let buffer = await state.getResponseBuffer()
                     if buffer.last == 0x0A && buffer.count >= 3 {
-                        // Check for ETX in the response (may have multiple strings)
-                        // For ~HS, we expect 3 strings each ending with ETX CR LF
-                        // For simplicity, we'll check if buffer contains ETX
-                        if buffer.contains(0x03) {
+                        // ~HS returns three ETX-terminated frames; wait for all
+                        // three. Other queries return a single frame and
+                        // complete on their first (and only) ETX. The idle
+                        // timer remains a fallback if fewer frames arrive.
+                        let requiredFrames = isStatusQuery ? 3 : 1
+                        if await state.etxFrameCount() >= requiredFrames {
                             await state.complete(with: .success(buffer))
                             connection.cancel()
                             return
@@ -553,7 +625,7 @@ public struct ZPLPrinter: Sendable {
                 }
 
                 // Continue receiving
-                self.receiveResponse(connection: connection, state: state)
+                self.receiveResponse(connection: connection, state: state, isStatusQuery: isStatusQuery)
             }
         }
     }

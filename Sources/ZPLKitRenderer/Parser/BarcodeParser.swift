@@ -21,7 +21,8 @@ enum BarcodeParser {
 
         let parts = remaining.split(separator: ",")
         if parts.count >= 1, let h = Int(parts[0]) {
-            height = h
+            // Clamp bar height: it scales CoreImage barcode bitmaps directly.
+            height = min(max(h, 1), RenderLimits.maxBarcodeHeight)
         }
         if parts.count >= 2 {
             showText = String(parts[1]) == "Y"
@@ -57,7 +58,8 @@ enum BarcodeParser {
 
         let parts = remaining.split(separator: ",")
         let _ = parts.count >= 1 ? (Int(parts[0]) ?? 2) : 2  // model (1 or 2)
-        let magnification = parts.count >= 2 ? (Int(parts[1]) ?? 3) : 3
+        // Clamp magnification: it scales the generated CoreImage bitmap.
+        let magnification = min(max(parts.count >= 2 ? (Int(parts[1]) ?? 3) : 3, 1), RenderLimits.maxBarcodeScale)
 
         return ParsedBarcode(
             type: .qrCode,
@@ -85,7 +87,7 @@ enum BarcodeParser {
         }
 
         let parts = remaining.split(separator: ",")
-        let size = parts.count >= 1 ? (Int(parts[0]) ?? 3) : 3
+        let size = min(max(parts.count >= 1 ? (Int(parts[0]) ?? 3) : 3, 1), RenderLimits.maxBarcodeScale)
 
         return ParsedBarcode(
             type: .dataMatrix,
@@ -113,7 +115,7 @@ enum BarcodeParser {
         }
 
         let parts = remaining.split(separator: ",")
-        let rowHeight = parts.count >= 1 ? (Int(parts[0]) ?? 10) : 10
+        let rowHeight = min(max(parts.count >= 1 ? (Int(parts[0]) ?? 10) : 10, 1), RenderLimits.maxBarcodeScale)
 
         return ParsedBarcode(
             type: .pdf417,
@@ -141,7 +143,7 @@ enum BarcodeParser {
         }
 
         let parts = remaining.split(separator: ",")
-        let magnification = parts.count >= 1 ? (Int(parts[0]) ?? 3) : 3
+        let magnification = min(max(parts.count >= 1 ? (Int(parts[0]) ?? 3) : 3, 1), RenderLimits.maxBarcodeScale)
 
         return ParsedBarcode(
             type: .aztec,

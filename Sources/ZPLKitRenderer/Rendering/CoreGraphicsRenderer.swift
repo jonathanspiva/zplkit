@@ -24,8 +24,18 @@ public enum CoreGraphicsRenderer {
         _ label: ParsedLabel,
         fontConfiguration: ZPLRenderer.FontConfiguration
     ) throws -> CGImage {
-        let width = label.width
-        let height = label.height
+        // Clamp dimensions defensively: the parser already bounds `^PW`/`^LL`, but a
+        // `ParsedLabel` could be constructed directly. This keeps the context within
+        // a sane size regardless of how the label was produced.
+        let width = min(max(label.width, 1), RenderLimits.maxDimensionDots)
+        let height = min(max(label.height, 1), RenderLimits.maxDimensionDots)
+
+        // Overflow-checked `bytesPerRow` as defense in depth: never let `width * 4`
+        // trap.
+        let (bytesPerRow, overflowed) = width.multipliedReportingOverflow(by: 4)
+        guard !overflowed else {
+            throw ZPLRendererError.renderError("Label dimensions too large")
+        }
 
         // Create bitmap context (white background)
         guard let context = CGContext(
@@ -33,7 +43,7 @@ public enum CoreGraphicsRenderer {
             width: width,
             height: height,
             bitsPerComponent: 8,
-            bytesPerRow: width * 4,
+            bytesPerRow: bytesPerRow,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else {
@@ -220,7 +230,11 @@ public enum CoreGraphicsRenderer {
         let attributedString = NSAttributedString(string: textBlock.text, attributes: attributes)
 
         let frameSetter = CTFramesetterCreateWithAttributedString(attributedString)
-        let frameHeight = CGFloat(textBlock.maxLines * textBlock.fontHeight * 2)
+        // Defense in depth: clamp the block-height multiplication so it cannot trap
+        // even if a `ParsedTextBlock` carries unbounded values.
+        let clampedLines = min(max(textBlock.maxLines, 1), RenderLimits.maxTextBlockLines)
+        let clampedFontHeight = min(max(textBlock.fontHeight, 0), RenderLimits.maxFontHeight)
+        let frameHeight = CGFloat(clampedLines) * CGFloat(clampedFontHeight) * 2
 
         context.saveGState()
 
@@ -339,17 +353,21 @@ public enum CoreGraphicsRenderer {
         let bytesPerRow = graphic.bytesPerRow
         // Defense in depth: the parser already rejects `bytesPerRow <= 0`, but guard
         // here too so a malformed `ParsedGraphic` can never trap on the division below.
-        guard bytesPerRow > 0 else { return }
-        let width = bytesPerRow * 8  // Each byte = 8 pixels
+        guard bytesPerRow > 0, bytesPerRow <= RenderLimits.maxBytesPerRow else { return }
+        // Overflow-checked `bytesPerRow * 8` and `width * height` as defense in depth.
+        let (width, widthOverflow) = bytesPerRow.multipliedReportingOverflow(by: 8)  // Each byte = 8 pixels
+        guard !widthOverflow, width > 0, width <= RenderLimits.maxDimensionDots else { return }
         let height = graphic.data.count / bytesPerRow
 
-        guard height > 0, width > 0 else { return }
+        guard height > 0, height <= RenderLimits.maxDimensionDots else { return }
+        let (pixelCount, pixelOverflow) = width.multipliedReportingOverflow(by: height)
+        guard !pixelOverflow, pixelCount <= RenderLimits.maxGraphicBytes else { return }
 
         // Expand the 1-bit data into one grayscale byte per pixel, writing directly
         // into a single `Data` buffer that backs the CGDataProvider. This avoids the
         // previous `[UInt8]` -> `Data` round-trip (which copied the buffer twice).
         // Each source byte represents 8 horizontal pixels, MSB first.
-        var expandedData = Data(repeating: 255, count: width * height)  // Start with white
+        var expandedData = Data(repeating: 255, count: pixelCount)  // Start with white
 
         expandedData.withUnsafeMutableBytes { rawBuffer in
             let pixels = rawBuffer.bindMemory(to: UInt8.self)

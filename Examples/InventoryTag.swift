@@ -22,7 +22,7 @@ let warehouseLocationTag = ZPLLabel(width: 3, height: 2, dpi: .dpi203) {
     HorizontalLine(at: .inches(0.1, 0.85), length: .inches(2.8), thickness: 2)
 
     // Barcode for scanning
-    Barcode128("LOC-A-14-3", at: .inches(0.25, 1.0))
+    Barcode128("LOC-A-14-3", at: .inches(0.25, 1.0))?
         .height(.inches(0.4))
         .showText(true)
 
@@ -46,7 +46,7 @@ let assetTag = ZPLLabel(width: 2, height: 0.75, dpi: .dpi203) {
         .font(.default, height: .inches(0.15))
 
     // Small barcode
-    Barcode128("A2024147", at: .inches(0.1, 0.4))
+    Barcode128("A2024147", at: .inches(0.1, 0.4))?
         .height(.inches(0.2))
         .moduleWidth(1)
 
@@ -71,7 +71,7 @@ let palletLabel = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
         .font(.default, height: .inches(0.35))
 
     // Main barcode (large, scannable from distance)
-    Barcode128("PLT2024001234", at: .inches(0.25, 1.4))
+    Barcode128("PLT2024001234", at: .inches(0.25, 1.4))?
         .height(.inches(1.0))
         .showText(true)
         .moduleWidth(3)
@@ -91,7 +91,7 @@ let palletLabel = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
         .font(.default, height: .inches(0.15))
 
     // SKU barcode
-    Barcode128("WIDGET-PRO-BLK", at: .inches(0.25, 3.85))
+    Barcode128("WIDGET-PRO-BLK", at: .inches(0.25, 3.85))?
         .height(.inches(0.5))
         .showText(true)
 
@@ -135,7 +135,7 @@ let receivingLabel = ZPLLabel(width: 4, height: 3, dpi: .dpi203) {
         .font(.default, height: .inches(0.15))
 
     // Barcodes
-    Barcode128("BOLT-M6-SS-25", at: .inches(0.25, 1.4))
+    Barcode128("BOLT-M6-SS-25", at: .inches(0.25, 1.4))?
         .height(.inches(0.4))
         .showText(true)
 
@@ -170,9 +170,9 @@ let serializedInventoryLabels = ZPLLabel(width: 2, height: 1, dpi: .dpi203) {
     SerialNumber("00001", at: .inches(0.1, 0.25))
         .font(.default, height: .inches(0.2))
         .increment(1)
-        .padWithZeros(true)
+        .leadingZeros(true)
 
-    Barcode128("ITM00001", at: .inches(0.1, 0.55))
+    Barcode128("ITM00001", at: .inches(0.1, 0.55))?
         .height(.inches(0.25))
         .moduleWidth(1)
 }

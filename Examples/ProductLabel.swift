@@ -18,7 +18,7 @@ let priceTag = ZPLLabel(width: 2, height: 1.25, dpi: .dpi203) {
         .font(.default, height: .inches(0.3))
 
     // UPC barcode
-    UPCA("012345678905", at: .inches(0.15, 0.85))
+    UPCA("012345678905", at: .inches(0.15, 0.85))?
         .height(.inches(0.25))
         .showText(true)
 
@@ -71,7 +71,7 @@ let productInfoLabel = ZPLLabel(width: 4, height: 3, dpi: .dpi203) {
     Text("SKU: WM500-BLK", at: .inches(0.25, 1.75))
         .font(.default, height: .inches(0.1))
 
-    Barcode128("WM500BLK", at: .inches(0.25, 1.95))
+    Barcode128("WM500BLK", at: .inches(0.25, 1.95))?
         .height(.inches(0.4))
         .showText(true)
 
@@ -82,7 +82,7 @@ let productInfoLabel = ZPLLabel(width: 4, height: 3, dpi: .dpi203) {
         .font(.default, height: .inches(0.25))
 
     // EAN barcode at bottom
-    EAN13("5901234123457", at: .inches(1.0, 2.55))
+    EAN13("5901234123457", at: .inches(1.0, 2.55))?
         .height(.inches(0.3))
         .showText(true)
 
@@ -108,7 +108,7 @@ let jewelryTag = ZPLLabel(width: 1.5, height: 0.75, dpi: .dpi300) {  // Higher D
         .font(.default, height: .inches(0.15))
 
     // Tiny barcode
-    Barcode128("NKL92518", at: .inches(0.3, 0.55))
+    Barcode128("NKL92518", at: .inches(0.3, 0.55))?
         .height(.inches(0.12))
         .moduleWidth(1)
 }
@@ -170,7 +170,7 @@ let foodLabel = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
         .font(.default, height: .inches(0.08))
 
     // Barcode
-    UPCA("012345678905", at: .inches(0.5, 2.8))
+    UPCA("012345678905", at: .inches(0.5, 2.8))?
         .height(.inches(0.5))
         .showText(true)
 
@@ -216,7 +216,7 @@ let clearanceTag = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
         .font(.default, height: .inches(0.12))
 
     // SKU barcode
-    Barcode128("CLR-12345", at: .inches(0.2, 1.6))
+    Barcode128("CLR-12345", at: .inches(0.2, 1.6))?
         .height(.inches(0.25))
         .showText(true)
 
@@ -237,7 +237,7 @@ let priceTagTemplate = ZPLTemplate(width: 2, height: 1.25, dpi: .dpi203) {
     Text("${{price}}", at: .inches(0.15, 0.45))
         .font(.default, height: .inches(0.3))
 
-    UPCA("{{upc}}", at: .inches(0.15, 0.85))
+    UPCA("{{upc}}", at: .inches(0.15, 0.85))?
         .height(.inches(0.25))
         .showText(true)
 

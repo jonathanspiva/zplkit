@@ -28,7 +28,9 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
     /// Service type for raw TCP printing (used by Zebra and other label printers).
     public static let serviceType = "_pdl-datastream._tcp"
 
-    private let browser: NWBrowser
+    // NWBrowser is terminal once cancelled and cannot be restarted, so it is
+    // recreated on the next start() after a stop(). Guarded by `lock`.
+    private var browser: NWBrowser
     private let queue = DispatchQueue(label: "ZPLPrinterBrowser", qos: .userInitiated)
 
     private var discovered: [String: DiscoveredPrinter] = [:]
@@ -37,17 +39,25 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
 
     private var isStarted = false
 
+    // Set when the current browser instance has been cancelled. A cancelled
+    // NWBrowser is dead and must be replaced before browsing can resume.
+    private var browserIsTerminal = false
+
     /// Creates a new printer browser.
     public init() {
+        self.browser = Self.makeBrowser()
+        setupBrowser()
+    }
+
+    /// Builds a fresh NWBrowser configured for the printing service type.
+    private static func makeBrowser() -> NWBrowser {
         let parameters = NWParameters()
         parameters.includePeerToPeer = true
 
-        self.browser = NWBrowser(
+        return NWBrowser(
             for: .bonjour(type: Self.serviceType, domain: nil),
             using: parameters
         )
-
-        setupBrowser()
     }
 
     deinit {
@@ -96,6 +106,16 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
         defer { lock.unlock() }
 
         guard !isStarted else { return }
+
+        // If the previous browser was cancelled (via stop()), it is terminal
+        // and cannot be restarted. Replace it with a fresh instance so the
+        // public API keeps working after stop().
+        if browserIsTerminal {
+            browser = Self.makeBrowser()
+            browserIsTerminal = false
+            setupBrowser()
+        }
+
         isStarted = true
         browser.start(queue: queue)
     }
@@ -108,6 +128,8 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
         guard isStarted else { return }
         isStarted = false
         browser.cancel()
+        // The cancelled browser is terminal; the next start() must recreate it.
+        browserIsTerminal = true
 
         for continuation in continuations.values {
             continuation.finish()

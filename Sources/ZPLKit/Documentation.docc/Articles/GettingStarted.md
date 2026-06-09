@@ -30,7 +30,7 @@ TextBlock("Long text that wraps automatically", at: .inches(0.5, 0.5), width: .i
 
 ```swift
 // 1D Barcodes
-Barcode128("ABC123", at: .inches(0.5, 1.0))
+Barcode128("ABC123", at: .inches(0.5, 1.0))?
     .height(.inches(0.5))
     .showText(true)
 
@@ -99,7 +99,7 @@ ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
     Text("SN: ", at: .inches(0.25, 0.25))
     SerialNumber("001", at: .inches(0.6, 0.25))
         .increment(1)
-        .padWithZeros(true)
+        .leadingZeros(true)
 }
 .printQuantity(10)  // Prints SN: 001, 002, 003... 010
 ```
@@ -119,7 +119,7 @@ Create reusable label templates with variable substitution:
 let template = ZPLTemplate(width: 4, height: 2, dpi: .dpi203) {
     Text("{{product_name}}", at: .inches(0.25, 0.25))
         .font(.default, height: .inches(0.15))
-    Barcode128("{{sku}}", at: .inches(0.25, 0.5))
+    Barcode128("{{sku}}", at: .inches(0.25, 0.5))?
         .height(.inches(0.4))
     Text("${{price}}", at: .inches(0.25, 1.1))
 }

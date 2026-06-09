@@ -20,7 +20,7 @@ let smallPartsBinLabel = ZPLLabel(width: 2, height: 1, dpi: .dpi203) {
         .font(.default, height: .inches(0.1))
 
     // Small barcode
-    Barcode128("M6NUTSS", at: .inches(0.1, 0.5))
+    Barcode128("M6NUTSS", at: .inches(0.1, 0.5))?
         .height(.inches(0.25))
         .moduleWidth(1)
 
@@ -55,7 +55,7 @@ let mediumPartsBinLabel = ZPLLabel(width: 3, height: 2, dpi: .dpi203) {
         .font(.default, height: .inches(0.08))
 
     // Barcode
-    Barcode128("M8BOLTHEX30", at: .inches(0.15, 1.05))
+    Barcode128("M8BOLTHEX30", at: .inches(0.15, 1.05))?
         .height(.inches(0.35))
         .showText(true)
 
@@ -113,7 +113,7 @@ let kanbanCardLabel = ZPLLabel(width: 4, height: 3, dpi: .dpi203) {
         .font(.default, height: .inches(0.1))
 
     // Barcodes
-    Barcode128("WASHERM10FLAT", at: .inches(0.2, 2.05))
+    Barcode128("WASHERM10FLAT", at: .inches(0.2, 2.05))?
         .height(.inches(0.4))
         .showText(true)
 
@@ -156,7 +156,7 @@ let toolCribLabel = ZPLLabel(width: 3, height: 1.5, dpi: .dpi203) {
         .font(.default, height: .inches(0.15))
 
     // Barcode for checkout system
-    Barcode128("DRL14HSS", at: .inches(0.15, 0.65))
+    Barcode128("DRL14HSS", at: .inches(0.15, 0.65))?
         .height(.inches(0.35))
         .showText(true)
 
@@ -182,7 +182,7 @@ let partsBinTemplate = ZPLTemplate(width: 2, height: 1, dpi: .dpi203) {
     Text("BIN: {{location}}", at: .inches(1.3, 0.1))
         .font(.default, height: .inches(0.08))
 
-    Barcode128("{{barcode}}", at: .inches(0.1, 0.45))
+    Barcode128("{{barcode}}", at: .inches(0.1, 0.45))?
         .height(.inches(0.25))
         .moduleWidth(1)
 

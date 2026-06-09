@@ -579,11 +579,14 @@ struct ParserErrorHandlingTests {
         #expect(parsed.elements.count == 1)
     }
 
-    @Test("Very large values are preserved")
+    @Test("Very large dimensions are clamped to the safety ceiling")
     func parserVeryLargeValues() throws {
+        // Unbounded `^PW`/`^LL` would request a multi-terabyte context, so the
+        // parser clamps to a sane maximum (20000 dots) rather than preserving the
+        // raw value. See RenderLimits.maxDimensionDots.
         let parsed = try ZPLParser.parse("^XA^PW999999^LL999999^FO50,50^FDTest^FS^XZ")
-        #expect(parsed.width == 999999)
-        #expect(parsed.height == 999999)
+        #expect(parsed.width == 20_000)
+        #expect(parsed.height == 20_000)
     }
 
     @Test("Field data with hex-escaped special chars decodes")
@@ -1140,6 +1143,129 @@ extension ParsedElement {
     var asDiagonalLine: ParsedDiagonalLine? { if case .diagonalLine(let v) = self { return v }; return nil }
     var asBarcode: ParsedBarcode? { if case .barcode(let v) = self { return v }; return nil }
     var asGraphic: ParsedGraphic? { if case .graphic(let v) = self { return v }; return nil }
+}
+
+// MARK: - Malicious Input / DoS Hardening
+
+/// These tests feed adversarial ZPL that previously trapped (integer-overflow
+/// abort) or attempted multi-gigabyte allocations. The renderer must degrade
+/// gracefully: clamp, skip the element, or throw a `ZPLRendererError`. None of
+/// these may crash the process.
+@Suite("Malicious Input Hardening")
+struct MaliciousInputTests {
+
+    @Test("^PW overflow value is clamped, not trapped")
+    func pwOverflowDoesNotTrap() throws {
+        // `^PW2305843009213693952` previously trapped on `width * 4`.
+        let zpl = "^XA^PW2305843009213693952^LL1^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        #expect(parsed.width <= 20_000)
+        #expect(parsed.width >= 1)
+        // Render must succeed (clamped) rather than crash.
+        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        #expect(result.image.width <= 20_000)
+    }
+
+    @Test("^PW/^LL huge dimensions clamp to ceiling")
+    func hugeDimensionsClamp() throws {
+        let zpl = "^XA^PW50000^LL50000^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        #expect(parsed.width == 20_000)
+        #expect(parsed.height == 20_000)
+    }
+
+    @Test("^GF bytesPerRow overflow is rejected")
+    func gfBytesPerRowOverflowRejected() throws {
+        // `bytesPerRow = 2305843009213693952` previously overflowed `width * 8`.
+        let zpl = "^XA^GFA,1,1,2305843009213693952,FF^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        // The malformed graphic is dropped entirely.
+        #expect(parsed.elements.allSatisfy { $0.asGraphic == nil })
+        // Full render path must not crash.
+        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+    }
+
+    @Test("UPC-E with 9 digits renders without trapping")
+    func upcE9DigitsNoCrash() throws {
+        // 9 input digits previously produced a 7-char sixDigits and trapped on a
+        // String index OOB while indexing the 6-char parity pattern.
+        let zpl = "^XA^B9N^FD123456789^FS^XZ"
+        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        #expect(result.image.width > 0)
+        // Encoder returns empty patterns for invalid input.
+        #expect(EANPatterns.encodeUPCE("123456789").isEmpty)
+    }
+
+    @Test("UPC-E with 10 digits renders without trapping")
+    func upcE10DigitsNoCrash() throws {
+        let zpl = "^XA^B9N^FD1234567890^FS^XZ"
+        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        #expect(EANPatterns.encodeUPCE("1234567890").isEmpty)
+    }
+
+    @Test("Valid 6/7/8-digit UPC-E still encodes")
+    func upcEValidStillEncodes() {
+        #expect(!EANPatterns.encodeUPCE("123456").isEmpty)
+        #expect(!EANPatterns.encodeUPCE("0123456").isEmpty)
+        #expect(!EANPatterns.encodeUPCE("01234565").isEmpty)
+    }
+
+    @Test("^GFC declared-size decompression bomb is bounded")
+    func gfcDecompressionBombBounded() throws {
+        // A ~2 GB declared size must not drive a 2 GB allocation. With a tiny/empty
+        // payload the graphic is dropped; the key assertion is that this returns
+        // without crashing or hanging on a huge allocation.
+        let zpl = "^XA^GFC,1,2000000000,1,:Z64:eJxjYAAA^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        // Either dropped, or present but bounded in size.
+        if let graphic = parsed.elements.compactMap({ $0.asGraphic }).first {
+            #expect(graphic.data.count <= 50_000_000)
+        }
+        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+    }
+
+    @Test("^GFA run-length amplification is bounded during decode")
+    func gfaRunLengthAmplificationBounded() throws {
+        // A long run of `z` repeat-count letters before a nibble previously
+        // amplified into a huge `nibbles` array before any clamp ran.
+        let zpl = "^XA^GFA,10,10,2,\(String(repeating: "z", count: 500))F^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        if let graphic = parsed.elements.compactMap({ $0.asGraphic }).first {
+            // Decoded data is clamped to totalBytes (10) here.
+            #expect(graphic.data.count <= 50_000_000)
+        }
+        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+    }
+
+    @Test("^FB huge maxLines is clamped")
+    func fbHugeMaxLinesClamped() throws {
+        let zpl = "^XA^PW400^LL400^FO0,0^FB300,2000000000,0,L,0^FDhi^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        if let block = parsed.elements.compactMap({ $0.asTextBlock }).first {
+            #expect(block.maxLines <= 10_000)
+        }
+        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+    }
+
+    @Test("Huge barcode height is clamped, render does not blow up")
+    func hugeBarcodeHeightClamped() throws {
+        let zpl = "^XA^PW400^LL400^FO50,50^BCN,100000000^FD12345^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        if let bc = parsed.elements.compactMap({ $0.asBarcode }).first {
+            #expect(bc.height <= 20_000)
+        }
+        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+    }
+
+    @Test("Huge ^BY module width is clamped")
+    func hugeModuleWidthClamped() throws {
+        let zpl = "^XA^PW400^LL400^BY100000000^FO50,50^BCN,80^FD12345^FS^XZ"
+        let parsed = try ZPLParser.parse(zpl)
+        if let bc = parsed.elements.compactMap({ $0.asBarcode }).first {
+            #expect(bc.moduleWidth <= 100)
+        }
+        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+    }
 }
 
 // MARK: - Fixture Metadata Model

@@ -663,6 +663,45 @@ struct ZPLKitPrinterTests {
         }
     }
 
+    @Test("PrinterInfo rejects out-of-range DPM (hostile data)")
+    func printerInfoRejectsHostileDPM() throws {
+        // A huge DPM value would previously trap the dpi computation; parse
+        // must reject it as untrusted network input.
+        let huge = buildHIResponse("EVIL,V1,999999999999,1KB,NONE")
+        #expect(throws: PrinterError.self) {
+            _ = try PrinterInfo.parse(from: huge)
+        }
+
+        let negative = buildHIResponse("EVIL,V1,-5,1KB,NONE")
+        #expect(throws: PrinterError.self) {
+            _ = try PrinterInfo.parse(from: negative)
+        }
+    }
+
+    @Test("PrinterInfo.dpi does not trap on hostile dotsPerMillimeter")
+    func printerInfoDPIDoesNotTrap() {
+        // Constructed directly (bypassing parse) with an absurd value: dpi
+        // must clamp instead of trapping the Int(Double) conversion, and
+        // description (which reads dpi) must not crash.
+        let info = PrinterInfo(
+            model: "X",
+            firmwareVersion: "V1",
+            dotsPerMillimeter: Int.max,
+            memoryKB: 1
+        )
+        _ = info.dpi
+        _ = info.description
+
+        let negative = PrinterInfo(
+            model: "X",
+            firmwareVersion: "V1",
+            dotsPerMillimeter: Int.min,
+            memoryKB: 1
+        )
+        _ = negative.dpi
+        _ = negative.description
+    }
+
     @Test("PrinterInfo description is readable")
     func printerInfoDescription() {
         let info = PrinterInfo(
@@ -811,6 +850,37 @@ struct ZPLKitPrinterTests {
         let decoded = try decoder.decode(MemoryStatus.self, from: data)
 
         #expect(decoded == memory)
+    }
+
+    @Test("MemoryStatus rejects negative and inverted values (hostile data)")
+    func memoryStatusRejectsHostileValues() throws {
+        // Negative values
+        #expect(throws: PrinterError.self) {
+            _ = try MemoryStatus.parse(from: buildHMResponse("-1,1000,500"))
+        }
+        #expect(throws: PrinterError.self) {
+            _ = try MemoryStatus.parse(from: buildHMResponse("1000,1000,-5"))
+        }
+        // available > total
+        #expect(throws: PrinterError.self) {
+            _ = try MemoryStatus.parse(from: buildHMResponse("1000,1000,5000"))
+        }
+    }
+
+    @Test("MemoryStatus used/usagePercent do not trap on extreme values")
+    func memoryStatusDoesNotTrap() {
+        // Constructed directly (bypassing parse) with extreme values: the
+        // computed properties must clamp, not overflow-trap, and description
+        // (which reads both) must not crash.
+        let extreme = MemoryStatus(total: Int.max, maximum: Int.max, available: Int.min)
+        _ = extreme.used
+        _ = extreme.usagePercent
+        _ = extreme.description
+
+        let inverted = MemoryStatus(total: 1, maximum: 1, available: Int.max)
+        _ = inverted.used
+        _ = inverted.usagePercent
+        _ = inverted.description
     }
 
     @Test("MemoryStatus parses identically from a non-zero-startIndex slice")

@@ -41,7 +41,12 @@ public struct PrinterInfo: Sendable, Equatable, Codable {
         case 8: return 203
         case 12: return 300
         case 24: return 600
-        default: return Int((Double(dotsPerMillimeter) * 25.4).rounded())
+        default:
+            // Clamp before the Int(Double) conversion so hostile/out-of-range
+            // network input can never trap. Real printers report 6...24 dpmm;
+            // 1...100 is a generous sane bound.
+            let clamped = min(max(dotsPerMillimeter, 1), 100)
+            return Int((Double(clamped) * 25.4).rounded())
         }
     }
 
@@ -117,8 +122,11 @@ extension PrinterInfo {
         let model = fields[0]
         let firmware = fields[1]
 
-        // Parse dots per millimeter
-        guard let dpm = Int(fields[2]) else {
+        // Parse dots per millimeter. Treat the response as untrusted network
+        // input and reject values outside a sane range (real printers report
+        // 6...24 dpmm). This keeps the `dpi` computation from operating on
+        // absurd values even though `dpi` itself also clamps defensively.
+        guard let dpm = Int(fields[2]), (1...100).contains(dpm) else {
             throw PrinterError.invalidResponse("Invalid dots-per-millimeter value: \(fields[2])")
         }
 

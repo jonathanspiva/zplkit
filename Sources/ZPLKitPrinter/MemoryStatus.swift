@@ -24,14 +24,24 @@ public struct MemoryStatus: Sendable, Equatable, Codable {
     public var available: Int
 
     /// Memory currently in use in bytes.
+    ///
+    /// Uses saturating subtraction and clamps to a non-negative result so
+    /// hostile/out-of-range values from the network can never overflow-trap.
     public var used: Int {
-        total - available
+        let difference = total.subtractingReportingOverflow(available)
+        if difference.overflow { return 0 }
+        return max(0, difference.partialValue)
     }
 
     /// Memory usage as a percentage (0-100).
     public var usagePercent: Int {
         guard total > 0 else { return 0 }
-        return Int((Double(used) / Double(total)) * 100)
+        // Clamp the ratio so the Int(Double) conversion can never trap on
+        // extreme values, and bound the result to 0...100.
+        let ratio = Double(used) / Double(total)
+        let percent = (ratio * 100).rounded()
+        if percent.isNaN { return 0 }
+        return Int(min(max(percent, 0), 100))
     }
 
     /// Total memory formatted for display (e.g., "48KB", "2MB").
@@ -106,16 +116,25 @@ extension MemoryStatus {
             )
         }
 
-        guard let total = Int(fields[0]) else {
+        // Treat the response as untrusted network input. Reject negative
+        // values (a printer never reports negative memory) so the computed
+        // properties can't operate on nonsensical data.
+        guard let total = Int(fields[0]), total >= 0 else {
             throw PrinterError.invalidResponse("Invalid total memory value: \(fields[0])")
         }
 
-        guard let maximum = Int(fields[1]) else {
+        guard let maximum = Int(fields[1]), maximum >= 0 else {
             throw PrinterError.invalidResponse("Invalid maximum memory value: \(fields[1])")
         }
 
-        guard let available = Int(fields[2]) else {
+        guard let available = Int(fields[2]), available >= 0 else {
             throw PrinterError.invalidResponse("Invalid available memory value: \(fields[2])")
+        }
+
+        // Available memory cannot exceed total memory.
+        guard available <= total else {
+            throw PrinterError.invalidResponse(
+                "Available memory (\(available)) exceeds total memory (\(total))")
         }
 
         return MemoryStatus(total: total, maximum: maximum, available: available)

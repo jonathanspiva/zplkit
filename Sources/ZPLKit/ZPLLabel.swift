@@ -234,7 +234,14 @@ public struct ZPLLabel: Sendable {
         // is a prefix of them.
         for key in substitutions.keys.sorted(by: { $0.count > $1.count }) {
             let escapedValue = escapeZPLFieldData(substitutions[key]!).escaped
+            // The placeholder may have been emitted inside a field that escaped
+            // special characters (e.g. an underscore in the key becomes `_5F`),
+            // so match both the raw and the rendered/escaped form of the key.
+            let escapedKey = escapeZPLFieldData(key).escaped
             zpl = zpl.replacingOccurrences(of: "{{\(key)}}", with: escapedValue)
+            if escapedKey != key {
+                zpl = zpl.replacingOccurrences(of: "{{\(escapedKey)}}", with: escapedValue)
+            }
         }
         return zpl
     }

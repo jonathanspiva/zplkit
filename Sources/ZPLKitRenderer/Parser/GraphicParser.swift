@@ -46,6 +46,13 @@ enum GraphicParser {
         guard let totalBytes = Int(parts[1]), totalBytes >= 0,
               let bytesPerRow = Int(parts[2]), bytesPerRow > 0 else { return nil }
 
+        // Bound untrusted sizes. `width = bytesPerRow * 8` is computed unchecked in
+        // the renderer, and decoders allocate buffers sized from `totalBytes`, so an
+        // input like `^GFA,1,1,2305843009213693952,FF` would overflow or request a
+        // multi-GB allocation. Reject anything past the sane ceilings.
+        guard bytesPerRow <= RenderLimits.maxBytesPerRow,
+              totalBytes <= RenderLimits.maxGraphicBytes else { return nil }
+
         let rawData = String(parts[3])
 
         // Decode the data field to a flat 1-bit-per-pixel byte buffer.
@@ -117,6 +124,18 @@ enum GraphicParser {
         var rowStart = 0                   // index into `data` where the current row began
         var pendingRepeat = 0              // accumulated repeat count
 
+        // Absolute ceiling on the decoded byte count. Prefer the declared
+        // `totalBytes`, but never exceed the global graphic ceiling. The repeat-count
+        // letters (`g`-`z`) can otherwise amplify a tiny input into gigabytes of
+        // nibbles before any clamp runs, so we enforce this DURING decoding.
+        let sizeCeiling: Int = {
+            if totalBytes > 0 { return min(totalBytes, RenderLimits.maxGraphicBytes) }
+            return RenderLimits.maxGraphicBytes
+        }()
+        // A single repeat run can be at most one full row of nibbles; anything larger
+        // is meaningless and only serves to amplify memory.
+        let maxRepeat = max(bytesPerRow * 2, 1)
+
         func flushNibblesToBytes() {
             // Combine accumulated nibbles into bytes (high nibble first).
             var i = 0
@@ -161,6 +180,10 @@ enum GraphicParser {
         for scalar in cleaned {
             let ch = Character(scalar)
 
+            // Bail out once we have decoded enough; row-fill (`,`/`!`) and row-repeat
+            // (`:`) commands can each append a full row, so check before processing.
+            if data.count >= sizeCeiling { break }
+
             if ch == "," {
                 fillRow(with: 0x00)
                 pendingRepeat = 0
@@ -178,18 +201,23 @@ enum GraphicParser {
             }
 
             // Repeat-count letters: G-Y => 1-19, g-z => 20-400 (multiples of 20).
+            // Cap the accumulator so a long run of `z` letters cannot grow it
+            // without bound.
             if ("G"..."Y").contains(ch) {
-                pendingRepeat += Int(ch.asciiValue! - Character("G").asciiValue!) + 1
+                pendingRepeat = min(pendingRepeat + Int(ch.asciiValue! - Character("G").asciiValue!) + 1, maxRepeat)
                 continue
             }
             if ("g"..."z").contains(ch) {
-                pendingRepeat += (Int(ch.asciiValue! - Character("g").asciiValue!) + 1) * 20
+                pendingRepeat = min(pendingRepeat + (Int(ch.asciiValue! - Character("g").asciiValue!) + 1) * 20, maxRepeat)
                 continue
             }
 
             // Hex nibble.
             if let nibble = hexNibble(ch) {
-                let count = max(pendingRepeat, 1)
+                // Stop decoding once we have produced enough bytes; this bounds peak
+                // memory even for pathological repeat sequences.
+                if data.count >= sizeCeiling { break }
+                let count = min(max(pendingRepeat, 1), maxRepeat)
                 nibbles.append(contentsOf: repeatElement(nibble, count: count))
                 pendingRepeat = 0
 
@@ -342,8 +370,11 @@ enum GraphicParser {
         let rawDeflate = data.subdata(in: 2..<(data.count - 4))
 
         // Size the destination from totalBytes when known; otherwise use a generous
-        // multiple of the compressed size.
-        let capacity = expectedSize > 0 ? expectedSize : max(rawDeflate.count * 8, 1024)
+        // multiple of the compressed size. Either way, cap the allocation at the
+        // graphic ceiling so a declared size like `^GFC,1,2000000000,...` cannot
+        // drive a ~2 GB allocation.
+        let requested = expectedSize > 0 ? expectedSize : max(rawDeflate.count * 8, 1024)
+        let capacity = min(max(requested, 1), RenderLimits.maxGraphicBytes)
         var destination = [UInt8](repeating: 0, count: capacity)
 
         let decodedCount = rawDeflate.withUnsafeBytes { srcRaw -> Int in

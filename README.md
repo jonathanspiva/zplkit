@@ -105,7 +105,7 @@ let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
     Text("PARTS BIN A-7", at: .inches(0.25, 0.25))
         .font(.default, height: .inches(0.2))
 
-    Barcode128("BIN-A7-001", at: .inches(0.25, 0.6))
+    Barcode128("BIN-A7-001", at: .inches(0.25, 0.6))?
         .height(.inches(0.5))
         .showText(true)
 

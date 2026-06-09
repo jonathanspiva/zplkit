@@ -26,7 +26,7 @@ let multiElementLabel = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
     HorizontalLine(at: .inches(0.25, 0.45), length: .inches(3.5), thickness: 2)
 
     // Barcode with human-readable text
-    Barcode128("SAMPLE-001", at: .inches(0.25, 0.6))
+    Barcode128("SAMPLE-001", at: .inches(0.25, 0.6))?
         .height(.inches(0.5))
         .showText(true)
 
@@ -53,7 +53,7 @@ let rotatedTextLabel = ZPLLabel(width: 2, height: 2, dpi: .dpi203) {
 
     Text("ROTATED 180", at: .inches(1.5, 1.75))
         .font(.default, height: .inches(0.12))
-        .rotated(.rotated180)
+        .rotated(.inverted)
 
     Text("ROTATED 270", at: .inches(0.25, 1.5))
         .font(.default, height: .inches(0.12))

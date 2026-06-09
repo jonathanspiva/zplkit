@@ -75,10 +75,12 @@ public enum ZPLParser {
         switch cmdType {
         // Label format
         case "^PW":
-            state.width = Int(params) ?? state.width
+            // Clamp untrusted width to a safe range so the renderer never traps
+            // on `width * 4` overflow or requests a multi-GB context.
+            if let w = Int(params) { state.width = RenderLimits.clampDimension(w) }
 
         case "^LL":
-            state.height = Int(params) ?? state.height
+            if let h = Int(params) { state.height = RenderLimits.clampDimension(h) }
 
         case "^PQ":
             let parts = params.split(separator: ",")
@@ -108,19 +110,25 @@ public enum ZPLParser {
         case "^A0", "^A":
             let fontParams = cmdType == "^A0" ? params : String(params)
             TextParser.parseFontCommand(fontParams, rotation: &state.currentRotation, height: &state.currentFontHeight, width: &state.currentFontWidth)
+            // Clamp untrusted font dimensions so downstream block-height math
+            // (maxLines * fontHeight) cannot overflow or balloon allocations.
+            state.currentFontHeight = min(max(state.currentFontHeight, 0), RenderLimits.maxFontHeight)
+            state.currentFontWidth = min(max(state.currentFontWidth, 0), RenderLimits.maxFontHeight)
 
         case "^CF":
             let parts = params.split(separator: ",")
             if parts.count >= 2 {
-                state.currentFontHeight = Int(parts[1]) ?? 30
-                state.currentFontWidth = parts.count > 2 ? (Int(parts[2]) ?? state.currentFontHeight) : state.currentFontHeight
+                state.currentFontHeight = min(Int(parts[1]) ?? 30, RenderLimits.maxFontHeight)
+                state.currentFontWidth = parts.count > 2 ? min(Int(parts[2]) ?? state.currentFontHeight, RenderLimits.maxFontHeight) : state.currentFontHeight
             }
 
         // Field block (text block)
         case "^FB":
             let parts = params.split(separator: ",")
-            state.textBlockWidth = Int(parts[safe: 0] ?? "0") ?? 0
-            state.textBlockMaxLines = Int(parts[safe: 1] ?? "1") ?? 1
+            state.textBlockWidth = min(max(Int(parts[safe: 0] ?? "0") ?? 0, 0), RenderLimits.maxDimensionDots)
+            // Clamp untrusted line count so `maxLines * fontHeight` (block height)
+            // stays bounded.
+            state.textBlockMaxLines = min(max(Int(parts[safe: 1] ?? "1") ?? 1, 1), RenderLimits.maxTextBlockLines)
             state.textBlockLineSpacing = Int(parts[safe: 2] ?? "0") ?? 0
             state.textBlockAlignment = String(parts[safe: 3] ?? "L")
             state.textBlockHangingIndent = Int(parts[safe: 4] ?? "0") ?? 0
@@ -130,7 +138,9 @@ public enum ZPLParser {
 
         case "^BY":
             let parts = params.split(separator: ",")
-            state.moduleWidth = Int(parts.first ?? "2") ?? 2
+            // Clamp module width: it scales CoreImage barcode bitmaps, so an
+            // unbounded value asks CoreImage to materialize a giant image.
+            state.moduleWidth = min(max(Int(parts.first ?? "2") ?? 2, 1), RenderLimits.maxBarcodeScale)
 
         // Field data (text content or barcode data)
         case "^FD":

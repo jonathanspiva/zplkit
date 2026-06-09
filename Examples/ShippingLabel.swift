@@ -35,7 +35,7 @@ let shippingLabel = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
 
     Text("TRACKING NUMBER", at: .inches(0.2, 2.2))
         .font(.default, height: .inches(0.1))
-    Barcode128("1Z999AA10123456784", at: .inches(0.2, 2.4))
+    Barcode128("1Z999AA10123456784", at: .inches(0.2, 2.4))?
         .height(.inches(0.8))
         .showText(true)
         .moduleWidth(2)
@@ -53,7 +53,7 @@ let shippingLabel = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
 
     // Routing barcode at bottom
     HorizontalLine(at: .inches(0.1, 3.75), length: .inches(3.8), thickness: 2)
-    Barcode128("94102", at: .inches(1.0, 3.9))
+    Barcode128("94102", at: .inches(1.0, 3.9))?
         .height(.inches(0.6))
         .showText(true)
 
@@ -117,7 +117,7 @@ let shippingTemplate = ZPLTemplate(width: 4, height: 6, dpi: .dpi203) {
     Text("{{recipient_city_state_zip}}", at: .inches(0.2, 1.35))
         .font(.default, height: .inches(0.12))
 
-    Barcode128("{{tracking_number}}", at: .inches(0.2, 1.7))
+    Barcode128("{{tracking_number}}", at: .inches(0.2, 1.7))?
         .height(.inches(0.7))
         .showText(true)
 }

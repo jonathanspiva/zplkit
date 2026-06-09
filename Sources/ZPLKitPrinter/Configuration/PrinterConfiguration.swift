@@ -109,20 +109,20 @@ public struct PrinterConfiguration: Sendable, Equatable, Codable {
 
     // MARK: - Network Settings
 
-    /// Printer name for identification. ZPL: `^JN` (within `^XA...^XZ`).
+    /// Printer name for identification. ZPL: `^KN` (within `^XA...^XZ`).
     /// Note: Some printers use the SGD `device.friendly_name` instead.
     public var printerName: String?
 
-    /// Static IP address. ZPL: `^ND`.
+    /// Static IP address. ZPL: `^NS`.
     public var ipAddress: String?
 
-    /// Subnet mask. ZPL: `^ND`.
+    /// Subnet mask. ZPL: `^NS`.
     public var subnetMask: String?
 
-    /// Default gateway. ZPL: `^ND`.
+    /// Default gateway. ZPL: `^NS`.
     public var gateway: String?
 
-    /// Whether DHCP is enabled. ZPL: `^ND`.
+    /// Whether DHCP is enabled. ZPL: `^NS` (IP resolution parameter).
     public var dhcpEnabled: Bool?
 
     // MARK: - Safety Limits

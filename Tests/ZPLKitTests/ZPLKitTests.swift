@@ -265,11 +265,11 @@ struct BarcodeValidityTests {
         #expect((UPCA(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
     }
 
-    // UPC-E: 6, 7, or 8 digits.
+    // UPC-E: 6 digits, or 7 with an explicit check digit (^B9 field data).
     @Test(arguments: [
         ("123456", true),     // 6 digits
-        ("1234567", true),    // 7 digits
-        ("01234565", true),   // 8 digits
+        ("1234567", true),    // 7 digits (explicit check digit)
+        ("01234565", false),  // 8 digits - not encodable verbatim by ^B9
         ("12345", false),     // too short
         ("123456789", false), // too long
         ("12345A", false)     // non-numeric
@@ -941,6 +941,27 @@ struct TextBlockTests {
         #expect(zpl.contains(",C,"))  // Center alignment
         #expect(zpl.contains("\\&"))  // Line break
     }
+
+    @Test("TextBlock unlimited maxLines emits 9999, not 0")
+    func textBlockUnlimitedMaxLines() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            // Default maxLines is 0 (unlimited).
+            TextBlock("Wrapping text", at: .inches(0.25, 0.25), width: .inches(2.0))
+        }
+        let dots = DPI.dpi203.dots(fromInches: 2.0)
+        let zpl = label.render()
+        #expect(zpl.contains("^FB\(dots),9999,"))
+        #expect(!zpl.contains("^FB\(dots),0,"))
+    }
+
+    @Test("TextBlock clamps maxLines to 9999")
+    func textBlockClampsMaxLines() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            TextBlock("Wrapping text", at: .inches(0.25, 0.25), width: .inches(2.0))
+                .maxLines(100000)
+        }
+        #expect(label.render().contains(",9999,"))
+    }
 }
 
 // MARK: - Baseline Positioning (Text)
@@ -982,6 +1003,21 @@ struct SerialNumberTests {
                 .leadingZeros(false)
         }
         #expect(label.render().contains("^SN100,-1,N"))
+    }
+
+    @Test("Serial number strips commas and escapes caret/tilde")
+    func serialNumberInjectionRejected() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            SerialNumber("1,2^XZ~JA", at: .inches(0.25, 0.25))
+        }
+        let zpl = label.render()
+        // Comma stripped (would otherwise corrupt ^SN parameters); ^ and ~
+        // hex-escaped via ^FH so they are inert literal data.
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains("^SN12_5EXZ_7EJA,1,Y"))
+        // No live injected commands survive.
+        #expect(zpl.components(separatedBy: "^XZ").count == 2)
+        #expect(!zpl.contains("~JA"))
     }
 }
 
@@ -1162,6 +1198,55 @@ struct CommentTests {
             Text("Test", at: .inches(0.25, 0.25))
         }
         #expect(label.render().contains("^FX  ^FS"))
+    }
+
+    @Test("Comment strips caret and tilde to prevent breakout")
+    func commentStripsControlChars() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Comment("evil ^XZ ~JA stuff")
+            Text("Safe", at: .inches(0.25, 0.25))
+        }
+        let zpl = label.render()
+        // The injected ^XZ / ~JA must not survive inside the comment body.
+        #expect(zpl.contains("^FX evil  XZ  JA stuff ^FS"))
+        // Only the legitimate label-end ^XZ should remain in the stream.
+        #expect(zpl.components(separatedBy: "^XZ").count == 2)
+        #expect(!zpl.contains("~JA"))
+    }
+}
+
+// MARK: - ZPLTemplate
+
+@Suite("ZPLTemplate")
+struct ZPLTemplateTests {
+
+    @Test("Template renders with variable substitution")
+    func templateRendersWithSubstitution() {
+        let template = ZPLTemplate(width: 4, height: 6, dpi: .dpi203) {
+            Text("FROM: {{sender_name}}", at: .inches(0.2, 0.2))
+                .font(.default, height: .inches(0.1))
+            Barcode128("{{tracking_number}}", at: .inches(0.2, 1.7))?
+                .height(.inches(0.7))
+        }
+        let zpl = template.render(with: [
+            "sender_name": "ACME",
+            "tracking_number": "1Z999"
+        ])
+        #expect(zpl.contains("FROM: ACME"))
+        #expect(zpl.contains("1Z999"))
+        #expect(!zpl.contains("{{"))
+        #expect(zpl.hasPrefix("^XA"))
+        #expect(zpl.hasSuffix("^XZ"))
+    }
+
+    @Test("Template escapes injected substitution values")
+    func templateEscapesValues() {
+        let template = ZPLTemplate(width: 4, height: 2, dpi: .dpi203) {
+            Text("ID: {{id}}", at: .inches(0.2, 0.2))
+        }
+        let zpl = template.render(with: ["id": "a^XZb"])
+        // Injected ^XZ is hex-escaped, so only the real label-end ^XZ remains.
+        #expect(zpl.components(separatedBy: "^XZ").count == 2)
     }
 }
 

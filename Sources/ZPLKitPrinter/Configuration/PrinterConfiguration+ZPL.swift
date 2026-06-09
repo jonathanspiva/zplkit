@@ -1,4 +1,47 @@
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 extension PrinterConfiguration {
+
+    // MARK: - Validation Helpers
+
+    /// ZPL control characters that must never appear inside an interpolated
+    /// field value, plus the comma parameter separator. Allowing any of these
+    /// through would let a value break out of its command and inject arbitrary
+    /// ZPL.
+    private static let zplUnsafeCharacters: Set<Character> = ["^", "~", ","]
+
+    /// Strips ZPL-significant characters (`^`, `~`, `,`) from an interpolated
+    /// value so it cannot break out of its command.
+    private static func sanitize(_ value: String) -> String {
+        value.filter { !zplUnsafeCharacters.contains($0) }
+    }
+
+    /// Returns the value if it is a valid IPv4 or IPv6 literal, otherwise nil.
+    /// Network commands are skipped entirely when an address is invalid rather
+    /// than emitting a malformed (and potentially injectable) command.
+    private static func validatedIPAddress(_ value: String) -> String? {
+        var v4 = in_addr()
+        if value.withCString({ inet_pton(AF_INET, $0, &v4) }) == 1 {
+            return value
+        }
+        var v6 = in6_addr()
+        if value.withCString({ inet_pton(AF_INET6, $0, &v6) }) == 1 {
+            return value
+        }
+        return nil
+    }
+
+    /// Validates a field-rotation letter against the four ZPL `^FW` values,
+    /// falling back to "N" (normal) for anything else.
+    private static func validatedFieldRotation(_ value: String) -> String {
+        let allowed: Set<String> = ["N", "R", "I", "B"]
+        let upper = value.uppercased()
+        return allowed.contains(upper) ? upper : "N"
+    }
 
     /// Generates the ZPL commands for this configuration.
     ///
@@ -17,15 +60,19 @@ extension PrinterConfiguration {
 
         // MARK: - Immediate Commands (~prefix, sent outside ^XA/^XZ)
 
-        // ~SD: Set Darkness (00-30)
+        // ~SD: Set Darkness (00-30). Clamp here as the last line of defense:
+        // the public `darkness` var and Codable can set out-of-range values
+        // that bypass the clamping modifier.
         if let darkness {
-            let padded = String(format: "%02d", darkness)
+            let clamped = max(0, min(30, darkness))
+            let padded = String(format: "%02d", clamped)
             immediateCommands.append("~SD\(padded)")
         }
 
-        // ~TA: Tear-off Adjust Position
+        // ~TA: Tear-off Adjust Position (-120 to 120). Clamp defensively.
         if let tearOffAdjust {
-            let padded = String(format: "%04d", tearOffAdjust)
+            let clamped = max(-120, min(120, tearOffAdjust))
+            let padded = String(format: "%04d", clamped)
             immediateCommands.append("~TA\(padded)")
         }
 
@@ -51,36 +98,38 @@ extension PrinterConfiguration {
             formatCommands.append("^MM\(printMode.rawValue)")
         }
 
-        // ^PW: Print Width
+        // ^PW: Print Width. Dimensions are dot counts and can never be
+        // negative; clamp to 0 so a negative value can't emit invalid ZPL.
         if let printWidthDots {
-            formatCommands.append("^PW\(printWidthDots)")
+            formatCommands.append("^PW\(max(0, printWidthDots))")
         }
 
         // ^LL: Label Length
         if let labelLengthDots {
-            formatCommands.append("^LL\(labelLengthDots)")
+            formatCommands.append("^LL\(max(0, labelLengthDots))")
         }
 
         // ^ML: Maximum Label Length
         if let maxLabelLengthDots {
-            formatCommands.append("^ML\(maxLabelLengthDots)")
+            formatCommands.append("^ML\(max(0, maxLabelLengthDots))")
         }
 
-        // ^PR: Print Speed (print, slew, backfeed)
+        // ^PR: Print Speed (print, slew, backfeed). Speeds are 1-14 ips and
+        // never negative; clamp to a non-negative value defensively.
         if let printSpeedIPS {
-            var cmd = "^PR\(printSpeedIPS)"
+            var cmd = "^PR\(max(0, printSpeedIPS))"
             if let slewSpeedIPS {
-                cmd += ",\(slewSpeedIPS)"
+                cmd += ",\(max(0, slewSpeedIPS))"
                 if let backfeedSpeedIPS {
-                    cmd += ",\(backfeedSpeedIPS)"
+                    cmd += ",\(max(0, backfeedSpeedIPS))"
                 }
             }
             formatCommands.append(cmd)
         } else if let slewSpeedIPS {
             // If slew is set but print speed isn't, we still need ^PR
-            var cmd = "^PR,\(slewSpeedIPS)"
+            var cmd = "^PR,\(max(0, slewSpeedIPS))"
             if let backfeedSpeedIPS {
-                cmd += ",\(backfeedSpeedIPS)"
+                cmd += ",\(max(0, backfeedSpeedIPS))"
             }
             formatCommands.append(cmd)
         }
@@ -95,9 +144,10 @@ extension PrinterConfiguration {
             formatCommands.append("^PO\(orientation.rawValue)")
         }
 
-        // ^FW: Field Default Rotation
+        // ^FW: Field Default Rotation. Only N/R/I/B are valid; anything else
+        // falls back to N rather than emitting an invalid (or injectable) value.
         if let fieldRotation {
-            formatCommands.append("^FW\(fieldRotation)")
+            formatCommands.append("^FW\(Self.validatedFieldRotation(fieldRotation))")
         }
 
         // ^LH: Label Home Position
@@ -128,17 +178,35 @@ extension PrinterConfiguration {
             formatCommands.append("^JZ\(reprintAfterError ? "Y" : "N")")
         }
 
-        // ^JN: Printer Name (within format block)
+        // ^KN: Define Printer Name (within format block). The ZPL II manual
+        // documents the printer-name command as ^KN, not ^JN. The name is
+        // sanitized to strip ^, ~, and commas so it cannot inject ZPL.
         if let printerName {
-            formatCommands.append("^JN\(printerName)")
+            let safeName = Self.sanitize(printerName)
+            if !safeName.isEmpty {
+                formatCommands.append("^KN\(safeName)")
+            }
         }
 
-        // ^ND: Network Configuration
+        // ^NS: Change Wired Networking Settings.
+        // Per the ZPL II manual the format is ^NSa,b,c,d,e,f,g,h,i where:
+        //   a = IP resolution (P = PERMANENT/static, D = DHCP, ...)
+        //   b = IP address, c = subnet mask, d = default gateway
+        // The previous ^ND form did not match ^ND's documented parameters.
+        // IP fields are validated with inet_pton; if any is invalid the
+        // command is skipped rather than emitting a malformed/injectable value.
+        // TODO: verify on hardware. Reference: ZPL II Programming Guide, "^NS
+        // Change Wired Networking Settings" (Format ^NSa,b,c,d,e,f,g,h,i).
         if let ipAddress, let subnetMask, let gateway {
-            let dhcpFlag = dhcpEnabled == true ? "Y" : "N"
-            formatCommands.append("^ND\(ipAddress),\(subnetMask),\(gateway),\(dhcpFlag)")
+            if let ip = Self.validatedIPAddress(ipAddress),
+               let subnet = Self.validatedIPAddress(subnetMask),
+               let gw = Self.validatedIPAddress(gateway) {
+                let resolution = dhcpEnabled == true ? "D" : "P"
+                formatCommands.append("^NS\(resolution),\(ip),\(subnet),\(gw)")
+            }
         } else if dhcpEnabled == true {
-            formatCommands.append("^NDY")
+            // DHCP-only: set IP resolution to DHCP with no static addresses.
+            formatCommands.append("^NSD")
         }
 
         // Save to non-volatile memory inside the format block

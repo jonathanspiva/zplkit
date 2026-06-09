@@ -12,11 +12,20 @@ public struct SerialNumber: ZPLElement, Equatable, Hashable {
     private var rotation: Rotation = .normal
 
     /// Creates a serial number field at the given position.
+    ///
+    /// The start value is sanitized to prevent ZPL injection: commas are
+    /// stripped because they are the `^SN` parameter delimiter and are illegal
+    /// in a serial seed (they cannot be hex-escaped within `^SN`'s parameters).
+    /// Caret (`^`), tilde (`~`), and underscore (`_`) characters are preserved
+    /// but emitted via `^FH` hex escaping at render time so they are treated as
+    /// literal data rather than live ZPL commands.
     /// - Parameters:
     ///   - startValue: The starting value for the serial number.
     ///   - position: The position on the label.
     public init(_ startValue: String, at position: Position) {
-        self.startValue = startValue
+        // Commas are the ^SN parameter separator and cannot appear in the seed;
+        // strip them so a value like "1,2" cannot corrupt the ^SN parameters.
+        self.startValue = startValue.replacingOccurrences(of: ",", with: "")
         self.position = position
     }
 
@@ -57,9 +66,17 @@ public struct SerialNumber: ZPLElement, Equatable, Hashable {
 
         let leadingZerosFlag = leadingZeros ? "Y" : "N"
 
+        // Escape control characters (^ ~ _) in the seed so they cannot break out
+        // of the ^SN command. ^FH (permitted by the ZPL manual alongside ^SN)
+        // tells the printer to interpret the _XX escapes as literal data.
+        let (needsHex, escapedStart) = escapeZPLFieldData(startValue)
+
         var result = "^FO\(pos.x),\(pos.y)"
         result += "^A\(font.rawValue)\(rotation.rawValue),\(height),\(width)"
-        result += "^SN\(startValue),\(increment),\(leadingZerosFlag)"
+        if needsHex {
+            result += "^FH"
+        }
+        result += "^SN\(escapedStart),\(increment),\(leadingZerosFlag)"
         result += "^FS"
 
         return result

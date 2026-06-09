@@ -91,11 +91,14 @@ public struct TextBlock: ZPLElement, Equatable, Hashable {
     ///
     /// Text exceeding this limit is truncated.
     ///
-    /// - Parameter lines: Maximum lines. Use 0 for unlimited.
+    /// - Parameter lines: Maximum lines. Use 0 for unlimited. Non-zero values
+    ///   are clamped to the `^FB` valid range of 1...9999.
     /// - Returns: A modified text block.
     public func maxLines(_ lines: Int) -> TextBlock {
         var copy = self
-        copy.maxLines = max(0, lines)
+        // 0 means "unlimited" (translated to 9999 at render time). Any other
+        // value is clamped to the ^FB-supported range of 1...9999.
+        copy.maxLines = lines <= 0 ? 0 : min(9999, lines)
         return copy
     }
 
@@ -182,8 +185,12 @@ public struct TextBlock: ZPLElement, Equatable, Hashable {
 
         result += "^A\(font.rawValue)\(rotation.rawValue),\(height),\(fontW)"
 
-        // ^FB command: width, max lines, line spacing, alignment, hanging indent
-        result += "^FB\(width),\(maxLines),\(spacing),\(alignment.rawValue),\(indent)"
+        // ^FB command: width, max lines, line spacing, alignment, hanging indent.
+        // ^FB max-lines is valid 1...9999; our internal 0 ("unlimited") maps to
+        // the maximum 9999 since 0 is out of range and firmware renders only one
+        // line for it.
+        let emittedMaxLines = maxLines == 0 ? 9999 : maxLines
+        result += "^FB\(width),\(emittedMaxLines),\(spacing),\(alignment.rawValue),\(indent)"
 
         if needsHex {
             result += "^FH"

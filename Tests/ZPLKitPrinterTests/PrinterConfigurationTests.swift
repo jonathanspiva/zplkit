@@ -224,11 +224,11 @@ struct PrinterConfigurationTests {
         #expect(disabled.zplCommands()[0] == "^XA^JZN^XZ")
     }
 
-    @Test("Printer name generates ^JN format command")
+    @Test("Printer name generates ^KN format command")
     func printerNameGeneratesFormat() {
         let config = PrinterConfiguration().printerName("Warehouse-01")
         let commands = config.zplCommands()
-        #expect(commands[0] == "^XA^JNWarehouse-01^XZ")
+        #expect(commands[0] == "^XA^KNWarehouse-01^XZ")
     }
 
     @Test("Max label length generates ^ML format command")
@@ -490,7 +490,7 @@ struct PrinterConfigurationTests {
 
     // MARK: - Network Configuration
 
-    @Test("Network config generates ^ND format command")
+    @Test("Network config generates ^NS format command")
     func networkConfigGeneratesFormat() {
         let config = PrinterConfiguration().networkConfig(
             ip: "192.168.1.100",
@@ -498,14 +498,39 @@ struct PrinterConfigurationTests {
             gateway: "192.168.1.1"
         )
         let commands = config.zplCommands()
-        #expect(commands[0] == "^XA^ND192.168.1.100,255.255.255.0,192.168.1.1,N^XZ")
+        // ^NSa,b,c,d : a=P (permanent/static), b=ip, c=subnet, d=gateway
+        #expect(commands[0] == "^XA^NSP,192.168.1.100,255.255.255.0,192.168.1.1^XZ")
     }
 
-    @Test("DHCP generates ^NDY format command")
+    @Test("Network config with DHCP uses D resolution letter")
+    func networkConfigWithDHCPGeneratesFormat() {
+        let config = PrinterConfiguration().networkConfig(
+            ip: "192.168.1.100",
+            subnet: "255.255.255.0",
+            gateway: "192.168.1.1",
+            dhcp: true
+        )
+        let commands = config.zplCommands()
+        #expect(commands[0] == "^XA^NSD,192.168.1.100,255.255.255.0,192.168.1.1^XZ")
+    }
+
+    @Test("Network config with invalid IP skips the command")
+    func networkConfigInvalidIPSkipped() {
+        let config = PrinterConfiguration().networkConfig(
+            ip: "not-an-ip",
+            subnet: "255.255.255.0",
+            gateway: "192.168.1.1"
+        )
+        let commands = config.zplCommands()
+        // Invalid address -> command skipped, so no format block at all.
+        #expect(commands.isEmpty)
+    }
+
+    @Test("DHCP-only generates ^NSD format command")
     func dhcpGeneratesFormat() {
         let config = PrinterConfiguration().dhcp()
         let commands = config.zplCommands()
-        #expect(commands[0] == "^XA^NDY^XZ")
+        #expect(commands[0] == "^XA^NSD^XZ")
     }
 
     // MARK: - Save Parameter
@@ -542,6 +567,77 @@ struct PrinterConfigurationTests {
         let commands = config.zplCommands(save: true)
         #expect(commands.count == 1)
         #expect(commands[0] == "^XA^JUS^XZ")
+    }
+
+    // MARK: - Injection / Sanitization
+
+    @Test("Printer name strips ZPL-significant characters")
+    func printerNameSanitizesInjection() {
+        // A name set directly (bypassing any future validating modifier) that
+        // contains ^, ~, and commas must not break out of the ^KN command.
+        var config = PrinterConfiguration()
+        config.printerName = "Evil^XZ~SD30,boom"
+        let commands = config.zplCommands()
+        #expect(commands[0] == "^XA^KNEvilXZSD30boom^XZ")
+        #expect(!commands[0].dropFirst(3).contains("~"))
+    }
+
+    @Test("Printer name that is only unsafe characters emits no command")
+    func printerNameAllUnsafeEmitsNothing() {
+        var config = PrinterConfiguration()
+        config.printerName = "^~,"
+        let commands = config.zplCommands()
+        #expect(commands.isEmpty)
+    }
+
+    @Test("Invalid field rotation falls back to N")
+    func fieldRotationInvalidFallsBackToN() {
+        var config = PrinterConfiguration()
+        config.fieldRotation = "X^XZ"
+        let commands = config.zplCommands()
+        #expect(commands[0] == "^XA^FWN^XZ")
+    }
+
+    @Test("Lowercase field rotation is normalized to uppercase")
+    func fieldRotationLowercaseNormalized() {
+        var config = PrinterConfiguration()
+        config.fieldRotation = "r"
+        let commands = config.zplCommands()
+        #expect(commands[0] == "^XA^FWR^XZ")
+    }
+
+    // MARK: - Clamping in zplCommands (last line of defense)
+
+    @Test("Darkness set directly above range clamps in zplCommands")
+    func darknessClampsInZPLHigh() {
+        var config = PrinterConfiguration()
+        config.darkness = 99  // bypasses the clamping modifier
+        let commands = config.zplCommands()
+        #expect(commands[0] == "~SD30")
+    }
+
+    @Test("Negative darkness clamps to 00 in zplCommands")
+    func darknessClampsInZPLLow() {
+        var config = PrinterConfiguration()
+        config.darkness = -5
+        let commands = config.zplCommands()
+        #expect(commands[0] == "~SD00")
+    }
+
+    @Test("Tear-off adjust set directly out of range clamps in zplCommands")
+    func tearOffClampsInZPL() {
+        var config = PrinterConfiguration()
+        config.tearOffAdjust = 9999
+        let commands = config.zplCommands()
+        #expect(commands[0] == "~TA0120")
+    }
+
+    @Test("Negative print width clamps to zero in zplCommands")
+    func negativeWidthClampsInZPL() {
+        var config = PrinterConfiguration()
+        config.printWidthDots = -100
+        let commands = config.zplCommands()
+        #expect(commands[0] == "^XA^PW0^XZ")
     }
 
     @Test("zplCommands(save: true) with mixed commands includes ^JUS in format block")

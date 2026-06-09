@@ -280,6 +280,13 @@ enum EANPatterns {
             sixDigits = String(inputDigits.dropFirst().dropLast())
         }
 
+        // For 9+ input digits the branches above yield a string with more than 6
+        // characters, but `parityPattern` is always 6 chars; the enumeration loop
+        // below indexes `parityPattern` by digit position and would trap on the
+        // 7th character. Reject anything that did not reduce to exactly 6 digits
+        // (render nothing), consistent with the empty-array return for < 6 digits.
+        guard sixDigits.count == 6 else { return [] }
+
         // Expand UPC-E to UPC-A to calculate check digit
         let upcA = expandUPCEtoUPCA(sixDigits)
         let checkDigit = calculateUPCACheckDigit(upcA)
