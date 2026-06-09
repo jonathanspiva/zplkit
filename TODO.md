@@ -1,6 +1,16 @@
 # ZPLKit TODO
 
 ## Now
+- [ ] **Fix ZPL injection in SerialNumber and Comment** - `SerialNumber` startValue (SerialNumber.swift:62) and `Comment` text (Comment.swift:27) are interpolated raw into ZPL; `^`/`~` in the data injects live commands (e.g. `~JR` reset). Validate or escape both.
+- [ ] **Set SO_NOSIGPIPE on send() socket** - ZPLPrinter.swift: printer closing the connection mid-write raises SIGPIPE, which kills the host process by default. Set SO_NOSIGPIPE right after socket().
+- [ ] **Fix renderer crashes on malformed ZPL** - Unbounded `^PW`/`^LL` overflow `width * 4` in CoreGraphicsRenderer (or request 10GB+ bitmaps); `^GF` bytesPerRow overflows `* 8`; UPC-E with 9+ digits traps on parity-pattern index in EANPatterns.encodeUPCE; `^GF` Z64 capacity and ACS repeat counts allow memory amplification. Clamp dimensions, use checked math, guard sixDigits.count == 6.
+- [ ] **Fix Examples compile errors** - `ZPLTemplate` doesn't exist (ShippingLabel, ProductLabel, PartsBinLabel, plus DocC references); modifiers chained on failable inits need `?` (all examples and README Quick Start); `padWithZeros` should be `leadingZeros` (InventoryTag.swift:173). Add an Examples typecheck step to CI.
+- [ ] **Fix wrong config ZPL commands** - `^ND` parameters don't match the ZPL manual (likely should be `^NS`), `^JN` is not the printer-name command (likely `^KN`). Verify on lab printers. PrinterConfiguration+ZPL.swift:131-142. Also validate/escape printerName, fieldRotation, and IP fields (injection).
+- [ ] **TextBlock maxLines=0 emits out-of-range ^FB** - `^FB` max-lines accepts 1-9999, default 1; emitting 0 truncates wrapped text to one line on real firmware. Map unlimited to 9999. TextBlock.swift.
+- [ ] **send() rejects hostnames and IPv6** - inet_pton(AF_INET) only; breaks documented hostname support and Bonjour-discovered printers. Use getaddrinfo (with freeaddrinfo on all paths). ZPLPrinter.swift:240-250.
+- [ ] **Harden printer-response parsing and query() lifecycle** - PrinterInfo.dpi and MemoryStatus.used/usagePercent can trap on hostile `~HI`/`~HM` values; query() completes early on multi-segment `~HS` responses; query() cancellation hangs until timeout instead of throwing CancellationError. Range-check parsed fields.
+- [ ] **CI and repo hardening** - Add `permissions: contents: read` to ci.yml; switch Labelary calls to https (Tools/VisualTests/main.swift:459); add `.claude/` to .gitignore.
+- [ ] **UPCE element length validation contradicts ^B9** - accepts 6/7/8 digits but `^B9` expects 10 characters; normalize or document. UPCE.swift.
 - [ ] **Clean up StatusCheck** - Remove `~FF` from feed command (not a valid ZPL command), remove `GraphicPrintTest/status.swift` placeholder
 
 ## Later
