@@ -332,8 +332,11 @@ struct NetworkRoundTripTests {
         let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
         try await printer.setup(config)
 
-        // Two connections: payload and calibrate.
-        try await waitUntil { fake.connectionCount >= 2 }
+        // Wait for the calibrate bytes themselves, not just the second
+        // connection's accept(): connectionCount can reach 2 before the
+        // calibrate payload has been read and recorded, which would race the
+        // assertions below.
+        try await waitUntil { fake.receivedString.contains("~JC") }
         let sent = fake.receivedString
         #expect(sent.contains("^JUS"))   // save is included
         #expect(sent.contains("~JC"))    // calibration command sent

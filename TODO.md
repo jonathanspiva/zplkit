@@ -16,8 +16,8 @@
 - [ ] Consider an Examples build target / CI typecheck step so example drift is caught automatically
 
 ### Verifier API findings (from coverage pass, non-security)
-- [ ] **VerificationBuilder control-flow methods are dead code** - `buildBlock` is variadic-of-single-expectation, so `buildArray`/`buildOptional`/`buildEither`/`buildLimitedAvailability` can't be consumed; `if`/`for` inside a `@VerificationBuilder` block won't compile. Fix: `buildBlock(_ components: [any Expectation]...)` + flatten.
-- [ ] **`Text(containing:)` is case-insensitive but `Barcode(containing:)` is case-sensitive** - undocumented asymmetry. Decide intended behavior and document/align.
+- [x] **VerificationBuilder control-flow methods were dead code** - Fixed: `buildExpression` lifts each statement to `[any Expectation]` and `buildBlock(_:)` takes `[any Expectation]...` and flattens, so `if`/`if-else`/`for`/`if #available` now work inside a `@VerificationBuilder` block. Pinned with DSL control-flow tests.
+- [x] **`Text(containing:)` case-insensitive vs `Barcode(containing:)` case-sensitive** - Resolved by documenting the asymmetry as intentional: barcode payloads are exact machine data (case-sensitive), OCR text is fuzzy (case-insensitive). Documented on `Barcode.PayloadMatch`.
 
 - [ ] **Open source release**
   - [ ] Tag v1.0.0 release

@@ -9,14 +9,21 @@ public struct Barcode: Expectation {
     public let payloadMatch: PayloadMatch
 
     /// How to match the barcode payload.
+    ///
+    /// Payload matching is **case-sensitive** for both `containing` and `exactly`.
+    /// A barcode payload is exact machine-readable data (tracking numbers, SKUs,
+    /// case-sensitive URLs or tokens in a QR code), so `"abc"` and `"ABC"` are
+    /// genuinely different payloads. This is deliberately stricter than
+    /// ``Text/TextMatch/containing(_:)``, which is case-insensitive because OCR
+    /// text is fuzzy.
     public enum PayloadMatch: Sendable {
         /// Match any payload.
         case any
 
-        /// Payload must contain this substring.
+        /// Payload must contain this substring (case-sensitive).
         case containing(String)
 
-        /// Payload must exactly equal this string.
+        /// Payload must exactly equal this string (case-sensitive).
         case exactly(String)
     }
 
@@ -42,6 +49,8 @@ public struct Barcode: Expectation {
     }
 
     /// Create an expectation for a barcode containing a substring in its payload.
+    ///
+    /// Matching is case-sensitive (see ``PayloadMatch``).
     public init(_ symbology: BarcodeSymbology, containing substring: String) {
         self.symbology = symbology
         self.payloadMatch = .containing(substring)

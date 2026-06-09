@@ -50,18 +50,70 @@ struct VerificationBuilderMethodTests {
         #expect(result[2].description == "Text(containing: \"LAST\")")
     }
 
-    // NOTE: The control-flow builder methods (buildArray / buildOptional /
-    // buildEither / buildLimitedAvailability) cannot be exercised through DSL
-    // syntax. `buildBlock` is declared as `(_ components: (any Expectation)...)`
-    // (variadic of single expectations), so it cannot consume the
-    // `[any Expectation]` that a `for`/`if`/`if-else` partial result produces.
-    // Writing `for ... { Text(...) }` or `if cond { ... }` inside a
-    // @VerificationBuilder block fails to compile:
-    //   "argument type '[any Expectation]' does not conform to expected type 'Expectation'".
-    // Those methods are therefore effectively dead code via the DSL. We pin them
-    // by calling the static methods directly below so a future fix (changing
-    // buildBlock to accept `[any Expectation]...` and flatten) is detectable, and
-    // so the behavior of each method is still under test.
+    // The control-flow builder methods (buildArray / buildOptional / buildEither /
+    // buildLimitedAvailability) are exercised through real DSL syntax below. These
+    // compile only because `buildBlock` accepts `[any Expectation]...` and
+    // `buildExpression` lifts each statement to a single-element partial; a
+    // regression to the old `(any Expectation)...` buildBlock would fail to build.
+
+    @Test("for-loop in a block flattens via buildArray")
+    func forLoopBuildsArray() {
+        @VerificationBuilder
+        func build(_ skus: [String]) -> [any Expectation] {
+            Text("HEADER")
+            for sku in skus {
+                Barcode(.code128, exactly: sku)
+            }
+        }
+        let result = build(["A1", "B2", "C3"])
+        #expect(result.count == 4)
+        #expect(result[0].description == "Text(containing: \"HEADER\")")
+        #expect(result[3].description == "Barcode(code128, exactly: \"C3\")")
+    }
+
+    @Test("for-loop over an empty collection contributes nothing")
+    func forLoopEmpty() {
+        @VerificationBuilder
+        func build(_ skus: [String]) -> [any Expectation] {
+            Text("ONLY")
+            for sku in skus {
+                Barcode(.code128, exactly: sku)
+            }
+        }
+        #expect(build([]).count == 1)
+    }
+
+    @Test("if without else includes the branch only when true (buildOptional)")
+    func ifWithoutElse() {
+        @VerificationBuilder
+        func build(_ include: Bool) -> [any Expectation] {
+            Text("ALWAYS")
+            if include {
+                Barcode(.qr, containing: "SKU-123")
+            }
+        }
+        #expect(build(true).count == 2)
+        #expect(build(false).count == 1)
+    }
+
+    @Test("if/else selects the matching branch (buildEither)")
+    func ifElse() {
+        @VerificationBuilder
+        func build(_ useQR: Bool) -> [any Expectation] {
+            if useQR {
+                Barcode(.qr)
+            } else {
+                Barcode(.code128)
+                Text("FALLBACK")
+            }
+        }
+        #expect(build(true).count == 1)
+        #expect(build(true)[0].description == "Barcode(qr)")
+        #expect(build(false).count == 2)
+    }
+
+    // Direct static-method tests, retained to pin each method's behavior
+    // independent of the DSL transform.
 
     @Test("buildArray static method flattens nested arrays directly")
     func buildArrayDirect() {
@@ -70,8 +122,7 @@ struct VerificationBuilderMethodTests {
             [],
             [Text("X"), Text("Y")]
         ]
-        let flat = VerificationBuilder.buildArray(nested)
-        #expect(flat.count == 3)
+        #expect(VerificationBuilder.buildArray(nested).count == 3)
     }
 
     @Test("buildOptional static method maps nil to empty")
@@ -80,28 +131,11 @@ struct VerificationBuilderMethodTests {
         #expect(VerificationBuilder.buildOptional(none).isEmpty)
     }
 
-    @Test("buildOptional static method passes a present component through")
-    func buildOptionalSomeDirect() {
-        let some: [any Expectation]? = [Barcode(.code128)]
-        #expect(VerificationBuilder.buildOptional(some).count == 1)
-    }
-
-    @Test("buildEither(first:) returns the first component")
-    func buildEitherFirstDirect() {
-        let first: [any Expectation] = [Text("A")]
-        #expect(VerificationBuilder.buildEither(first: first).count == 1)
-    }
-
-    @Test("buildEither(second:) returns the second component")
-    func buildEitherSecondDirect() {
-        let second: [any Expectation] = [Text("B"), Barcode(.qr)]
-        #expect(VerificationBuilder.buildEither(second: second).count == 2)
-    }
-
-    @Test("buildExpression wraps a single expectation")
+    @Test("buildExpression lifts a single expectation into a one-element partial")
     func buildExpressionDirect() {
-        let expr = VerificationBuilder.buildExpression(Barcode(.qr))
-        #expect(expr.description == "Barcode(qr)")
+        let partial = VerificationBuilder.buildExpression(Barcode(.qr))
+        #expect(partial.count == 1)
+        #expect(partial[0].description == "Barcode(qr)")
     }
 
     @Test("buildBlock with no arguments yields an empty array")
@@ -112,8 +146,7 @@ struct VerificationBuilderMethodTests {
     @Test("buildLimitedAvailability passes the component through unchanged")
     func buildLimitedAvailabilityDirect() {
         let component: [any Expectation] = [Barcode(.qr), Text("Z")]
-        let result = VerificationBuilder.buildLimitedAvailability(component)
-        #expect(result.count == 2)
+        #expect(VerificationBuilder.buildLimitedAvailability(component).count == 2)
     }
 }
 
