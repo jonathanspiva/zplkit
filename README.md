@@ -210,6 +210,7 @@ if status.isReadyToPrint {
 
 - **[Getting Started](Sources/ZPLKit/Documentation.docc/Articles/GettingStarted.md)** - Full API reference with examples for all elements
 - **[Test Fixtures](Sources/ZPLKit/Documentation.docc/Articles/Fixtures.md)** - 124 ZPL files for testing parsers and renderers
+- **[Hardware Validation](HARDWARE-VALIDATION.md)** - Printers and firmware ZPLKit is tested against, with real-device response fixtures
 
 ## Known Issues
 

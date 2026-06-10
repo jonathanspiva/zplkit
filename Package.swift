@@ -81,6 +81,9 @@ let package = Package(
         .testTarget(
             name: "ZPLKitPrinterTests",
             dependencies: ["ZPLKitPrinter", "ZPLKit"],
+            resources: [
+                .copy("Fixtures/RealDevice")
+            ],
             swiftSettings: sharedSwiftSettings
         ),
         .testTarget(

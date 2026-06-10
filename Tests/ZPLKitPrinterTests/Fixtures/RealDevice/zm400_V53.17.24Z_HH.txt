@@ -1,0 +1,66 @@
+  JAY425862.1212307FVT29.79400-011.U.1  
+  +30                 DARKNESS          
+  2 IPS               PRINT SPEED       
+  +000                TEAR OFF          
+  TEAR OFF            PRINT MODE        
+  GAP/NOTCH           MEDIA TYPE        
+  TRANSMISSIVE        SENSOR SELECT     
+  THERMAL-TRANS.      PRINT METHOD      
+  812                 PRINT WIDTH       
+  0420                LABEL LENGTH      
+  39.0IN   988MM      MAXIMUM LENGTH    
+  MAINT. OFF          EARLY WARNING     
+  NOT CONNECTED       USB COMM.         
+  BIDIRECTIONAL       PARALLEL COMM.    
+  RS232               SERIAL COMM.      
+  9600                BAUD              
+  8 BITS              DATA BITS         
+  NONE                PARITY            
+  XON/XOFF            HOST HANDSHAKE    
+  NONE                PROTOCOL          
+  000                 NETWORK ID        
+  NORMAL MODE         COMMUNICATIONS    
+  <~>  7EH            CONTROL PREFIX    
+  <^>  5EH            FORMAT PREFIX     
+  <,>  2CH            DELIMITER CHAR    
+  ZPL II              ZPL MODE          
+  INACTIVE            COMMAND OVERRIDE  
+  CALIBRATION         MEDIA POWER UP    
+  CALIBRATION         HEAD CLOSE        
+  DEFAULT             BACKFEED          
+  +000                LABEL TOP         
+  +0000               LEFT POSITION     
+  DISABLED            REPRINT MODE      
+  051                 WEB S.            
+  084                 MEDIA S.          
+  070                 RIBBON S.         
+  100                 TAKE LABEL        
+  050                 MARK S.           
+  002                 TRANS GAIN        
+  034                 TRANS BASE        
+  155                 TRANS BRIGHT      
+  173                 RIBBON GAIN       
+  000                 MARK GAIN         
+  DPSWFXM             MODES ENABLED     
+  .......             MODES DISABLED    
+   832 8/MM FULL      RESOLUTION        
+  V53.17.24Z <-       FIRMWARE          
+  1.3                 XML SCHEMA        
+  V37 ---------- 43   HARDWARE ID       
+  CUSTOMIZED          CONFIGURATION     
+  10840k...........R: RAM               
+  2048k............E: ONBOARD FLASH     
+  NONE                FORMAT CONVERT    
+  FW VERSION          IDLE DISPLAY      
+  06/10/26            RTC DATE          
+  09:05               RTC TIME          
+  DISABLED            ZBI               
+  2.1                 ZBI VERSION       
+  111,512 IN          NONRESET CNTR     
+  111,512 IN          RESET CNTR1       
+  111,512 IN          RESET CNTR2       
+  283,240 CM          NONRESET CNTR     
+  283,240 CM          RESET CNTR1       
+  283,240 CM          RESET CNTR2       
+  SELECTED ITEMS      PASSWORD LEVEL    
+
