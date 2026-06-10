@@ -1,19 +1,18 @@
 # ZPLKit TODO
 
 ## Now
-- [ ] **Clean up StatusCheck** - Remove `~FF` from feed command (not a valid ZPL command), remove `GraphicPrintTest/status.swift` placeholder
+- [x] **Clean up StatusCheck** - Removed `~FF` from feed command (not a valid ZPL command) and deleted the `GraphicPrintTest/status.swift` placeholder.
 
 ## Later
-### Deferred low-severity review items (not yet addressed)
-- [ ] Switch Labelary calls to https (Tools/VisualTests/main.swift:459)
-- [ ] Add `.claude/` to .gitignore so worktrees/settings can't be accidentally committed
-- [ ] `try await` missing in ZPLVerifier doc snippets (ZPLVerifier.swift:19,34)
-- [ ] `errno` read after the connect closure returns (ZPLPrinter.swift) - capture inside the innermost closure
-- [ ] Clamp `timeout` to a sane ceiling before trapping `Int`/`Int32` conversions (ZPLPrinter.swift)
-- [ ] query() connection-timeout race can return spurious timeout on a success-path race
-- [ ] Discovery opens a port-9100 connection per browse event; can starve older printers' tiny connection limits
-- [ ] Delete leftover `Tools/GraphicPrintTest/status.swift` placeholder (also tracked under StatusCheck cleanup)
-- [ ] Consider an Examples build target / CI typecheck step so example drift is caught automatically
+### Deferred low-severity review items
+- [x] Switch Labelary calls to https (Tools/VisualTests/main.swift:459)
+- [x] Add `.claude/` to .gitignore so worktrees/settings can't be accidentally committed
+- [x] `try await` in ZPLVerifier doc snippets (ZPLVerifier.swift)
+- [x] Clamp `timeout` to a 1-day ceiling before the `Int`/`Int32` conversions in send() (ZPLPrinter.swift)
+- [x] `errno` read after connect - already adequate: errno is read on the statement immediately after `Darwin.connect()`, no intervening Swift work. Left as-is.
+- [ ] **query() connection-timeout race can return spurious timeout on a success-path race** - deferred: real but subtle concurrency fix (cancel the timer task from complete()), wants careful testing. Not mechanical.
+- [ ] **Discovery opens a port-9100 connection per browse event** - deferred: architectural change to ZPLPrinterBrowser (resolve endpoints lazily on selection). Affects how DiscoveredPrinter.host is populated; wants hardware validation.
+- [ ] **Examples build target / CI typecheck step** - deferred: adds CI infra / source refactor (examples have top-level code). Worth doing but out of "final fixes" scope.
 
 ### Verifier API findings (from coverage pass, non-security)
 - [x] **VerificationBuilder control-flow methods were dead code** - Fixed: `buildExpression` lifts each statement to `[any Expectation]` and `buildBlock(_:)` takes `[any Expectation]...` and flattens, so `if`/`if-else`/`for`/`if #available` now work inside a `@VerificationBuilder` block. Pinned with DSL control-flow tests.

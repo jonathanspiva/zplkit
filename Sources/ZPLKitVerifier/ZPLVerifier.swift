@@ -16,7 +16,7 @@ import Vision
 ///
 /// ```swift
 /// let verifier = ZPLVerifier()
-/// let result = try verifier.analyze(renderedImage)
+/// let result = try await verifier.analyze(renderedImage)
 ///
 /// for barcode in result.barcodes {
 ///     print("\(barcode.symbology): \(barcode.payload)")
@@ -31,7 +31,7 @@ import Vision
 /// Use `verify(_:expectations:)` to check for specific content:
 ///
 /// ```swift
-/// let result = try verifier.verify(renderedImage) {
+/// let result = try await verifier.verify(renderedImage) {
 ///     Barcode(.code128, containing: "SKU-12345")
 ///     Text("FRAGILE")
 /// }

@@ -216,8 +216,10 @@ public struct ZPLPrinter: Sendable {
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             DispatchQueue.global().async {
-                // Set send timeout, preserving fractional seconds.
-                let clampedTimeout = max(0, timeout)
+                // Set send timeout, preserving fractional seconds. Clamp to a
+                // 1-day ceiling so an extreme/.infinity timeout can't trap the
+                // Int/Int32 conversions below.
+                let clampedTimeout = min(max(0, timeout), 86_400)
                 let timeoutSeconds = Int(clampedTimeout)
                 let timeoutMicros = Int32((clampedTimeout - Double(timeoutSeconds)) * 1_000_000)
 

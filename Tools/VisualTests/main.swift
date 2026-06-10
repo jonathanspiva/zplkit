@@ -456,7 +456,7 @@ struct VisualTests {
         case .dpi600: dpmm = "24dpmm"
         }
 
-        let urlString = "http://api.labelary.com/v1/printers/\(dpmm)/labels/\(width)x\(height)/0/"
+        let urlString = "https://api.labelary.com/v1/printers/\(dpmm)/labels/\(width)x\(height)/0/"
         guard let url = URL(string: urlString) else { throw LabelaryError.noData }
 
         var request = URLRequest(url: url)

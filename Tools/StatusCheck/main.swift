@@ -76,7 +76,6 @@ case "feed":
 
         // Try multiple approaches
         let feedCommands = [
-            ("~FF (form feed)", "~FF"),
             ("^XA^FO0,0^FD ^FS^XZ (label with space)", "^XA^FO0,0^FD ^FS^XZ"),
             ("^XA^FO0,0^GB1,1,1^FS^XZ (label with dot)", "^XA^FO0,0^GB1,1,1^FS^XZ"),
         ]
