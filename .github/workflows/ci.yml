@@ -25,6 +25,24 @@ jobs:
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 
+      - name: Typecheck examples
+        run: |
+          set -euo pipefail
+          MODDIR=$(dirname "$(find .build -path '*/debug/Modules/ZPLKit.swiftmodule' ! -path '*index-build*' | head -1)")
+          if [ -z "$MODDIR" ] || [ ! -d "$MODDIR" ]; then
+            echo "::error::Could not locate built ZPLKit module directory"; exit 1
+          fi
+          fail=0
+          for f in Examples/*.swift; do
+            if swiftc -typecheck -I "$MODDIR" "$f"; then
+              echo "ok: $f"
+            else
+              echo "::error file=$f::Example failed to typecheck against the built module"
+              fail=1
+            fi
+          done
+          exit $fail
+
       - name: Run unit tests
         run: swift test
 

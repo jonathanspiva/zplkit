@@ -32,6 +32,19 @@ private actor QueryState {
     private var responseBuffer = Data()
     private var hasSentCommand = false
     private var lastReceiveTime: UInt64 = 0
+    private var cleanupTasks: [Task<Void, Never>] = []
+
+    /// Registers a background task (e.g. a timeout timer) to be cancelled when
+    /// the query completes, so timers don't linger and sleep for the full
+    /// timeout after a result has already been produced. If the query has
+    /// already completed, the task is cancelled immediately.
+    func registerCleanup(_ task: Task<Void, Never>) {
+        if hasCompleted {
+            task.cancel()
+        } else {
+            cleanupTasks.append(task)
+        }
+    }
 
     func setContinuation(_ continuation: CheckedContinuation<Data, Error>) {
         // If a result was already produced before the continuation was
@@ -77,6 +90,11 @@ private actor QueryState {
         // Only the first completion wins; subsequent calls are ignored.
         guard !hasCompleted else { return }
         hasCompleted = true
+
+        // Cancel any lingering timeout timers so they stop sleeping for the
+        // full timeout after the result is in.
+        for task in cleanupTasks { task.cancel() }
+        cleanupTasks.removeAll()
 
         if let continuation = continuation {
             self.continuation = nil
@@ -475,18 +493,29 @@ public struct ZPLPrinter: Sendable {
                     await state.setContinuation(continuation)
                 }
 
-                // Connection timeout (before we're connected)
-                Task {
+                // Connection timeout: guards only the connect phase. It is
+                // cancelled in the `.ready` handler below once the connection is
+                // established, so it can't spuriously fire (returning a bogus
+                // PrinterError.timeout) in the narrow window where the command is
+                // already in flight but markCommandSent() hasn't run yet.
+                let connectionTimeoutTask = Task {
                     try? await Task.sleep(nanoseconds: connectionTimeoutNanos)
+                    if Task.isCancelled { return }
                     if await !state.hasCommandBeenSent() {
                         await state.complete(with: .failure(PrinterError.timeout(host: host, port: port)))
                         connection.cancel()
                     }
                 }
+                Task { await state.registerCleanup(connectionTimeoutTask) }
 
                 connection.stateUpdateHandler = { connectionState in
                     switch connectionState {
                     case .ready:
+                        // Connection established: the connect phase is over, so
+                        // cancel the connection-timeout timer. The response
+                        // timeout (started after the send completes) governs the
+                        // rest of the exchange.
+                        connectionTimeoutTask.cancel()
                         // Connection established, send command
                         connection.send(content: data, completion: .contentProcessed { error in
                             Task {
@@ -503,7 +532,7 @@ public struct ZPLPrinter: Sendable {
                                 // no new data arrives within 1s, return what we have.
                                 // This avoids waiting the full timeout for responses
                                 // without ETX framing (like ^HH).
-                                Task {
+                                let responseTimeoutTask = Task {
                                     let idleThresholdNanos: UInt64 = 1_000_000_000  // 1 second
                                     let checkIntervalNanos: UInt64 = 500_000_000     // check every 500ms
                                     let deadline = DispatchTime.now().uptimeNanoseconds + responseTimeoutNanos
@@ -535,6 +564,7 @@ public struct ZPLPrinter: Sendable {
                                         connection.cancel()
                                     }
                                 }
+                                await state.registerCleanup(responseTimeoutTask)
 
                                 // Start receiving response
                                 self.receiveResponse(connection: connection, state: state, isStatusQuery: isStatusQuery)

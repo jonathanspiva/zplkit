@@ -173,20 +173,21 @@ extension ZPLPrinter {
 
     /// Queries a complete diagnostic snapshot from the printer.
     ///
-    /// Runs `~HI`, `~HS`, and `~HM` concurrently, then attempts `^HH` for
+    /// Runs `~HI`, `~HS`, and `~HM` sequentially, then attempts `^HH` for
     /// extended settings. If `^HH` times out (common when the printer is in
     /// an error state), the ``PrinterDiagnostics/settings`` field will be nil.
+    ///
+    /// The queries run one at a time rather than concurrently: many older Zebra
+    /// printers (e.g. GX420t, ZM400) accept only one or two simultaneous
+    /// connections on port 9100, so firing all three at once can stall or fail.
+    /// Each query opens and closes its own connection.
     ///
     /// - Returns: Aggregate diagnostics including info, status, memory, and settings.
     /// - Throws: `PrinterError` if any of the required queries (`~HI`, `~HS`, `~HM`) fail.
     public func queryDiagnostics() async throws -> PrinterDiagnostics {
-        async let infoTask = queryInfo()
-        async let statusTask = queryStatus()
-        async let memoryTask = queryMemory()
-
-        let info = try await infoTask
-        let status = try await statusTask
-        let memory = try await memoryTask
+        let info = try await queryInfo()
+        let status = try await queryStatus()
+        let memory = try await queryMemory()
 
         // ^HH can timeout when the printer is in an error state
         let settings: PrinterSettings?

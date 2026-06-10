@@ -10,9 +10,9 @@
 - [x] `try await` in ZPLVerifier doc snippets (ZPLVerifier.swift)
 - [x] Clamp `timeout` to a 1-day ceiling before the `Int`/`Int32` conversions in send() (ZPLPrinter.swift)
 - [x] `errno` read after connect - already adequate: errno is read on the statement immediately after `Darwin.connect()`, no intervening Swift work. Left as-is.
-- [ ] **query() connection-timeout race can return spurious timeout on a success-path race** - deferred: real but subtle concurrency fix (cancel the timer task from complete()), wants careful testing. Not mechanical.
-- [ ] **Discovery opens a port-9100 connection per browse event** - deferred: architectural change to ZPLPrinterBrowser (resolve endpoints lazily on selection). Affects how DiscoveredPrinter.host is populated; wants hardware validation.
-- [ ] **Examples build target / CI typecheck step** - deferred: adds CI infra / source refactor (examples have top-level code). Worth doing but out of "final fixes" scope.
+- [x] **query() connection-timeout race** - Fixed: the connection-timeout timer is cancelled in the `.ready` handler (once connected it can't spuriously fire a bogus `PrinterError.timeout` while the command is in flight), and both timeout timers are registered with `QueryState` so `complete()` cancels them instead of letting them sleep out the full timeout. Verified stable over repeated runs.
+- [x] **Discovery / diagnostics open too many port-9100 connections** - Partially addressed (low-risk parts): `queryDiagnostics()` now runs `~HI`/`~HS`/`~HM` sequentially instead of 3 concurrent connections; the browser refreshes TXT metadata in place on `.changed` events instead of reopening a resolution connection to the print port. NOT done (needs real mDNS hardware): the full lazy-resolution redesign that would avoid the one resolution connection per `.added` by storing the NWEndpoint and resolving only on connect (changes the public `DiscoveredPrinter` API).
+- [x] **Examples CI typecheck step** - Added: the build-and-test CI job now typechecks every `Examples/*.swift` against the built ZPLKit module (`swiftc -typecheck`), so example drift fails CI. No SPM target / source refactor needed.
 
 ### Verifier API findings (from coverage pass, non-security)
 - [x] **VerificationBuilder control-flow methods were dead code** - Fixed: `buildExpression` lifts each statement to `[any Expectation]` and `buildBlock(_:)` takes `[any Expectation]...` and flattens, so `if`/`if-else`/`for`/`if #available` now work inside a `@VerificationBuilder` block. Pinned with DSL control-flow tests.

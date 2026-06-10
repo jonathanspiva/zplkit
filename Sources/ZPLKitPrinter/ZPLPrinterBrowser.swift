@@ -168,7 +168,15 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
                 removeResult(result)
 
             case .changed(old: _, new: let result, flags: _):
-                resolveEndpoint(result)
+                // A `.changed` event is usually TXT-record (metadata) churn, not
+                // an address change. If this endpoint is already resolved, refresh
+                // its metadata in place rather than opening another TCP connection
+                // to the print port — repeatedly resolving can starve printers
+                // that accept only a few concurrent connections (and the
+                // resolution connection's RST-on-cancel disrupts them further).
+                if !refreshMetadataIfKnown(result) {
+                    resolveEndpoint(result)
+                }
 
             case .identical:
                 break
@@ -232,6 +240,26 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
         queue.asyncAfter(deadline: .now() + 5) {
             connection.cancel()
         }
+    }
+
+    /// Updates the TXT metadata of an already-resolved printer without opening a
+    /// new connection. Returns false if the endpoint hasn't been resolved yet
+    /// (in which case the caller should resolve it).
+    private func refreshMetadataIfKnown(_ result: NWBrowser.Result) -> Bool {
+        let id = endpointID(result)
+        let metadata = extractMetadata(result)
+
+        lock.lock()
+        defer { lock.unlock() }
+        guard let existing = discovered[id] else { return false }
+        discovered[id] = DiscoveredPrinter(
+            id: existing.id,
+            name: existing.name,
+            host: existing.host,
+            port: existing.port,
+            metadata: metadata
+        )
+        return true
     }
 
     private func addPrinter(_ printer: DiscoveredPrinter) {
