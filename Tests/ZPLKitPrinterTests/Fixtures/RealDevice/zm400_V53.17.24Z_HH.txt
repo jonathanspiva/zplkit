@@ -53,7 +53,7 @@
   NONE                FORMAT CONVERT    
   FW VERSION          IDLE DISPLAY      
   06/10/26            RTC DATE          
-  09:05               RTC TIME          
+  09:12               RTC TIME          
   DISABLED            ZBI               
   2.1                 ZBI VERSION       
   111,512 IN          NONRESET CNTR     

@@ -1,0 +1,3 @@
+# Real-device captures are verbatim printer bytes; never normalize line endings.
+*.bin binary
+*.txt binary
