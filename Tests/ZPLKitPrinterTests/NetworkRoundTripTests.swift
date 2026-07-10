@@ -9,11 +9,19 @@ import Testing
 /// and tears it down via `defer`, so ports / fds never leak between tests and
 /// nothing requires real hardware or an env-var gate. These exercise the same
 /// code paths the hardware-gated `LivePrinterTests` cover, but hermetically.
-@Suite("Network Round-Trip Tests")
+///
+/// The suite is `.serialized`: NWConnection's first use in a process pays a
+/// multi-second cold-start on slow machines (GitHub Actions macOS runners
+/// especially), and a dozen concurrent connect attempts all stall behind it
+/// and time out together. Serial execution lets the first query pay that cost
+/// once while the rest stay fast.
+@Suite("Network Round-Trip Tests", .serialized)
 struct NetworkRoundTripTests {
 
-    /// Short connection timeout for tests that should succeed quickly.
-    private let shortTimeout: TimeInterval = 2
+    /// Timeout for operations that are expected to succeed. Generous because
+    /// CI runners pay NWConnection cold-start latency measured in seconds; a
+    /// passing test never waits this long, it only bounds a failing one.
+    private let successTimeout: TimeInterval = 15
 
     // MARK: - send(): payload integrity
 
@@ -22,7 +30,7 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(defaultBehavior: .drainThenClose)
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         let zpl = "^XA^FO50,50^A0N,40,40^FDHello^FS^XZ"
         try await printer.send(zpl)
 
@@ -40,7 +48,7 @@ struct NetworkRoundTripTests {
         let body = String(repeating: "A", count: 256 * 1024)
         let zpl = "^XA^FO0,0^FD\(body)^FS^XZ"
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         try await printer.send(zpl)
 
         try await waitUntil(timeout: 5) { fake.received.count >= zpl.utf8.count }
@@ -53,7 +61,7 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(defaultBehavior: .drainThenClose)
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         // Should not throw.
         try await printer.send("~HS")
         // send() returns once the client write+close complete, which can be
@@ -67,7 +75,7 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(defaultBehavior: .drainThenClose)
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         try await printer.send(Data())
         #expect(fake.connectionCount == 0)  // no connection opened for empty data
     }
@@ -81,7 +89,7 @@ struct NetworkRoundTripTests {
         let deadPort = fake.port
         fake.shutdown()
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: deadPort, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: deadPort, timeout: successTimeout)
         await #expect(throws: PrinterError.self) {
             try await printer.send("^XA^XZ")
         }
@@ -89,7 +97,7 @@ struct NetworkRoundTripTests {
 
     @Test("send() to an invalid (zero) port throws invalidConfiguration")
     func sendZeroPort() async throws {
-        let printer = ZPLPrinter(host: "127.0.0.1", port: 0, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: 0, timeout: successTimeout)
         do {
             try await printer.send("^XA^XZ")
             Issue.record("expected send() to throw for port 0")
@@ -110,7 +118,7 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(defaultBehavior: .closeImmediately)
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         do {
             try await printer.send("^XA^XZ")
         } catch let error as PrinterError {
@@ -131,8 +139,8 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(behaviors: [.respond(chunks: [response], gap: 0)])
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
-        let info = try await printer.queryInfo(responseTimeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
+        let info = try await printer.queryInfo(responseTimeout: successTimeout)
 
         #expect(info.model == "ZM400-200dpi")
         #expect(info.firmwareVersion == "V53.17.14Z")
@@ -150,8 +158,8 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(behaviors: [.respond(chunks: [response], gap: 0)])
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
-        let memory = try await printer.queryMemory(responseTimeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
+        let memory = try await printer.queryMemory(responseTimeout: successTimeout)
 
         #expect(memory.total == 2097152)
         #expect(memory.maximum == 2097152)
@@ -167,8 +175,8 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(behaviors: [.respond(chunks: [response], gap: 0)])
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
-        let settings = try await printer.queryConfiguration(responseTimeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
+        let settings = try await printer.queryConfiguration(responseTimeout: successTimeout)
 
         #expect(settings.darkness == 15)
         #expect(settings.printSpeed == 4)
@@ -190,8 +198,8 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(behaviors: [.respond(chunks: [combined], gap: 0)])
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
-        let status = try await printer.queryStatus(responseTimeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
+        let status = try await printer.queryStatus(responseTimeout: successTimeout)
 
         #expect(status.isReadyToPrint)
         #expect(status.isThermalTransfer == true)
@@ -209,8 +217,8 @@ struct NetworkRoundTripTests {
             behaviors: [.respond(chunks: frames, gap: 0.08)])
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
-        let status = try await printer.queryStatus(responseTimeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
+        let status = try await printer.queryStatus(responseTimeout: successTimeout)
 
         #expect(status.isReadyToPrint)
         #expect(status.isThermalTransfer == true)
@@ -231,7 +239,7 @@ struct NetworkRoundTripTests {
             behaviors: [.respond(chunks: [frames[0]], gap: 0)])
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: 5)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         await #expect(throws: PrinterError.self) {
             _ = try await printer.queryStatus(responseTimeout: 3)
         }
@@ -244,7 +252,7 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(defaultBehavior: .silent)
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: 5)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         do {
             _ = try await printer.query("~HI", responseTimeout: 1)
             Issue.record("expected a response timeout")
@@ -304,7 +312,7 @@ struct NetworkRoundTripTests {
 
         let config = PrinterConfiguration.directThermal(
             widthDots: 812, lengthDots: 406, darkness: 12, speedIPS: 4)
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         try await printer.apply(config)
 
         let expected = config.zplCommands().joined()
@@ -329,7 +337,7 @@ struct NetworkRoundTripTests {
 
         let config = PrinterConfiguration.directThermal(
             widthDots: 812, lengthDots: 406)
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         try await printer.setup(config)
 
         // Wait for the calibrate bytes themselves, not just the second
@@ -350,7 +358,7 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinter(defaultBehavior: .drainThenClose)
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         try await printer.saveConfiguration()
 
         try await waitUntil { fake.received.count >= 10 }
@@ -367,7 +375,7 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinterRouting()
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         let diag = try await printer.queryDiagnostics()
 
         #expect(diag.info.model == "ZM400-200dpi")
@@ -388,7 +396,7 @@ struct NetworkRoundTripTests {
         let fake = try FakePrinterRouting(answerHH: false)
         defer { fake.shutdown() }
 
-        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: shortTimeout)
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
         let diag = try await printer.queryDiagnostics()
 
         #expect(diag.info.model == "ZM400-200dpi")
@@ -403,7 +411,7 @@ struct NetworkRoundTripTests {
     /// checks. Used to wait for the background server thread to record bytes
     /// or accept connections without sleeping a fixed duration.
     private func waitUntil(
-        timeout: TimeInterval = 3,
+        timeout: TimeInterval = 10,
         _ condition: @Sendable () -> Bool
     ) async throws {
         let deadline = DispatchTime.now().uptimeNanoseconds + UInt64(timeout * 1_000_000_000)
