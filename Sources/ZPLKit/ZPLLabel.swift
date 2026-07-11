@@ -213,7 +213,7 @@ public struct ZPLLabel: Sendable {
     ///   - prettyPrint: If `true`, adds newlines between commands for readability.
     /// - Returns: The ZPL string with all variables substituted.
     public func render(substituting substitutions: [String: String], prettyPrint: Bool = false) -> String {
-        var zpl = render(prettyPrint: prettyPrint)
+        let zpl = render(prettyPrint: prettyPrint)
 
         // Substituted values are escaped so that ZPL control characters in the
         // value (`^`, `~`, `_`) and injection sequences like `^XZ` are rendered
