@@ -2,7 +2,7 @@
 
 ## Now
 - [x] **Fix red CI on master** - Every run since NetworkRoundTripTests landed (2026-06-09) failed: the 7 `query()` round-trip tests (NWConnection to the loopback FakePrinter) timed out at the 2s success timeout, while `send()` (POSIX) tests passed. Cause: NWConnection cold-start plus parallel test load on slow CI runners; the same 7-failure signature reproduced locally once on a cold first run after a clean build. Fix: raised the success-path timeout to 15s (only bounds failing tests), marked the suite `.serialized`, and bumped `waitUntil`'s default to 10s.
-- [ ] **Close stale GitHub issue #1** (dithering support for Graphic) - feature shipped and is documented in the README; issue was never closed.
+- [x] **Close stale GitHub issue #1** (dithering support for Graphic) - feature shipped and is documented in the README; closed 2026-07-10.
 - [x] **Clean up StatusCheck** - Removed `~FF` from feed command (not a valid ZPL command) and deleted the `GraphicPrintTest/status.swift` placeholder.
 
 ## Later
