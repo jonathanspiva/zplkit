@@ -13,11 +13,11 @@
 - [x] VisualTests POSTs raw ZPL as `application/x-www-form-urlencoded` without percent-encoding; `+`/`%XX`/`&` corrupt Labelary references (VisualTests/main.swift:462)
 
 #### Medium: generation (wrong bytes to real printers)
-- [ ] Non-ASCII text hex-escaped under `^FH` but no `^CI28` emitted; CP850 default prints mojibake (StringEscaping.swift:8)
-- [ ] ASCII control chars pass through `^FD` unescaped; `Barcode128("AB\nCD")` silently encodes ABCD (StringEscaping.swift:28)
-- [ ] TextBlock doesn't escape literal backslashes (`^FB` escape introducer) (TextBlock.swift:175)
+- [x] Non-ASCII text hex-escaped under `^FH` but no `^CI28` emitted; CP850 default prints mojibake (StringEscaping.swift:8)
+- [x] ASCII control chars pass through `^FD` unescaped; `Barcode128("AB\nCD")` silently encodes ABCD (StringEscaping.swift:28)
+- [x] TextBlock doesn't escape literal backslashes (`^FB` escape introducer) (TextBlock.swift:175)
 - [x] Numeric barcode elements validate with `isNumber`, accepting fullwidth/Arabic-Indic digits into `^FD` (EAN13/EAN8/UPCA/UPCE/I2of5/IntelligentMail)
-- [ ] `DataMatrix.rows()` without `.columns()` emits rows in the columns slot (DataMatrix.swift:66)
+- [x] `DataMatrix.rows()` without `.columns()` emits rows in the columns slot (DataMatrix.swift:66)
 
 #### Medium: printer networking
 - [ ] `query(responseTimeout: .infinity)` traps in `nanoseconds(from:)` (rounds to 2^64); deadline addition can also overflow; `send()` clamps but `query()` doesn't (ZPLPrinter.swift:418)
@@ -42,12 +42,12 @@
 - [ ] No CI `concurrency` group; stacked pushes run duplicate macOS pipelines (ci.yml)
 
 #### Low severity
-- [ ] I2of5 odd-length data prints with printer-prepended 0, scanning differently than input (Interleaved2of5.swift:21)
-- [ ] Graphic aspect-derived height truncates instead of rounds (Graphic.swift:103)
-- [ ] DiagonalLine direction doc comments swapped vs `^GD` semantics (DiagonalLine.swift:12)
-- [ ] `bitmapToHex` per-byte `String(format:)`; lookup table ~100x faster on large graphics (Graphic.swift:325, StringEscaping.swift:12)
-- [ ] Template substitution: a value containing `{{key}}` gets expanded by later iterations (ZPLLabel.swift:235)
-- [ ] Shapes/label emit zero/negative resolved dimensions verbatim; clamp to >=1 like Graphic (Box.swift:100 et al, ZPLLabel.swift:101)
+- [x] I2of5 odd-length data prints with printer-prepended 0, scanning differently than input (Interleaved2of5.swift:21)
+- [x] Graphic aspect-derived height truncates instead of rounds (Graphic.swift:103)
+- [x] DiagonalLine direction doc comments swapped vs `^GD` semantics (DiagonalLine.swift:12)
+- [x] `bitmapToHex` per-byte `String(format:)`; lookup table ~100x faster on large graphics (Graphic.swift:325, StringEscaping.swift:12)
+- [x] Template substitution: a value containing `{{key}}` gets expanded by later iterations (ZPLLabel.swift:235)
+- [x] Shapes/label emit zero/negative resolved dimensions verbatim; clamp to >=1 like Graphic (Box.swift:100 et al, ZPLLabel.swift:101)
 - [ ] Verifier `verify {}` with empty/conditionally-empty builder passes vacuously (ZPLVerifier.swift:181)
 - [ ] `PrinterInfo.extractContent` no-ETX fallback keeps leading STX byte (PrinterInfo.swift:180)
 - [x] `printers`/`stop()` race can strand an iterator on a never-terminated stream (ZPLPrinterBrowser.swift:78)

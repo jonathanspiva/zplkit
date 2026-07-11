@@ -623,11 +623,12 @@ struct ShapeTests {
         #expect(label.render().contains("^GB100,50,50"))
     }
 
-    // Degenerate boxes: zero width/height still render ^GB prefix.
+    // Zero/negative dimensions are clamped to 1 dot: out-of-range ^GB
+    // parameters have firmware-dependent handling.
     @Test(arguments: [
-        (0, 100, "^GB0,100,"),
-        (100, 0, "^GB100,0,"),
-        (0, 0, "^GB0,0,")
+        (0, 100, "^GB1,100,"),
+        (100, 0, "^GB100,1,"),
+        (0, 0, "^GB1,1,")
     ])
     func boxZeroDimensions(width: Int, height: Int, expected: String) {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
@@ -663,12 +664,12 @@ struct ShapeTests {
         #expect(label.render().contains("^GC100,100,B"))
     }
 
-    @Test("Circle zero diameter renders degenerate ^GC")
+    @Test("Circle zero diameter is clamped to 1 dot")
     func circleZeroDiameter() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             Circle(at: .dots(50, 50), diameter: .dots(0))
         }
-        #expect(label.render().contains("^GC0,"))
+        #expect(label.render().contains("^GC1,"))
     }
 
     @Test("Circle white color")
@@ -698,10 +699,10 @@ struct ShapeTests {
         #expect(label.render().contains("^GE200,100,100"))
     }
 
-    // Degenerate ellipses: zero width/height still render ^GE prefix.
+    // Zero/negative dimensions are clamped to 1 dot.
     @Test(arguments: [
-        (0, 100, "^GE0,100,"),
-        (100, 0, "^GE100,0,")
+        (0, 100, "^GE1,100,"),
+        (100, 0, "^GE100,1,")
     ])
     func ellipseZeroDimensions(width: Int, height: Int, expected: String) {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
@@ -737,12 +738,12 @@ struct ShapeTests {
         #expect(label.render().contains(",L^FS"))
     }
 
-    @Test("Diagonal line zero dimensions render degenerate ^GD")
+    @Test("Diagonal line zero dimensions are clamped to 1 dot")
     func diagonalLineZeroDimensions() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             DiagonalLine(at: .dots(50, 50), width: .dots(0), height: .dots(0))
         }
-        #expect(label.render().contains("^GD0,0,"))
+        #expect(label.render().contains("^GD1,1,"))
     }
 
     @Test("Diagonal line white color")

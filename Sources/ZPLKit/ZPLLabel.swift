@@ -229,21 +229,35 @@ public struct ZPLLabel: Sendable {
         // element-construction time (e.g. `Text(value, ...)`) instead of via
         // post-render substitution.
         //
-        // Keys are sorted by descending length so that iteration order is
-        // deterministic and longer keys are replaced before any shorter key that
-        // is a prefix of them.
-        for key in substitutions.keys.sorted(by: { $0.count > $1.count }) {
-            let escapedValue = escapeZPLFieldData(substitutions[key]!).escaped
+        // Substitution runs in a single left-to-right pass so a substituted
+        // VALUE is never re-scanned: a value containing "{{otherKey}}" stays
+        // literal instead of being expanded by a later replacement (which would
+        // let one substitution inject another's data).
+        var lookup: [String: String] = [:]
+        for (key, value) in substitutions {
+            let escapedValue = escapeZPLFieldData(value).escaped
+            lookup["{{\(key)}}"] = escapedValue
             // The placeholder may have been emitted inside a field that escaped
             // special characters (e.g. an underscore in the key becomes `_5F`),
             // so match both the raw and the rendered/escaped form of the key.
             let escapedKey = escapeZPLFieldData(key).escaped
-            zpl = zpl.replacingOccurrences(of: "{{\(key)}}", with: escapedValue)
             if escapedKey != key {
-                zpl = zpl.replacingOccurrences(of: "{{\(escapedKey)}}", with: escapedValue)
+                lookup["{{\(escapedKey)}}"] = escapedValue
             }
         }
-        return zpl
+
+        var result = ""
+        result.reserveCapacity(zpl.count)
+        var remainder = Substring(zpl)
+        while let start = remainder.range(of: "{{"),
+              let end = remainder.range(of: "}}", range: start.upperBound..<remainder.endIndex) {
+            let token = String(remainder[start.lowerBound..<end.upperBound])
+            result += remainder[..<start.lowerBound]
+            result += lookup[token] ?? token
+            remainder = remainder[end.upperBound...]
+        }
+        result += remainder
+        return result
     }
 
     /// Renders the label to a ZPL string.
@@ -253,8 +267,11 @@ public struct ZPLLabel: Sendable {
     /// - Returns: The ZPL string representation of this label.
     public func render(prettyPrint: Bool = false) -> String {
         let separator = prettyPrint ? "\n" : ""
-        let widthDots = dpi.dots(fromInches: width)
-        let heightDots = dpi.dots(fromInches: height)
+        // Clamp to at least 1 dot: ^PW0/^LL0 (or negative values from a
+        // negative width/height) are out-of-range parameters whose handling
+        // varies by firmware.
+        let widthDots = max(1, dpi.dots(fromInches: width))
+        let heightDots = max(1, dpi.dots(fromInches: height))
 
         let context = ZPLRenderContext(
             dpi: dpi,
@@ -308,9 +325,22 @@ public struct ZPLLabel: Sendable {
         }
 
         // Render all elements
+        var elementCommands: [String] = []
         for element in elements {
-            commands.append(element.render(context: context))
+            elementCommands.append(element.render(context: context))
         }
+
+        // Non-ASCII data is emitted as hex-escaped UTF-8 bytes (e.g. `_C3_A9`
+        // under ^FH). Those bytes only decode as UTF-8 when the printer is in
+        // ^CI28 mode; the power-on default is ^CI0 (Code Page 850), which would
+        // print each byte as a separate mojibake glyph. UTF-8 lead/continuation
+        // bytes are >= 0x80, so an `_8X`-`_FX` escape only appears for
+        // non-ASCII data.
+        if elementCommands.contains(where: Self.containsHighHexEscape) {
+            commands.append("^CI28")
+        }
+
+        commands.append(contentsOf: elementCommands)
 
         // Print quantity (if more than 1)
         if quantity > 1 {
@@ -321,5 +351,33 @@ public struct ZPLLabel: Sendable {
         commands.append("^XZ")
 
         return commands.joined(separator: separator)
+    }
+
+    /// True if the rendered command string contains a `_XX` hex escape for a
+    /// byte >= 0x80 (i.e. a UTF-8 byte of a non-ASCII character).
+    private static func containsHighHexEscape(_ command: String) -> Bool {
+        let bytes = Array(command.utf8)
+        var i = 0
+        while i + 2 < bytes.count {
+            if bytes[i] == UInt8(ascii: "_"),
+               isHexDigit(bytes[i + 2]),
+               let hi = hexValue(bytes[i + 1]), hi >= 8 {
+                return true
+            }
+            i += 1
+        }
+        return false
+    }
+
+    private static func hexValue(_ byte: UInt8) -> Int? {
+        switch byte {
+        case UInt8(ascii: "0")...UInt8(ascii: "9"): return Int(byte - UInt8(ascii: "0"))
+        case UInt8(ascii: "A")...UInt8(ascii: "F"): return Int(byte - UInt8(ascii: "A")) + 10
+        default: return nil
+        }
+    }
+
+    private static func isHexDigit(_ byte: UInt8) -> Bool {
+        hexValue(byte) != nil
     }
 }

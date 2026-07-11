@@ -358,14 +358,14 @@ public enum CoreGraphicsRenderer {
         let endY = startY + CGFloat(line.height)
 
         context.beginPath()
+        // ZPL ^GD orientation (verified against Labelary): R draws "/"
+        // (bottom-left to top-right), L draws "\" (top-left to bottom-right).
         if line.direction == "L" {
-            // Left-leaning: top-right to bottom-left
-            context.move(to: CGPoint(x: endX, y: startY))
-            context.addLine(to: CGPoint(x: startX, y: endY))
-        } else {
-            // Right-leaning: top-left to bottom-right
             context.move(to: CGPoint(x: startX, y: startY))
             context.addLine(to: CGPoint(x: endX, y: endY))
+        } else {
+            context.move(to: CGPoint(x: startX, y: endY))
+            context.addLine(to: CGPoint(x: endX, y: startY))
         }
         context.strokePath()
     }

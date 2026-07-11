@@ -21,8 +21,11 @@ public struct Interleaved2of5: ZPLElement, Equatable, Hashable {
         guard data.allSatisfy({ $0.isASCIIDigit }) else {
             return nil
         }
-        // Data must be even length (or check digit will make it even)
-        // We allow odd length here and let checkDigit() fix it
+        // I2of5 encodes digit PAIRS. For odd-length data without a check digit,
+        // the printer prepends a 0, so the printed barcode scans as "0" + data
+        // (e.g. "12345" scans as "012345"). Enabling checkDigit() makes odd
+        // input even instead. Callers who need the scan to match the input
+        // exactly should pass even-length data.
         self.data = data
         self.position = position
     }

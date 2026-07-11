@@ -97,10 +97,10 @@ public struct Graphic: ZPLElement {
         if let h = targetHeight {
             height = max(1, h.resolve(dpi: context.dpi))
         } else {
-            // Maintain aspect ratio; clamp to at least 1 dot so rounding can't
-            // collapse the height to 0.
+            // Maintain aspect ratio; round like every other unit conversion and
+            // clamp to at least 1 dot so rounding can't collapse the height to 0.
             let aspectRatio = Double(image.height) / Double(image.width)
-            height = max(1, Int(Double(width) * aspectRatio))
+            height = max(1, Int((Double(width) * aspectRatio).rounded()))
         }
 
         // Render image to monochrome bitmap
@@ -321,8 +321,15 @@ public struct Graphic: ZPLElement {
     }
 
     private func bitmapToHex(_ data: [UInt8], width: Int, height: Int) -> String {
-        // Convert each byte to 2 hex characters
-        return data.map { String(format: "%02X", $0) }.joined()
+        // Convert each byte to 2 hex characters via the shared lookup table; a
+        // full 4x6" 203dpi bitmap is ~124 KB, so a per-byte `String(format:)`
+        // parse here dominated render time.
+        var result = ""
+        result.reserveCapacity(data.count * 2)
+        for byte in data {
+            result += hexByteTable[Int(byte)]
+        }
+        return result
     }
 }
 #endif
