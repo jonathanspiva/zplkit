@@ -1,6 +1,70 @@
 # ZPLKit TODO
 
 ## Now
+### Code review pass 2026-07-10 (53 findings)
+
+#### High severity
+- [ ] `ZPLPrinterBrowser.stop()` deadlocks: `continuation.finish()` under the non-reentrant NSLock re-enters via `onTermination` (ZPLPrinterBrowser.swift:134)
+- [ ] `IntelligentMail` emits `^BZ` without the 5th postal-code-type param, so printers default to POSTNET instead of type 3 (IntelligentMail.swift:53)
+- [ ] Renderer parsers use `split(separator: ",")` which drops omitted middle params and shifts argument slots (`^BCN,,Y,N,N`, `^GB100,,2`) (ZPLParser/ShapeParser/BarcodeParser/TextParser)
+- [ ] Renderer R/B rotations swapped: `^A0R` renders CCW, `^A0B` CW, opposite of spec, text and barcodes (CoreGraphicsRenderer.swift:163,431)
+- [ ] `^FS` never processed: a barcode without `^FD` survives the separator and captures the next unrelated `^FD` (ZPLParser.swift:213)
+- [ ] `^FT` baseline positioning parsed but never used; renders identical to `^FO` (ParsedLabel.useBaseline, CoreGraphicsRenderer.swift:185)
+- [ ] VisualTests POSTs raw ZPL as `application/x-www-form-urlencoded` without percent-encoding; `+`/`%XX`/`&` corrupt Labelary references (VisualTests/main.swift:462)
+
+#### Medium: generation (wrong bytes to real printers)
+- [ ] Non-ASCII text hex-escaped under `^FH` but no `^CI28` emitted; CP850 default prints mojibake (StringEscaping.swift:8)
+- [ ] ASCII control chars pass through `^FD` unescaped; `Barcode128("AB\nCD")` silently encodes ABCD (StringEscaping.swift:28)
+- [ ] TextBlock doesn't escape literal backslashes (`^FB` escape introducer) (TextBlock.swift:175)
+- [ ] Numeric barcode elements validate with `isNumber`, accepting fullwidth/Arabic-Indic digits into `^FD` (EAN13/EAN8/UPCA/UPCE/I2of5/IntelligentMail)
+- [ ] `DataMatrix.rows()` without `.columns()` emits rows in the columns slot (DataMatrix.swift:66)
+
+#### Medium: printer networking
+- [ ] `query(responseTimeout: .infinity)` traps in `nanoseconds(from:)` (rounds to 2^64); deadline addition can also overflow; `send()` clamps but `query()` doesn't (ZPLPrinter.swift:418)
+- [ ] `poll()` EINTR/-1 misreported as `.timeout`; should re-poll on EINTR, `connectionFailed` otherwise (ZPLPrinter.swift:325)
+- [ ] `^HH` early-completion requires trailing LF but real devices end `0D 0A 03`; every queryConfiguration burns ~1-1.5s idle timer and >1s stalls truncate silently (ZPLPrinter.swift:633)
+
+#### Medium: renderer parsing/fidelity
+- [ ] `^B3` param order wrong: check-digit flag comes before height per spec (BarcodeParser.swift:22 via ZPLParser.swift:174)
+- [ ] `^AB`-`^AZ` commands dropped entirely (size+rotation lost); `ParserState.currentFont` is `let` so font A unreachable (ZPLParser.swift:110,286)
+- [ ] `^GFA` with `:Z64:`/`:B64:` payload decodes as hex garbage (GraphicParser.swift:60)
+- [ ] `_XX` hex escapes decoded without `^FH` gating; corrupts `2_50` (TextParser.swift:44)
+- [ ] Field data whitespace-trimmed, losing intentional leading/trailing spaces (ZPLParser.swift:40,63)
+- [ ] `fontWidth` parsed but ignored; `^A0N,30,90` renders normal width (CoreGraphicsRenderer.swift:134)
+- [ ] `^FR` on a field without `^FD` leaks reverse-print to the next field (ZPLParser.swift:136,270)
+- [ ] Code128 `>` invocation codes and `^BQ` `MA,` prefix encoded literally into symbols (CoreGraphicsRenderer.swift:531,557)
+- [ ] One bad barcode aborts the whole label render instead of skipping the element (CoreGraphicsRenderer.swift:90)
+
+#### Medium: tools/CI
+- [ ] VisualTests scoring drops failed fixtures from the denominator (regressions raise the score) and reuses stale PNGs on render failure (VisualTests/main.swift:299,176)
+- [ ] Size-mismatch comparison bottom-aligns images; 1px height diff reports catastrophic score (VisualTests/main.swift:498)
+- [ ] Visual-tests CI job can never fail (`continue-on-error` + tool always exits 0) (ci.yml:62)
+- [ ] No CI `concurrency` group; stacked pushes run duplicate macOS pipelines (ci.yml)
+
+#### Low severity
+- [ ] I2of5 odd-length data prints with printer-prepended 0, scanning differently than input (Interleaved2of5.swift:21)
+- [ ] Graphic aspect-derived height truncates instead of rounds (Graphic.swift:103)
+- [ ] DiagonalLine direction doc comments swapped vs `^GD` semantics (DiagonalLine.swift:12)
+- [ ] `bitmapToHex` per-byte `String(format:)`; lookup table ~100x faster on large graphics (Graphic.swift:325, StringEscaping.swift:12)
+- [ ] Template substitution: a value containing `{{key}}` gets expanded by later iterations (ZPLLabel.swift:235)
+- [ ] Shapes/label emit zero/negative resolved dimensions verbatim; clamp to >=1 like Graphic (Box.swift:100 et al, ZPLLabel.swift:101)
+- [ ] Verifier `verify {}` with empty/conditionally-empty builder passes vacuously (ZPLVerifier.swift:181)
+- [ ] `PrinterInfo.extractContent` no-ETX fallback keeps leading STX byte (PrinterInfo.swift:180)
+- [ ] `printers`/`stop()` race can strand an iterator on a never-terminated stream (ZPLPrinterBrowser.swift:78)
+- [ ] SO_SNDTIMEO expiry surfaces as sendFailed("Resource temporarily unavailable") instead of `.timeout` (ZPLPrinter.swift:387)
+- [ ] `send()`/`query()` share the global concurrent queue; mass fan-out can saturate GCD threads (ZPLPrinter.swift:236,601) - consider bounding, may defer
+- [ ] `queryDiagnostics()` blanket catch swallows `CancellationError` (ZPLPrinter+Configuration.swift:194)
+- [ ] Doc comment says 10s default, actual 15s (ZPLPrinter+Configuration.swift:146,164)
+- [ ] `^BY` third param (default barcode height) ignored, hardcoded 100 (ZPLParser.swift:139, BarcodeParser.swift:8)
+- [ ] `^FB` maxLines not enforced (frameHeight doubled); lineSpacing/hangingIndent parsed but unapplied (CoreGraphicsRenderer.swift:237)
+- [ ] `^GB` border strokes centered on path; ZPL draws inside the box (CoreGraphicsRenderer.swift:268)
+- [ ] Code128 interpretation line drawn unrotated after rotation applied (CoreGraphicsRenderer.swift:580)
+- [ ] Z64/B64 CRC stripped but never validated (GraphicParser.swift:327)
+- [ ] EAN-13 quiet zone 9/9; spec wants 11 left / 7 right (EANPatterns.swift:85)
+- [ ] `decodeFieldData` O(n*m) on `_XX`-heavy fields (TextParser.swift:47)
+- [ ] Dead `hasSuffix("^FS")` strip in TextParser (regex can't produce it) (TextParser.swift:38)
+- [ ] VisualTests `CGContext(data: &pixels)` inout-to-pointer UB; use withUnsafeMutableBytes (VisualTests/main.swift:576,602)
+- [ ] GitHub Actions pinned by mutable tag, not SHA (ci.yml:17,54,71)
 - [x] **Fix red CI on master** - Every run since NetworkRoundTripTests landed (2026-06-09) failed: the 7 `query()` round-trip tests (NWConnection to the loopback FakePrinter) timed out at the 2s success timeout, while `send()` (POSIX) tests passed. Cause: NWConnection cold-start plus parallel test load on slow CI runners; the same 7-failure signature reproduced locally once on a cold first run after a clean build. Fix: raised the success-path timeout to 15s (only bounds failing tests), marked the suite `.serialized`, and bumped `waitUntil`'s default to 10s.
 - [x] **Close stale GitHub issue #1** (dithering support for Graphic) - feature shipped and is documented in the README; closed 2026-07-10.
 - [x] **Clean up StatusCheck** - Removed `~FF` from feed command (not a valid ZPL command) and deleted the `GraphicPrintTest/status.swift` placeholder.
