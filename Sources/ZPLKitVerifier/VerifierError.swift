@@ -5,6 +5,13 @@ public enum VerifierError: Error, LocalizedError, Sendable {
     /// The provided image could not be processed.
     case invalidImage
 
+    /// `verify` was called with no expectations.
+    ///
+    /// An empty expectation list would pass vacuously ("all 0 expectations
+    /// passed"), silently turning a test green while checking nothing — e.g.
+    /// a builder block whose only expectation sits behind a false `if`.
+    case noExpectations
+
     /// Vision framework failed during barcode detection.
     ///
     /// The associated value carries the underlying error thrown by Vision.
@@ -22,6 +29,8 @@ public enum VerifierError: Error, LocalizedError, Sendable {
         switch self {
         case .invalidImage:
             return "The provided image could not be processed"
+        case .noExpectations:
+            return "verify was called with no expectations; use analyze(_:) for discovery"
         case .barcodeDetectionFailed(let underlying):
             return "Barcode detection failed: \(underlying.localizedDescription)"
         case .textRecognitionFailed(let underlying):
@@ -38,7 +47,7 @@ public enum VerifierError: Error, LocalizedError, Sendable {
             return error.localizedDescription
         case .unexpected(let msg):
             return msg
-        case .invalidImage:
+        case .invalidImage, .noExpectations:
             return nil
         }
     }
@@ -48,7 +57,7 @@ public enum VerifierError: Error, LocalizedError, Sendable {
         switch self {
         case .barcodeDetectionFailed(let error), .textRecognitionFailed(let error):
             return error
-        case .unexpected, .invalidImage:
+        case .unexpected, .invalidImage, .noExpectations:
             return nil
         }
     }

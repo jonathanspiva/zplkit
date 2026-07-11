@@ -11,7 +11,7 @@
 ^FO50,185^A0N,20,20^FDPhone: (555) 123-4567^FS
 ^FO50,215^A0N,20,20^FDjohn@acme.com^FS
 ^FO50,245^A0N,18,18^FDwww.acme.com^FS
-^FO450,50^BQN,2,7^FDHA,BEGIN:VCARD\nVERSION:3.0\nFN:John Smith\nORG:Acme Corporation\nTEL:+1-555-123-4567\nEMAIL:john@acme.com\nEND:VCARD^FS
+^FO450,50^BQN,2,4^FDHA,BEGIN:VCARD\nVERSION:3.0\nFN:John Smith\nORG:Acme Corporation\nTEL:+1-555-123-4567\nEMAIL:john@acme.com\nEND:VCARD^FS
 ^FO50,700^A0N,25,25^FDScan QR to save contact^FS
 ^FO50,740^A0N,20,20^FDvCard Business Card^FS
 ^XZ

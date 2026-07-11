@@ -36,10 +36,10 @@
 - [x] One bad barcode aborts the whole label render instead of skipping the element (CoreGraphicsRenderer.swift:90)
 
 #### Medium: tools/CI
-- [ ] VisualTests scoring drops failed fixtures from the denominator (regressions raise the score) and reuses stale PNGs on render failure (VisualTests/main.swift:299,176)
-- [ ] Size-mismatch comparison bottom-aligns images; 1px height diff reports catastrophic score (VisualTests/main.swift:498)
-- [ ] Visual-tests CI job can never fail (`continue-on-error` + tool always exits 0) (ci.yml:62)
-- [ ] No CI `concurrency` group; stacked pushes run duplicate macOS pipelines (ci.yml)
+- [x] VisualTests scoring drops failed fixtures from the denominator (regressions raise the score) and reuses stale PNGs on render failure (VisualTests/main.swift:299,176)
+- [x] Size-mismatch comparison bottom-aligns images; 1px height diff reports catastrophic score (VisualTests/main.swift:498)
+- [x] Visual-tests CI job can never fail (`continue-on-error` + tool always exits 0) (ci.yml:62)
+- [x] No CI `concurrency` group; stacked pushes run duplicate macOS pipelines (ci.yml)
 
 #### Low severity
 - [x] I2of5 odd-length data prints with printer-prepended 0, scanning differently than input (Interleaved2of5.swift:21)
@@ -48,7 +48,7 @@
 - [x] `bitmapToHex` per-byte `String(format:)`; lookup table ~100x faster on large graphics (Graphic.swift:325, StringEscaping.swift:12)
 - [x] Template substitution: a value containing `{{key}}` gets expanded by later iterations (ZPLLabel.swift:235)
 - [x] Shapes/label emit zero/negative resolved dimensions verbatim; clamp to >=1 like Graphic (Box.swift:100 et al, ZPLLabel.swift:101)
-- [ ] Verifier `verify {}` with empty/conditionally-empty builder passes vacuously (ZPLVerifier.swift:181)
+- [x] Verifier `verify {}` with empty/conditionally-empty builder passes vacuously (ZPLVerifier.swift:181)
 - [x] `PrinterInfo.extractContent` no-ETX fallback keeps leading STX byte (PrinterInfo.swift:180)
 - [x] `printers`/`stop()` race can strand an iterator on a never-terminated stream (ZPLPrinterBrowser.swift:78)
 - [x] SO_SNDTIMEO expiry surfaces as sendFailed("Resource temporarily unavailable") instead of `.timeout` (ZPLPrinter.swift:387)
@@ -62,8 +62,8 @@
 - [x] EAN-13 quiet zone 9/9; spec wants 11 left / 7 right (EANPatterns.swift:85)
 - [x] `decodeFieldData` O(n*m) on `_XX`-heavy fields (TextParser.swift:47)
 - [x] Dead `hasSuffix("^FS")` strip in TextParser (regex can't produce it) (TextParser.swift:38)
-- [ ] VisualTests `CGContext(data: &pixels)` inout-to-pointer UB; use withUnsafeMutableBytes (VisualTests/main.swift:576,602)
-- [ ] GitHub Actions pinned by mutable tag, not SHA (ci.yml:17,54,71)
+- [x] VisualTests `CGContext(data: &pixels)` inout-to-pointer UB; use withUnsafeMutableBytes (VisualTests/main.swift:576,602)
+- [x] GitHub Actions pinned by mutable tag, not SHA (ci.yml:17,54,71)
 - [x] **Fix red CI on master** - Every run since NetworkRoundTripTests landed (2026-06-09) failed: the 7 `query()` round-trip tests (NWConnection to the loopback FakePrinter) timed out at the 2s success timeout, while `send()` (POSIX) tests passed. Cause: NWConnection cold-start plus parallel test load on slow CI runners; the same 7-failure signature reproduced locally once on a cold first run after a clean build. Fix: raised the success-path timeout to 15s (only bounds failing tests), marked the suite `.serialized`, and bumped `waitUntil`'s default to 10s.
 - [x] **Close stale GitHub issue #1** (dithering support for Graphic) - feature shipped and is documented in the README; closed 2026-07-10.
 - [x] **Clean up StatusCheck** - Removed `~FF` from feed command (not a valid ZPL command) and deleted the `GraphicPrintTest/status.swift` placeholder.

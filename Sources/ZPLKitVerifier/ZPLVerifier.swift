@@ -177,13 +177,18 @@ public final class ZPLVerifier: Sendable {
     ///   - expectations: Array of expectations to check.
     /// - Returns: Verification results indicating which expectations passed or failed.
     /// - Throws: ``VerifierError/invalidImage`` for an empty image,
-    ///   ``VerifierError`` on Vision failure, or `CancellationError` on cancellation.
+    ///   ``VerifierError/noExpectations`` for an empty expectation list (which
+    ///   would otherwise pass vacuously), ``VerifierError`` on Vision failure,
+    ///   or `CancellationError` on cancellation.
     public func verify(
         _ image: CGImage,
         expectations: [any Expectation]
     ) async throws -> VerificationResult {
         guard image.width > 0, image.height > 0 else {
             throw VerifierError.invalidImage
+        }
+        guard !expectations.isEmpty else {
+            throw VerifierError.noExpectations
         }
 
         let clock = ContinuousClock()
