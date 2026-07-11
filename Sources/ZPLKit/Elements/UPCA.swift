@@ -20,7 +20,7 @@ public struct UPCA: ZPLElement, Equatable, Hashable {
         guard data.count == 11 || data.count == 12 else {
             return nil
         }
-        guard data.allSatisfy({ $0.isNumber }) else {
+        guard data.allSatisfy({ $0.isASCIIDigit }) else {
             return nil
         }
         self.data = data

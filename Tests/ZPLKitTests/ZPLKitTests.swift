@@ -408,7 +408,9 @@ struct OneDBarcodeRenderTests {
                 .height(.dots(30))
         }
         let zpl = label.render()
-        #expect(zpl.contains("^BZ"))
+        // The 5th ^BZ parameter must be 3 (USPS Intelligent Mail); it defaults
+        // to 0 = POSTNET on real printers when omitted.
+        #expect(zpl.contains("^BZN,30,N,N,3"))
         #expect(zpl.contains("^FD01234567890123456789^FS"))
     }
 

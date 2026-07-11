@@ -18,7 +18,7 @@ public struct Interleaved2of5: ZPLElement, Equatable, Hashable {
     ///   - position: The position on the label.
     public init?(_ data: String, at position: Position) {
         // Validate: I2of5 only supports digits 0-9
-        guard data.allSatisfy({ $0.isNumber }) else {
+        guard data.allSatisfy({ $0.isASCIIDigit }) else {
             return nil
         }
         // Data must be even length (or check digit will make it even)

@@ -81,8 +81,11 @@ enum EANPatterns {
     // UPC-E end guard: 010101
     private static let upceEnd: [Bool] = [false, true, false, true, false, true]
 
-    // Quiet zone (minimum 7 modules for EAN, 9 for UPC-A left)
+    // Quiet zones: EAN-13 requires 11 modules on the left and 7 on the right;
+    // EAN-8/UPC uses 9 on both sides (>= the 7/9-module minimums).
     private static let quietZone: [Bool] = Array(repeating: false, count: 9)
+    private static let quietZoneLeft11: [Bool] = Array(repeating: false, count: 11)
+    private static let quietZoneRight7: [Bool] = Array(repeating: false, count: 7)
 
     // MARK: - Check Digit Calculation
 
@@ -135,8 +138,8 @@ enum EANPatterns {
 
         var result: [Bool] = []
 
-        // Left quiet zone
-        result.append(contentsOf: quietZone)
+        // Left quiet zone (11 modules per the EAN-13 spec)
+        result.append(contentsOf: quietZoneLeft11)
 
         // Start guard
         result.append(contentsOf: startEnd)
@@ -169,8 +172,8 @@ enum EANPatterns {
         // End guard
         result.append(contentsOf: startEnd)
 
-        // Right quiet zone
-        result.append(contentsOf: quietZone)
+        // Right quiet zone (7 modules per the EAN-13 spec)
+        result.append(contentsOf: quietZoneRight7)
 
         return result
     }

@@ -3,9 +3,6 @@ import Foundation
 /// Internal parsers for text and font commands (^A, ^CF, ^FD)
 enum TextParser {
 
-    /// Matches `_XX` hex escapes in field data. Compiled once and reused.
-    private static let hexEscapeRegex = try! NSRegularExpression(pattern: #"_([0-9A-Fa-f]{2})"#)
-
     static func parseFontCommand(_ params: String, rotation: inout String, height: inout Int, width: inout Int) {
         // Format: ^A0N,height,width or ^A0R,height,width etc.
         var remaining = params
@@ -21,7 +18,7 @@ enum TextParser {
             remaining = String(remaining.dropFirst())
         }
 
-        let parts = remaining.split(separator: ",")
+        let parts = ZPLParser.splitParams(remaining)
         if parts.count >= 1, let h = Int(parts[0]) {
             height = h
         }
@@ -32,31 +29,32 @@ enum TextParser {
         }
     }
 
-    static func decodeFieldData(_ data: String) -> String {
-        // Handle hex encoding (_XX)
-        var result = data
-        // Remove trailing ^FS if present
-        if result.hasSuffix("^FS") {
-            result = String(result.dropLast(3))
-        }
+    /// Decodes `^FD` field data.
+    ///
+    /// When `hexIndicator` is non-nil the field was preceded by `^FH` and
+    /// `<indicator>XX` sequences encode raw bytes. Escaped bytes and literal
+    /// characters are assembled into one byte buffer and decoded as UTF-8, so
+    /// multi-byte escapes like `_C3_A9` ("é") reassemble correctly. Without
+    /// `^FH`, underscores are ordinary field data and pass through untouched.
+    static func decodeFieldData(_ data: String, hexIndicator: Character? = nil) -> String {
+        guard let indicator = hexIndicator else { return data }
 
-        // Decode hex escapes
-        do {
-            let regex = hexEscapeRegex
-            var decoded = result
-            let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
-            for match in matches.reversed() {
-                if let hexRange = Range(match.range(at: 1), in: result),
-                   let byte = UInt8(result[hexRange], radix: 16) {
-                    let char = Character(UnicodeScalar(byte))
-                    if let fullRange = Range(match.range, in: decoded) {
-                        decoded.replaceSubrange(fullRange, with: String(char))
-                    }
-                }
+        let chars = Array(data)
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(data.utf8.count)
+
+        var i = 0
+        while i < chars.count {
+            if chars[i] == indicator, i + 2 < chars.count,
+               let byte = UInt8(String(chars[(i + 1)...(i + 2)]), radix: 16) {
+                bytes.append(byte)
+                i += 3
+            } else {
+                bytes.append(contentsOf: String(chars[i]).utf8)
+                i += 1
             }
-            result = decoded
         }
 
-        return result
+        return String(decoding: bytes, as: UTF8.self)
     }
 }

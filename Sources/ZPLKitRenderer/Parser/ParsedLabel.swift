@@ -117,6 +117,9 @@ public struct ParsedBarcode: Sendable {
     public let showText: Bool
     public let textAbove: Bool
     public let magnification: Int  // For 2D codes
+    /// True when the field was positioned with `^FT` (origin at the barcode's
+    /// bottom-left) rather than `^FO` (top-left).
+    public var useBaseline: Bool = false
 
     public enum BarcodeType: String, Sendable {
         case code128 = "BC"

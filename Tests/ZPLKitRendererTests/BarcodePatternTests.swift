@@ -67,6 +67,9 @@ private enum EANTables {
         "5": "EOOEEO", "6": "EOOOEE", "7": "EOEOEO", "8": "EOEOOE", "9": "EOOEOE"
     ]
     static let quiet: [Bool] = Array(repeating: false, count: 9)
+    // EAN-13 uses spec quiet zones: 11 modules left, 7 right.
+    static let quietLeft11: [Bool] = Array(repeating: false, count: 11)
+    static let quietRight7: [Bool] = Array(repeating: false, count: 7)
     static let guardSE: [Bool] = [true, false, true]
     static let center: [Bool] = [false, true, false, true, false]
     static let upceEnd: [Bool] = [false, true, false, true, false, true]
@@ -83,7 +86,7 @@ struct EAN13Tests {
     func ean13FullEncoding() {
         let digits = "5901234123457"
         var expected: [Bool] = []
-        expected += EANTables.quiet
+        expected += EANTables.quietLeft11
         expected += EANTables.guardSE
         let first = digits.first!
         let pattern = EANTables.firstDigit[first]!
@@ -97,27 +100,27 @@ struct EAN13Tests {
             expected += EANTables.r[d]!
         }
         expected += EANTables.guardSE
-        expected += EANTables.quiet
+        expected += EANTables.quietRight7
 
         let actual = EANPatterns.encodeEAN13(digits)
         #expect(actual == expected)
     }
 
-    /// Structural invariants: 9+3 + 6*7 + 5 + 6*7 + 3+9 = 113 modules.
+    /// Structural invariants: 11+3 + 6*7 + 5 + 6*7 + 3+7 = 113 modules.
     @Test("EAN-13 has 113 total modules and correct guards")
     func ean13Structure() {
         let result = EANPatterns.encodeEAN13("5901234123457")
-        #expect(result.count == 9 + 3 + 42 + 5 + 42 + 3 + 9)
-        // Left quiet zone
-        #expect(Array(result.prefix(9)) == EANTables.quiet)
+        #expect(result.count == 11 + 3 + 42 + 5 + 42 + 3 + 7)
+        // Left quiet zone (11 modules per spec)
+        #expect(Array(result.prefix(11)) == EANTables.quietLeft11)
         // Start guard follows quiet zone
-        #expect(Array(result[9..<12]) == EANTables.guardSE)
-        // Center guard at offset 9+3+42 = 54
-        #expect(Array(result[54..<59]) == EANTables.center)
+        #expect(Array(result[11..<14]) == EANTables.guardSE)
+        // Center guard at offset 11+3+42 = 56
+        #expect(Array(result[56..<61]) == EANTables.center)
         // End guard before trailing quiet zone
-        #expect(Array(result[(result.count - 12)..<(result.count - 9)]) == EANTables.guardSE)
-        // Trailing quiet zone
-        #expect(Array(result.suffix(9)) == EANTables.quiet)
+        #expect(Array(result[(result.count - 10)..<(result.count - 7)]) == EANTables.guardSE)
+        // Trailing quiet zone (7 modules per spec)
+        #expect(Array(result.suffix(7)) == EANTables.quietRight7)
     }
 
     /// A 12-digit input must auto-append the check digit, producing the same

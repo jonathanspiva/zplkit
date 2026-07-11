@@ -88,11 +88,17 @@ public enum CoreGraphicsRenderer {
                 renderDiagonalLine(line, in: context)
 
             case .barcode(let barcode):
-                #if canImport(CoreImage)
-                try renderBarcode(barcode, in: context, ciContext: ciContext)
-                #else
-                try renderBarcode(barcode, in: context)
-                #endif
+                // One barcode with unencodable data must not abort the whole
+                // label; skip it like the manual 1D encoders do on bad input.
+                do {
+                    #if canImport(CoreImage)
+                    try renderBarcode(barcode, in: context, ciContext: ciContext)
+                    #else
+                    try renderBarcode(barcode, in: context)
+                    #endif
+                } catch {
+                    continue
+                }
 
             case .graphic(let graphic):
                 renderGraphic(graphic, in: context)
@@ -149,40 +155,36 @@ public enum CoreGraphicsRenderer {
 
         context.saveGState()
 
-        // Handle rotation
-        let x = CGFloat(text.x)
-        let y = CGFloat(text.y)
+        // Move to text position, then rotate about that origin.
+        context.translateBy(x: CGFloat(text.x), y: CGFloat(text.y))
+        applyRotation(text.rotation, in: context)
 
-        // Move to text position
-        context.translateBy(x: x, y: y)
+        // ZPL scales glyph width independently of height (`^A0N,h,w`). The
+        // bundled font is drawn at `fontHeight` and stretched horizontally.
+        if text.fontHeight > 0, text.fontWidth > 0, text.fontWidth != text.fontHeight {
+            context.scaleBy(x: CGFloat(text.fontWidth) / CGFloat(text.fontHeight), y: 1)
+        }
 
         // Get text bounds for proper positioning
         let bounds = CTLineGetBoundsWithOptions(line, [])
-
-        // Apply ZPL rotation
-        switch text.rotation {
-        case "R":
-            context.rotate(by: -.pi / 2)
-        case "I":
-            context.rotate(by: -.pi)
-        case "B":
-            context.rotate(by: .pi / 2)
-        default:
-            break
-        }
 
         // Un-flip for text rendering (context is flipped, but CoreText expects unflipped)
         // This makes text render right-side up
         context.scaleBy(x: 1, y: -1)
 
+        // `^FT` anchors the baseline at the field origin; `^FO` anchors the
+        // glyph top. In the un-flipped local space the baseline sits at y = 0
+        // for `^FT`, and at -height - minY (glyph top at 0) for `^FO`.
+        let baselineY: CGFloat = text.useBaseline ? 0 : -bounds.height - bounds.minY
+        let boxY: CGFloat = text.useBaseline ? bounds.minY : -bounds.height
+
         // If reversed, draw background box
         if text.isReversed {
             context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
-            context.fill(CGRect(x: 0, y: -bounds.height, width: bounds.width, height: bounds.height))
+            context.fill(CGRect(x: 0, y: boxY, width: bounds.width, height: bounds.height))
         }
 
-        // Position text at baseline (after flip, y is inverted)
-        context.textPosition = CGPoint(x: 0, y: -bounds.height - bounds.minY)
+        context.textPosition = CGPoint(x: 0, y: baselineY)
         CTLineDraw(line, context)
 
         context.restoreGState()
@@ -195,63 +197,78 @@ public enum CoreGraphicsRenderer {
             return // Skip rendering if font unavailable
         }
 
-        // Create paragraph style using CoreText
-        let alignment: CTTextAlignment
-        switch textBlock.alignment {
-        case "C":
-            alignment = .center
-        case "R":
-            alignment = .right
-        case "J":
-            alignment = .justified
-        default:
-            alignment = .left
-        }
-
-        // Pass the alignment value through a scoped pointer so it outlives the
-        // CTParagraphStyleSetting initializer (avoids a temporary-pointer warning).
-        let paragraphStyle = withUnsafeBytes(of: alignment) { alignmentBytes in
-            let setting = CTParagraphStyleSetting(
-                spec: .alignment,
-                valueSize: MemoryLayout<CTTextAlignment>.size,
-                value: alignmentBytes.baseAddress!
-            )
-            return [setting].withUnsafeBufferPointer { buffer in
-                CTParagraphStyleCreate(buffer.baseAddress!, buffer.count)
-            }
-        }
-
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
-            .paragraphStyle: paragraphStyle
+            .foregroundColor: CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         ]
 
         let attributedString = NSAttributedString(string: textBlock.text, attributes: attributes)
 
-        let frameSetter = CTFramesetterCreateWithAttributedString(attributedString)
-        // Defense in depth: clamp the block-height multiplication so it cannot trap
-        // even if a `ParsedTextBlock` carries unbounded values.
+        // Lay lines out manually with a CTTypesetter: `^FB` caps the line count
+        // exactly (extra text is dropped), advances one `fontHeight` (+/- the
+        // line-spacing delta) per line, indents the second and later lines by the
+        // hanging indent, and aligns per line (L/C/R, J on all but the last line).
+        // Defense in depth: clamp values so a hand-built `ParsedTextBlock` cannot
+        // trap or balloon allocations.
         let clampedLines = min(max(textBlock.maxLines, 1), RenderLimits.maxTextBlockLines)
         let clampedFontHeight = min(max(textBlock.fontHeight, 0), RenderLimits.maxFontHeight)
-        let frameHeight = CGFloat(clampedLines) * CGFloat(clampedFontHeight) * 2
+        let lineAdvance = CGFloat(clampedFontHeight) + CGFloat(textBlock.lineSpacing)
+
+        // ZPL scales glyph width independently of height; line breaking happens
+        // in unscaled text units against a proportionally narrower block width.
+        let widthScale: CGFloat = (textBlock.fontHeight > 0 && textBlock.fontWidth > 0 && textBlock.fontWidth != textBlock.fontHeight)
+            ? CGFloat(textBlock.fontWidth) / CGFloat(textBlock.fontHeight)
+            : 1
+        let blockWidth = max(CGFloat(textBlock.blockWidth) / widthScale, 1)
+
+        let typesetter = CTTypesetterCreateWithAttributedString(attributedString)
+        let length = attributedString.length
+        let ascent = CTFontGetAscent(font)
 
         context.saveGState()
-
-        // Move to text block position
+        // Move to the block origin, apply width scaling, then un-flip for CoreText.
+        // Local space is y-up: a baseline `b` dots below the block top is at -b.
         context.translateBy(x: CGFloat(textBlock.x), y: CGFloat(textBlock.y))
-
-        // Un-flip for CoreText (which expects bottom-left origin)
+        if widthScale != 1 {
+            context.scaleBy(x: widthScale, y: 1)
+        }
         context.scaleBy(x: 1, y: -1)
 
-        // Create path in local coordinates
-        let path = CGPath(rect: CGRect(x: 0, y: -frameHeight,
-                                        width: CGFloat(textBlock.blockWidth),
-                                        height: frameHeight),
-                         transform: nil)
-        let frame = CTFramesetterCreateFrame(frameSetter, CFRange(location: 0, length: 0), path, nil)
+        var start = 0
+        var lineIndex = 0
+        while start < length && lineIndex < clampedLines {
+            // Hanging indent applies to the second and remaining lines.
+            let indent = lineIndex == 0 ? 0 : CGFloat(max(textBlock.hangingIndent, 0))
+            let available = max(blockWidth - indent, 1)
+            let count = CTTypesetterSuggestLineBreak(typesetter, start, Double(available))
+            guard count > 0 else { break }
+            var line = CTTypesetterCreateLine(typesetter, CFRange(location: start, length: count))
 
-        CTFrameDraw(frame, context)
+            let isLastLine = (start + count >= length) || (lineIndex == clampedLines - 1)
+            var penX = indent
+            switch textBlock.alignment {
+            case "C":
+                penX = indent + CGFloat(CTLineGetPenOffsetForFlush(line, 0.5, Double(available)))
+            case "R":
+                penX = indent + CGFloat(CTLineGetPenOffsetForFlush(line, 1.0, Double(available)))
+            case "J":
+                if !isLastLine, let justified = CTLineCreateJustifiedLine(line, 1.0, Double(available)) {
+                    line = justified
+                }
+            default:
+                break
+            }
+
+            // `^FT` puts the first line's BASELINE at the field origin; `^FO`
+            // puts the glyph top there (baseline one ascent further down).
+            let baselineFromTop = (textBlock.useBaseline ? 0 : ascent) + CGFloat(lineIndex) * lineAdvance
+            context.textPosition = CGPoint(x: penX, y: -baselineFromTop)
+            CTLineDraw(line, context)
+
+            start += count
+            lineIndex += 1
+        }
+
         context.restoreGState()
     }
 
@@ -267,14 +284,20 @@ public enum CoreGraphicsRenderer {
         context.setFillColor(color)
         context.setLineWidth(CGFloat(box.thickness))
 
+        // ZPL draws the ^GB border INSIDE the w x h box; CoreGraphics strokes
+        // centered on the path, so inset by half the thickness.
+        let strokeRect = rect.insetBy(dx: CGFloat(box.thickness) / 2, dy: CGFloat(box.thickness) / 2)
+
         if box.cornerRadius > 0 {
             let radius = CGFloat(box.cornerRadius)
-            let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
 
             if box.thickness >= min(box.width, box.height) / 2 {
+                let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
                 context.addPath(path)
                 context.fillPath()
             } else {
+                let insetRadius = max(radius - CGFloat(box.thickness) / 2, 0)
+                let path = CGPath(roundedRect: strokeRect, cornerWidth: insetRadius, cornerHeight: insetRadius, transform: nil)
                 context.addPath(path)
                 context.strokePath()
             }
@@ -282,7 +305,7 @@ public enum CoreGraphicsRenderer {
             if box.thickness >= min(box.width, box.height) / 2 {
                 context.fill(rect)
             } else {
-                context.stroke(rect)
+                context.stroke(strokeRect)
             }
         }
     }
@@ -428,14 +451,18 @@ public enum CoreGraphicsRenderer {
     /// Applies the ZPL field rotation (`N`/`R`/`I`/`B`) to the context, matching the
     /// convention used by `renderText`. The caller is responsible for `saveGState`/
     /// `restoreGState` around this and for translating to the field origin first.
+    ///
+    /// The render context is y-flipped (top-left origin), which mirrors rotation
+    /// direction: a POSITIVE angle here appears clockwise on the output. ZPL
+    /// `R` = 90° clockwise, `B` = 270° clockwise.
     private static func applyRotation(_ rotation: String, in context: CGContext) {
         switch rotation {
         case "R":
-            context.rotate(by: -.pi / 2)
-        case "I":
-            context.rotate(by: -.pi)
-        case "B":
             context.rotate(by: .pi / 2)
+        case "I":
+            context.rotate(by: .pi)
+        case "B":
+            context.rotate(by: -.pi / 2)
         default:
             break
         }
@@ -506,10 +533,13 @@ public enum CoreGraphicsRenderer {
     /// Draws a generated 2D/CoreImage barcode `CGImage` at the barcode's field origin,
     /// honoring `ParsedBarcode.rotation` (`N`/`R`/`I`/`B`) using the same convention as text.
     ///
+    /// A `caption` (the human-readable interpretation line) is drawn in the same
+    /// rotated local space, below the bars, so it rotates with the symbol.
+    ///
     /// For the unrotated (`N`) case this is pixel-identical to the previous direct
     /// `context.draw(cgImage, in: CGRect(x: barcode.x, y: barcode.y, ...))`: the
     /// translation just relocates that origin, and `applyRotation` is a no-op.
-    private static func drawBarcodeImage(_ cgImage: CGImage, barcode: ParsedBarcode, in context: CGContext) {
+    private static func drawBarcodeImage(_ cgImage: CGImage, barcode: ParsedBarcode, in context: CGContext, caption: String? = nil) {
         let width = cgImage.width
         let height = cgImage.height
 
@@ -517,10 +547,33 @@ public enum CoreGraphicsRenderer {
         // Move to the field origin, then rotate about it (same convention as renderText).
         context.translateBy(x: CGFloat(barcode.x), y: CGFloat(barcode.y))
         applyRotation(barcode.rotation, in: context)
+        // `^FT` anchors the field's bottom-left rather than its top-left.
+        if barcode.useBaseline {
+            context.translateBy(x: 0, y: -CGFloat(height))
+        }
         // Draw in the (now possibly rotated) local space. The rect matches the original
         // draw exactly for rotation "N".
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        if let caption {
+            drawBarcodeText(caption, at: CGPoint(x: 0, y: CGFloat(height) + 5), in: context)
+        }
         context.restoreGState()
+    }
+
+    /// Splits `^BQ` field data into its in-data header and the payload.
+    ///
+    /// ZPL `^BQ` field data starts with `<errorCorrection><inputMode>,` (e.g.
+    /// `QA,` or `MM,`) — that header selects the EC level and input mode and is
+    /// NOT part of the encoded content.
+    static func qrFieldData(_ data: String) -> (errorCorrection: String, payload: String) {
+        let chars = Array(data)
+        if chars.count >= 3,
+           "HQML".contains(chars[0]),
+           "AM".contains(chars[1]),
+           chars[2] == "," {
+            return (String(chars[0]), String(chars[3...]))
+        }
+        return ("M", data)
     }
 
     private static func renderQRCode(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
@@ -528,12 +581,13 @@ public enum CoreGraphicsRenderer {
             throw ZPLRendererError.renderError("QR Code filter not available")
         }
 
-        guard let data = barcode.data.data(using: .utf8) else {
+        let (errorCorrection, payload) = qrFieldData(barcode.data)
+        guard let data = payload.data(using: .utf8) else {
             throw ZPLRendererError.renderError("Invalid QR code data")
         }
 
         filter.setValue(data, forKey: "inputMessage")
-        filter.setValue("M", forKey: "inputCorrectionLevel")
+        filter.setValue(errorCorrection, forKey: "inputCorrectionLevel")
 
         guard let outputImage = filter.outputImage else {
             throw ZPLRendererError.renderError("Failed to generate QR code")
@@ -549,12 +603,47 @@ public enum CoreGraphicsRenderer {
         drawBarcodeImage(cgImage, barcode: barcode, in: context)
     }
 
+    /// Strips ZPL Code 128 in-data invocation codes (`>` sequences) so they are
+    /// not encoded literally into the symbol.
+    ///
+    /// `>0` escapes a literal `>`; subset selectors (`>9` A, `>:` B, `>;` C) and
+    /// function codes (`>1`-`>8`, `><`, `>=`) steer the printer's encoder and
+    /// have no content representation, so they are dropped. CoreImage picks its
+    /// own optimal subsets, so the selectors are safely ignorable for preview.
+    static func code128Payload(_ data: String) -> String {
+        var result = ""
+        result.reserveCapacity(data.count)
+        var iterator = data.makeIterator()
+        while let ch = iterator.next() {
+            guard ch == ">" else {
+                result.append(ch)
+                continue
+            }
+            guard let next = iterator.next() else {
+                result.append(ch)
+                break
+            }
+            if next == "0" {
+                result.append(">")
+            } else if "123456789:;<=".contains(next) {
+                // Invocation/function code: no content representation.
+                continue
+            } else {
+                // Unknown pair: keep both characters as data.
+                result.append(ch)
+                result.append(next)
+            }
+        }
+        return result
+    }
+
     private static func renderCode128(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
         guard let filter = CIFilter(name: "CICode128BarcodeGenerator") else {
             throw ZPLRendererError.renderError("Code128 filter not available")
         }
 
-        guard let data = barcode.data.data(using: .ascii) else {
+        let payload = code128Payload(barcode.data)
+        guard let data = payload.data(using: .ascii) else {
             throw ZPLRendererError.renderError("Invalid Code128 data")
         }
 
@@ -574,12 +663,9 @@ public enum CoreGraphicsRenderer {
             throw ZPLRendererError.renderError("Failed to create Code128 image")
         }
 
-        drawBarcodeImage(cgImage, barcode: barcode, in: context)
-
-        // Draw text below if needed
-        if barcode.showText {
-            drawBarcodeText(barcode.data, at: CGPoint(x: CGFloat(barcode.x), y: CGFloat(barcode.y) + CGFloat(barcode.height) + 5), in: context)
-        }
+        // The interpretation line is drawn inside the same rotated local space
+        // as the bars so it follows the barcode's rotation.
+        drawBarcodeImage(cgImage, barcode: barcode, in: context, caption: barcode.showText ? payload : nil)
     }
 
     private static func renderAztec(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
@@ -696,6 +782,10 @@ public enum CoreGraphicsRenderer {
         // rotation "N" this is pixel-identical to the previous absolute-position draw.
         context.translateBy(x: CGFloat(barcode.x), y: CGFloat(barcode.y))
         applyRotation(barcode.rotation, in: context)
+        // `^FT` anchors the field's bottom-left rather than its top-left.
+        if barcode.useBaseline {
+            context.translateBy(x: 0, y: -height)
+        }
 
         context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
 
@@ -717,8 +807,10 @@ public enum CoreGraphicsRenderer {
     }
 
     private static func renderPlaceholderBarcode(_ barcode: ParsedBarcode, in context: CGContext) {
-        // Draw a placeholder box with barcode type label
-        let rect = CGRect(x: barcode.x, y: barcode.y, width: 100, height: barcode.height)
+        // Draw a placeholder box with barcode type label. `^FT` anchors the
+        // field's bottom-left rather than its top-left.
+        let y = barcode.useBaseline ? barcode.y - barcode.height : barcode.y
+        let rect = CGRect(x: barcode.x, y: y, width: 100, height: barcode.height)
         context.setStrokeColor(CGColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1))
         context.setLineWidth(1)
         context.stroke(rect)

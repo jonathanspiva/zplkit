@@ -212,6 +212,24 @@ struct ZPLKitPrinterTests {
         // Should complete without crashing
     }
 
+    @Test("ZPLPrinterBrowser stop() finishes active printer streams without deadlocking",
+          .tags(.live),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"),
+          .timeLimit(.minutes(1)))
+    func browserStopFinishesStreams() async {
+        let browser = ZPLPrinterBrowser()
+        let stream = browser.printers  // registers a continuation and starts browsing
+
+        let iterator = Task {
+            for await _ in stream {}   // returns only when the stream finishes
+        }
+
+        // stop() used to call continuation.finish() while holding the lock;
+        // finish() synchronously re-enters via onTermination and deadlocked here.
+        browser.stop()
+        await iterator.value
+    }
+
     // MARK: - Query (Bidirectional) Tests
 
     @Test("ZPLPrinter query times out on non-routable address",

@@ -3,10 +3,12 @@ import Foundation
 /// Internal parsers for barcode commands (^BC, ^B3, ^BQ, ^BX, ^B7, ^B2, ^BE, ^B8, ^BU, ^B9, ^B0, ^BZ)
 enum BarcodeParser {
 
-    static func parseBarcode(_ type: ParsedBarcode.BarcodeType, params: String, x: Int, y: Int, moduleWidth: Int, rotation: String) -> ParsedBarcode? {
+    static func parseBarcode(_ type: ParsedBarcode.BarcodeType, params: String, x: Int, y: Int, moduleWidth: Int, rotation: String, defaultHeight: Int? = nil, dropsLeadingFlag: Bool = false) -> ParsedBarcode? {
         var remaining = params
         var rot = rotation
-        var height = 100
+        // `^BY`'s third parameter sets the default bar height; without one the
+        // parser keeps its historical 100-dot preview default.
+        var height = defaultHeight ?? 100
         var showText = true
         var textAbove = false
 
@@ -19,16 +21,22 @@ enum BarcodeParser {
             remaining = String(remaining.dropFirst())
         }
 
-        let parts = remaining.split(separator: ",")
-        if parts.count >= 1, let h = Int(parts[0]) {
+        var parts = ZPLParser.splitParams(remaining)
+        // ^B3 (Code 39) has a mod-43 check-digit flag before the height slot.
+        if dropsLeadingFlag, !parts.isEmpty {
+            parts.removeFirst()
+        }
+
+        // Empty slots mean "use the default", so only assign from non-empty ones.
+        if let h = parts[safe: 0].flatMap(Int.init) {
             // Clamp bar height: it scales CoreImage barcode bitmaps directly.
             height = min(max(h, 1), RenderLimits.maxBarcodeHeight)
         }
-        if parts.count >= 2 {
-            showText = String(parts[1]) == "Y"
+        if let f = parts[safe: 1], !f.isEmpty {
+            showText = f == "Y"
         }
-        if parts.count >= 3 {
-            textAbove = String(parts[2]) == "Y"
+        if let g = parts[safe: 2], !g.isEmpty {
+            textAbove = g == "Y"
         }
 
         return ParsedBarcode(
@@ -56,10 +64,10 @@ enum BarcodeParser {
             remaining = String(remaining.dropFirst())
         }
 
-        let parts = remaining.split(separator: ",")
-        let _ = parts.count >= 1 ? (Int(parts[0]) ?? 2) : 2  // model (1 or 2)
+        let parts = ZPLParser.splitParams(remaining)
+        // parts[0] is the model (1 or 2); unused by the CoreImage generator.
         // Clamp magnification: it scales the generated CoreImage bitmap.
-        let magnification = min(max(parts.count >= 2 ? (Int(parts[1]) ?? 3) : 3, 1), RenderLimits.maxBarcodeScale)
+        let magnification = min(max(parts[safe: 1].flatMap(Int.init) ?? 3, 1), RenderLimits.maxBarcodeScale)
 
         return ParsedBarcode(
             type: .qrCode,
@@ -86,8 +94,8 @@ enum BarcodeParser {
             remaining = String(remaining.dropFirst())
         }
 
-        let parts = remaining.split(separator: ",")
-        let size = min(max(parts.count >= 1 ? (Int(parts[0]) ?? 3) : 3, 1), RenderLimits.maxBarcodeScale)
+        let parts = ZPLParser.splitParams(remaining)
+        let size = min(max(parts[safe: 0].flatMap(Int.init) ?? 3, 1), RenderLimits.maxBarcodeScale)
 
         return ParsedBarcode(
             type: .dataMatrix,
@@ -114,8 +122,8 @@ enum BarcodeParser {
             remaining = String(remaining.dropFirst())
         }
 
-        let parts = remaining.split(separator: ",")
-        let rowHeight = min(max(parts.count >= 1 ? (Int(parts[0]) ?? 10) : 10, 1), RenderLimits.maxBarcodeScale)
+        let parts = ZPLParser.splitParams(remaining)
+        let rowHeight = min(max(parts[safe: 0].flatMap(Int.init) ?? 10, 1), RenderLimits.maxBarcodeScale)
 
         return ParsedBarcode(
             type: .pdf417,
@@ -142,8 +150,8 @@ enum BarcodeParser {
             remaining = String(remaining.dropFirst())
         }
 
-        let parts = remaining.split(separator: ",")
-        let magnification = min(max(parts.count >= 1 ? (Int(parts[0]) ?? 3) : 3, 1), RenderLimits.maxBarcodeScale)
+        let parts = ZPLParser.splitParams(remaining)
+        let magnification = min(max(parts[safe: 0].flatMap(Int.init) ?? 3, 1), RenderLimits.maxBarcodeScale)
 
         return ParsedBarcode(
             type: .aztec,

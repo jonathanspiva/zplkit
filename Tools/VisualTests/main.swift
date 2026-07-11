@@ -463,7 +463,16 @@ struct VisualTests {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("image/png", forHTTPHeaderField: "Accept")
-        request.httpBody = zpl.data(using: .utf8)
+        // With form-urlencoded, the server form-decodes the body: a raw "+"
+        // becomes a space, "%XX" sequences get decoded, and "&" splits fields.
+        // Percent-encode everything but unreserved characters so ZPL containing
+        // +, %, or & reaches Labelary intact.
+        var unreserved = CharacterSet.alphanumerics
+        unreserved.insert(charactersIn: "-._~")
+        guard let encoded = zpl.addingPercentEncoding(withAllowedCharacters: unreserved) else {
+            throw LabelaryError.noData
+        }
+        request.httpBody = encoded.data(using: .utf8)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 

@@ -23,7 +23,7 @@ public struct IntelligentMail: ZPLElement, Equatable, Hashable {
         guard validLengths.contains(data.count) else {
             return nil
         }
-        guard data.allSatisfy({ $0.isNumber }) else {
+        guard data.allSatisfy({ $0.isASCIIDigit }) else {
             return nil
         }
         self.data = data
@@ -50,7 +50,10 @@ public struct IntelligentMail: ZPLElement, Equatable, Hashable {
         let height = barcodeHeight.resolve(dpi: context.dpi)
 
         var result = "^FO\(pos.x),\(pos.y)"
-        result += "^BZ\(rotation.rawValue),\(height)"
+        // ^BZo,h,f,g,e — the 5th parameter selects the postal symbology and
+        // defaults to 0 (POSTNET); 3 is USPS Intelligent Mail. Omitting it
+        // makes real printers render a POSTNET barcode instead.
+        result += "^BZ\(rotation.rawValue),\(height),N,N,3"
         result += "^FD\(data)^FS"
 
         return result
