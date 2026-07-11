@@ -37,7 +37,7 @@ public struct UPCE: ZPLElement, Equatable, Hashable {
         guard data.count == 6 || data.count == 7 else {
             return nil
         }
-        guard data.allSatisfy({ $0.isNumber }) else {
+        guard data.allSatisfy({ $0.isASCIIDigit }) else {
             return nil
         }
         self.data = data

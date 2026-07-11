@@ -72,8 +72,9 @@ public struct Circle: ZPLElement, Equatable, Hashable {
 
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
-        let diam = diameter.resolve(dpi: context.dpi)
-        let thick = isFilled ? diam : thickness.resolve(dpi: context.dpi)
+        // Clamp to >= 1 dot: zero/negative ^GC parameters are out of range.
+        let diam = max(1, diameter.resolve(dpi: context.dpi))
+        let thick = isFilled ? diam : max(1, thickness.resolve(dpi: context.dpi))
 
         let color = isWhite ? "W" : "B"
 

@@ -19,7 +19,7 @@ public struct EAN8: ZPLElement, Equatable, Hashable {
         guard data.count == 7 || data.count == 8 else {
             return nil
         }
-        guard data.allSatisfy({ $0.isNumber }) else {
+        guard data.allSatisfy({ $0.isASCIIDigit }) else {
             return nil
         }
         self.data = data

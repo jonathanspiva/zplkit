@@ -10,9 +10,9 @@ public struct DiagonalLine: ZPLElement, Equatable, Hashable {
     /// The direction of the diagonal line.
     @frozen
     public enum DiagonalDirection: String, Sendable, Codable, Hashable {
-        /// Top-left to bottom-right (default).
+        /// Bottom-left to top-right, like "/" (default).
         case rightLeaning = "R"
-        /// Top-right to bottom-left.
+        /// Top-left to bottom-right, like "\".
         case leftLeaning = "L"
     }
 
@@ -50,9 +50,10 @@ public struct DiagonalLine: ZPLElement, Equatable, Hashable {
 
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
-        let width = boxWidth.resolve(dpi: context.dpi)
-        let height = boxHeight.resolve(dpi: context.dpi)
-        let thick = thickness.resolve(dpi: context.dpi)
+        // Clamp to >= 1 dot: zero/negative ^GD parameters are out of range.
+        let width = max(1, boxWidth.resolve(dpi: context.dpi))
+        let height = max(1, boxHeight.resolve(dpi: context.dpi))
+        let thick = max(1, thickness.resolve(dpi: context.dpi))
 
         let color = isWhite ? "W" : "B"
 

@@ -171,8 +171,12 @@ public struct TextBlock: ZPLElement, Equatable, Hashable {
         let spacing = lineSpacing.resolve(dpi: context.dpi)
         let indent = hangingIndent.resolve(dpi: context.dpi)
 
-        // Convert newlines to ZPL line break sequence
-        let textWithLineBreaks = text.replacingOccurrences(of: "\n", with: "\\&")
+        // In ^FB field data, backslash introduces escape sequences (\&, \(, \\),
+        // so literal backslashes must be doubled BEFORE inserting \& line breaks.
+        let textWithLineBreaks = text
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\n", with: "\\&")
         let (needsHex, escapedText) = escapeZPLFieldData(textWithLineBreaks)
 
         let positionCommand = useBaselinePosition ? "^FT" : "^FO"

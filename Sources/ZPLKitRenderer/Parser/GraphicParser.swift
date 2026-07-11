@@ -56,20 +56,30 @@ enum GraphicParser {
         let rawData = String(parts[3])
 
         // Decode the data field to a flat 1-bit-per-pixel byte buffer.
+        //
+        // Route `:Z64:`/`:B64:` payloads to the compressed decoder regardless of
+        // the format letter: Labelary and common ZPL generators emit
+        // `^GFA,...,:Z64:...` (format letter A with a Z64 body), which would
+        // otherwise be fed through the hex decoder and produce garbage.
         let data: [UInt8]
-        switch format {
-        case .ascii:
-            // ^GFA carries hex-ASCII, optionally using Zebra's run-length
-            // compression scheme (repeat-count letters, `,`, `!`, `:`).
-            data = decodeAsciiHex(rawData, bytesPerRow: bytesPerRow, totalBytes: totalBytes)
-        case .binary:
-            // ^GFB carries raw binary bytes (one byte == 8 horizontal pixels).
-            // Real binary `^GF` over a text channel is rare, but the decode is
-            // trivial: the bytes are used as-is.
-            data = decodeBinary(rawData, totalBytes: totalBytes)
-        case .compressed:
-            // ^GFC carries `:Z64:` (base64 + zlib) or `:B64:` (base64) payloads.
+        let trimmedData = rawData.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedData.hasPrefix(":Z64:") || trimmedData.hasPrefix(":B64:") {
             data = decodeCompressed(rawData, totalBytes: totalBytes)
+        } else {
+            switch format {
+            case .ascii:
+                // ^GFA carries hex-ASCII, optionally using Zebra's run-length
+                // compression scheme (repeat-count letters, `,`, `!`, `:`).
+                data = decodeAsciiHex(rawData, bytesPerRow: bytesPerRow, totalBytes: totalBytes)
+            case .binary:
+                // ^GFB carries raw binary bytes (one byte == 8 horizontal pixels).
+                // Real binary `^GF` over a text channel is rare, but the decode is
+                // trivial: the bytes are used as-is.
+                data = decodeBinary(rawData, totalBytes: totalBytes)
+            case .compressed:
+                // ^GFC carries `:Z64:` (base64 + zlib) or `:B64:` (base64) payloads.
+                data = decodeCompressed(rawData, totalBytes: totalBytes)
+            }
         }
 
         guard !data.isEmpty else { return nil }
@@ -323,9 +333,16 @@ enum GraphicParser {
         func payload(after marker: String) -> String? {
             guard trimmed.hasPrefix(marker) else { return nil }
             var body = String(trimmed.dropFirst(marker.count))
-            // Zebra appends `:<crc16-hex>` after the base64 body. Drop it if present.
+            // Zebra appends `:<crc16-hex>` after the base64 body. When present,
+            // validate it (CRC-16/XMODEM over the base64 characters) and reject
+            // corrupted payloads instead of rendering garbage. Payloads without
+            // a trailing CRC are accepted as-is.
             if let colonIndex = body.lastIndex(of: ":") {
+                let crcHex = String(body[body.index(after: colonIndex)...])
                 body = String(body[..<colonIndex])
+                if crcHex.count == 4, let expected = UInt16(crcHex, radix: 16) {
+                    guard crc16XModem(Array(body.utf8)) == expected else { return nil }
+                }
             }
             return body
         }
@@ -357,6 +374,20 @@ enum GraphicParser {
     private static func clamp(_ data: [UInt8], to totalBytes: Int) -> [UInt8] {
         guard totalBytes > 0, data.count > totalBytes else { return data }
         return Array(data.prefix(totalBytes))
+    }
+
+    /// CRC-16/XMODEM (polynomial 0x1021, initial value 0), the checksum Zebra
+    /// appends to `:Z64:`/`:B64:` graphic payloads, computed over the base64
+    /// characters.
+    static func crc16XModem(_ bytes: [UInt8]) -> UInt16 {
+        var crc: UInt16 = 0
+        for byte in bytes {
+            crc ^= UInt16(byte) << 8
+            for _ in 0..<8 {
+                crc = (crc & 0x8000) != 0 ? (crc << 1) ^ 0x1021 : crc << 1
+            }
+        }
+        return crc
     }
 
     #if canImport(Compression)

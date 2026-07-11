@@ -95,6 +95,12 @@ struct VisualTests {
             filterPattern = args[filterIndex + 1]
         }
 
+        // Parse minimum accuracy score (used by CI to fail on regressions)
+        var minScore: Double? = nil
+        if let minScoreIndex = args.firstIndex(of: "--min-score"), minScoreIndex + 1 < args.count {
+            minScore = Double(args[minScoreIndex + 1])
+        }
+
         let fileManager = FileManager.default
 
         // Find package root
@@ -155,6 +161,7 @@ struct VisualTests {
         print("=== Rendering with ZPLKitRenderer ===")
         let renderer = ZPLRenderer()
         var results: [(name: String, dpi: DPI, parseMs: Double, renderMs: Double)] = []
+        var renderFailures: [String] = []
 
         for file in zplFiles {
             let zplPath = "\(fixturesPath)/\(file)"
@@ -175,6 +182,10 @@ struct VisualTests {
                 print("  ✓ \(file) (\(String(format: "%.1f", parseMs + renderMs))ms)")
             } catch {
                 print("  ✗ \(file): \(error)")
+                renderFailures.append(file)
+                // Remove any stale PNG from a previous run so the verify and
+                // score phases can't silently use outdated output.
+                try? fileManager.removeItem(atPath: pngPath)
             }
         }
 
@@ -290,6 +301,7 @@ struct VisualTests {
                 exit(1)
             }
 
+            var skippedNoReference = 0
             for file in zplFiles {
                 let pngName = file.replacingOccurrences(of: ".zpl", with: ".png")
                 let swiftPath = "\(outputPath)/\(pngName)"
@@ -298,11 +310,16 @@ struct VisualTests {
 
                 guard fileManager.fileExists(atPath: refPath) else {
                     print("  ⊘ \(file): No reference image")
+                    skippedNoReference += 1
                     continue
                 }
 
+                // A fixture that failed to render (or compare) scores 0% so a
+                // regression LOWERS the average instead of silently shrinking
+                // the denominator and raising it.
                 guard fileManager.fileExists(atPath: swiftPath) else {
-                    print("  ⊘ \(file): No rendered image")
+                    scores.append(ScoreResult(fixture: file, matchPercentage: 0, totalPixels: 0, differentPixels: 0, hasDiff: true))
+                    print("  ✗ \(file): No rendered image (scored 0%)")
                     continue
                 }
 
@@ -311,8 +328,12 @@ struct VisualTests {
                     let icon = result.matchPercentage >= 99.0 ? "✓" : (result.matchPercentage >= 90.0 ? "○" : "✗")
                     print("  \(icon) \(file): \(String(format: "%.1f", result.matchPercentage))% match (\(result.differentPixels) pixels differ)")
                 } else {
-                    print("  ✗ \(file): Failed to compare")
+                    scores.append(ScoreResult(fixture: file, matchPercentage: 0, totalPixels: 0, differentPixels: 0, hasDiff: true))
+                    print("  ✗ \(file): Failed to compare (scored 0%)")
                 }
+            }
+            if skippedNoReference > 0 {
+                print("  (\(skippedNoReference) fixture(s) skipped: no reference image)")
             }
         }
 
@@ -332,6 +353,11 @@ struct VisualTests {
         print("Created \(htmlPath)")
 
         // Summary
+        var exitCode: Int32 = 0
+        if !renderFailures.isEmpty {
+            print("\n  ✗ \(renderFailures.count) fixture(s) failed to render: \(renderFailures.joined(separator: ", "))")
+            exitCode = 1
+        }
         let totalParseMs = results.reduce(0) { $0 + $1.parseMs }
         let totalRenderMs = results.reduce(0) { $0 + $1.renderMs }
         print("\nSummary:")
@@ -355,6 +381,10 @@ struct VisualTests {
             print("\n  ═══════════════════════════════════")
             print("  ACCURACY SCORE: \(String(format: "%.1f", avgScore))%")
             print("  ═══════════════════════════════════")
+            if let minScore, avgScore < minScore {
+                print("  ✗ Accuracy below --min-score \(String(format: "%.1f", minScore))%")
+                exitCode = 1
+            }
             print("  Perfect (≥99.9%): \(perfectMatches)/\(scores.count)")
             print("  Good (≥95%): \(goodMatches)/\(scores.count)")
 
@@ -399,6 +429,12 @@ struct VisualTests {
                     print("    ... and \(failures.count - 10) more")
                 }
             }
+        }
+
+        // Exit nonzero on render failures or a below-threshold score so CI can
+        // actually fail; this tool previously always exited 0.
+        if exitCode != 0 {
+            exit(exitCode)
         }
     }
 
@@ -463,7 +499,16 @@ struct VisualTests {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("image/png", forHTTPHeaderField: "Accept")
-        request.httpBody = zpl.data(using: .utf8)
+        // With form-urlencoded, the server form-decodes the body: a raw "+"
+        // becomes a space, "%XX" sequences get decoded, and "&" splits fields.
+        // Percent-encode everything but unreserved characters so ZPL containing
+        // +, %, or & reaches Labelary intact.
+        var unreserved = CharacterSet.alphanumerics
+        unreserved.insert(charactersIn: "-._~")
+        guard let encoded = zpl.addingPercentEncoding(withAllowedCharacters: unreserved) else {
+            throw LabelaryError.noData
+        }
+        request.httpBody = encoded.data(using: .utf8)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -573,42 +618,60 @@ struct VisualTests {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         var pixels = [UInt8](repeating: 255, count: targetWidth * targetHeight * 4)
 
-        guard let context = CGContext(
-            data: &pixels,
-            width: targetWidth,
-            height: targetHeight,
-            bitsPerComponent: 8,
-            bytesPerRow: targetWidth * 4,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else {
-            return nil
+        // Keep every draw inside withUnsafeMutableBytes: `&pixels` is only
+        // valid for the duration of the CGContext initializer call, so writing
+        // through the stored pointer afterwards is undefined behavior.
+        let drawn = pixels.withUnsafeMutableBytes { raw -> Bool in
+            guard let base = raw.baseAddress,
+                  let context = CGContext(
+                    data: base,
+                    width: targetWidth,
+                    height: targetHeight,
+                    bitsPerComponent: 8,
+                    bytesPerRow: targetWidth * 4,
+                    space: colorSpace,
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                  ) else {
+                return false
+            }
+
+            // Fill with white background
+            context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
+
+            // Anchor at the TOP-left: labels share a top-left origin, so a
+            // height mismatch must not vertically offset the whole comparison
+            // (CoreGraphics rects are bottom-left anchored).
+            context.draw(image, in: CGRect(x: 0, y: targetHeight - image.height,
+                                           width: image.width, height: image.height))
+            return true
         }
 
-        // Fill with white background
-        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
-        context.fill(CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
-
-        // Draw image (will be scaled if sizes don't match)
-        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-
-        return pixels
+        return drawn ? pixels : nil
     }
 
     static func saveDiffImage(pixels: [UInt8], width: Int, height: Int, to path: String) {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         var mutablePixels = pixels
 
-        guard let context = CGContext(
-            data: &mutablePixels,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: width * 4,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ),
-        let cgImage = context.makeImage() else {
+        // See getPixelData: the buffer pointer must stay valid for the whole
+        // context lifetime, so create AND consume the context inside the closure.
+        let made = mutablePixels.withUnsafeMutableBytes { raw -> CGImage? in
+            guard let base = raw.baseAddress,
+                  let context = CGContext(
+                    data: base,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: width * 4,
+                    space: colorSpace,
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                  ) else {
+                return nil
+            }
+            return context.makeImage()
+        }
+        guard let cgImage = made else {
             return
         }
 

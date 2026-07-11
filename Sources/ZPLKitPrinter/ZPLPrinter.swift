@@ -322,8 +322,30 @@ public struct ZPLPrinter: Sendable {
                         // poll() expects milliseconds; preserve fractional timeout.
                         let pollTimeoutMillis = Int32((clampedTimeout * 1000).rounded())
                         var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
-                        let pollResult = poll(&pfd, 1, pollTimeoutMillis)
-                        if pollResult <= 0 {
+                        // Re-poll on EINTR with the remaining timeout: a signal
+                        // (SIGCHLD, debugger attach) mid-connect is not a
+                        // printer timeout.
+                        let pollStartNanos = DispatchTime.now().uptimeNanoseconds
+                        var pollResult: Int32
+                        var pollErrno: Int32 = 0
+                        while true {
+                            let elapsedMillis = (DispatchTime.now().uptimeNanoseconds - pollStartNanos) / 1_000_000
+                            let remainingMillis = Int32(max(Int64(pollTimeoutMillis) - Int64(clamping: elapsedMillis), 0))
+                            pollResult = poll(&pfd, 1, remainingMillis)
+                            if pollResult < 0 {
+                                pollErrno = errno
+                                if pollErrno == EINTR { continue }
+                            }
+                            break
+                        }
+                        if pollResult < 0 {
+                            Darwin.close(sock)
+                            lastError = PrinterError.connectionFailed(
+                                host: host, port: port,
+                                underlying: "poll() failed: \(posixErrorString(pollErrno))")
+                            continue
+                        }
+                        if pollResult == 0 {
                             Darwin.close(sock)
                             lastError = PrinterError.timeout(host: host, port: port)
                             continue
@@ -400,6 +422,12 @@ public struct ZPLPrinter: Sendable {
 
                 if sent == count {
                     continuation.resume()
+                } else if writeErrno == EAGAIN || writeErrno == EWOULDBLOCK {
+                    // SO_SNDTIMEO expiry surfaces as EAGAIN on a blocking write:
+                    // the printer stopped draining (paused, buffer full). Report
+                    // it as a timeout, not a cryptic "Resource temporarily
+                    // unavailable" send failure.
+                    continuation.resume(throwing: PrinterError.timeout(host: host, port: port))
                 } else if writeErrno != 0 {
                     let err = posixErrorString(writeErrno)
                     continuation.resume(throwing: PrinterError.sendFailed(underlying: err))
@@ -411,10 +439,16 @@ public struct ZPLPrinter: Sendable {
         }
     }
 
-    /// Converts a `TimeInterval` (seconds) to nanoseconds, clamped to a
-    /// non-negative range so the `UInt64` conversion can never trap.
+    /// Converts a `TimeInterval` (seconds) to nanoseconds, clamped to
+    /// [0, 1 day] like `send()`.
+    ///
+    /// The ceiling matters twice over: `TimeInterval(UInt64.max) / 1e9 * 1e9`
+    /// rounds UP to exactly 2^64 and traps the `UInt64` conversion (so
+    /// `.infinity` or `.greatestFiniteMagnitude` timeouts crashed here), and a
+    /// huge finite value would overflow the later `uptimeNanoseconds + timeout`
+    /// deadline addition.
     private func nanoseconds(from interval: TimeInterval) -> UInt64 {
-        let clamped = min(max(0, interval), TimeInterval(UInt64.max) / 1_000_000_000)
+        let clamped = min(max(0, interval), 86_400)
         return UInt64(clamped * 1_000_000_000)
     }
 
@@ -530,8 +564,8 @@ public struct ZPLPrinter: Sendable {
                                 // Start response timeout after send completes.
                                 // Uses an idle check: if data has been received but
                                 // no new data arrives within 1s, return what we have.
-                                // This avoids waiting the full timeout for responses
-                                // without ETX framing (like ^HH).
+                                // This is the fallback for responses whose framing
+                                // the completion check doesn't recognize.
                                 let responseTimeoutTask = Task {
                                     let idleThresholdNanos: UInt64 = 1_000_000_000  // 1 second
                                     let checkIntervalNanos: UInt64 = 500_000_000     // check every 500ms
@@ -627,10 +661,16 @@ public struct ZPLPrinter: Sendable {
                 if let data = content, !data.isEmpty {
                     await state.appendResponse(data)
 
-                    // Check if response is complete (ends with ETX = 0x03)
-                    // ZPL control responses end with ETX CR LF (0x03 0x0D 0x0A)
+                    // Check if the response is complete. Framed responses
+                    // (~HI/~HS/~HM) end each frame with ETX CR LF, so the
+                    // buffer ends 0x0A. A ^HH configuration dump ends with a
+                    // bare ETX after the final CR LF (verified against real
+                    // ZM400/GX420t fixtures: ... 0x0D 0x0A 0x03), so also
+                    // complete on a trailing ETX. A mid-dump segment ending in
+                    // CR LF has no ETX yet, so the frame-count check below
+                    // keeps us waiting.
                     let buffer = await state.getResponseBuffer()
-                    if buffer.last == 0x0A && buffer.count >= 3 {
+                    if (buffer.last == 0x0A || buffer.last == 0x03) && buffer.count >= 3 {
                         // ~HS returns three ETX-terminated frames; wait for all
                         // three. Other queries return a single frame and
                         // complete on their first (and only) ETX. The idle

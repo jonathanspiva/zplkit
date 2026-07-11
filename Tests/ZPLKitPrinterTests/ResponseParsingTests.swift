@@ -204,6 +204,17 @@ struct ResponseParsingTests {
 
     // MARK: - PrinterInfo: happy path
 
+    @Test("~HI response missing its ETX strips the leading STX in fallback")
+    func hiTruncatedFrameStripsSTX() throws {
+        // A response whose final ETX was lost (idle-timer partial buffer) falls
+        // back to unframed parsing; the leading 0x02 must not leak into the
+        // model string.
+        var data = Data([0x02])
+        data.append(contentsOf: Array("GX420t-203dpi,V56.17.17Z,8,8192KB,NONE".utf8))
+        let info = try PrinterInfo.parse(from: data)
+        #expect(info.model == "GX420t-203dpi")
+    }
+
     @Test("~HI well-formed response decodes model/firmware/dpm")
     func hiHappyPath() throws {
         let data = frame("ZT410-203dpi,V53.17.14Z,8,49152KB,NONE")

@@ -62,8 +62,9 @@ public struct DataMatrix: ZPLElement, Equatable, Hashable {
 
         var result = "^FO\(pos.x),\(pos.y)"
 
-        // ^BX: orientation, height, quality, columns, rows
-        let colStr = columns.map { ",\($0)" } ?? ""
+        // ^BX: orientation, height, quality, columns, rows. When rows is set
+        // without columns, an empty columns slot keeps rows in its own position.
+        let colStr = columns.map { ",\($0)" } ?? (rows != nil ? "," : "")
         let rowStr = rows.map { ",\($0)" } ?? ""
         result += "^BX\(rotation.rawValue),\(moduleSize),\(quality)\(colStr)\(rowStr)"
 

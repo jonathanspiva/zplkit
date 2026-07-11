@@ -752,3 +752,32 @@ struct VerifierIntegrationTests {
         #expect(result.verificationTimeSeconds > 0)
     }
 }
+
+
+// MARK: - Input Validation
+
+@Suite("Verifier Input Validation")
+struct VerifierInputValidationTests {
+
+    @Test("verify with an empty expectation list throws noExpectations")
+    func verifyEmptyExpectationsThrows() async throws {
+        // An empty list used to pass vacuously ("all 0 expectations passed"),
+        // silently turning a caller's test green while checking nothing.
+        let context = CGContext(
+            data: nil, width: 8, height: 8, bitsPerComponent: 8, bytesPerRow: 32,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        let image = context.makeImage()!
+
+        let verifier = ZPLVerifier()
+        do {
+            _ = try await verifier.verify(image, expectations: [])
+            Issue.record("expected noExpectations to be thrown")
+        } catch let error as VerifierError {
+            guard case .noExpectations = error else {
+                Issue.record("expected noExpectations, got \(error)")
+                return
+            }
+        }
+    }
+}

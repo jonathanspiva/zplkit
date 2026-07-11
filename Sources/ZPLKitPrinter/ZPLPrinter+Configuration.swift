@@ -143,7 +143,7 @@ extension ZPLPrinter {
     /// back to the host as text. This is useful for debugging and discovering
     /// what settings a printer has.
     ///
-    /// - Parameter responseTimeout: Time to wait for response. Defaults to 10 seconds
+    /// - Parameter responseTimeout: Time to wait for response. Defaults to 15 seconds
     ///   since `^HH` returns a large response.
     /// - Returns: The raw configuration text from the printer.
     /// - Throws: `PrinterError` if the query fails.
@@ -161,7 +161,7 @@ extension ZPLPrinter {
     /// format varies by printer generation, so some fields may be nil if the parser
     /// doesn't recognize the format.
     ///
-    /// - Parameter responseTimeout: Time to wait for response. Defaults to 10 seconds.
+    /// - Parameter responseTimeout: Time to wait for response. Defaults to 15 seconds.
     /// - Returns: Parsed printer settings.
     /// - Throws: `PrinterError` if the query fails or response cannot be parsed.
     public func queryConfiguration(responseTimeout: TimeInterval = 15) async throws -> PrinterSettings {
@@ -189,10 +189,15 @@ extension ZPLPrinter {
         let status = try await queryStatus()
         let memory = try await queryMemory()
 
-        // ^HH can timeout when the printer is in an error state
+        // ^HH can timeout when the printer is in an error state, so a failure
+        // here degrades to settings == nil rather than failing the snapshot.
+        // Cancellation must still propagate: swallowing CancellationError would
+        // return a "successful" result from a cancelled task.
         let settings: PrinterSettings?
         do {
             settings = try await queryConfiguration()
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             settings = nil
         }

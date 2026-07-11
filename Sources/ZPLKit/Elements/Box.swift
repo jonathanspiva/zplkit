@@ -98,9 +98,11 @@ public struct Box: ZPLElement, Equatable, Hashable {
 
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
-        let width = boxWidth.resolve(dpi: context.dpi)
-        let height = boxHeight.resolve(dpi: context.dpi)
-        let thick = isFilled ? min(width, height) : thickness.resolve(dpi: context.dpi)
+        // Clamp to >= 1 dot: zero/negative ^GB parameters are out of range and
+        // firmware handling varies by model.
+        let width = max(1, boxWidth.resolve(dpi: context.dpi))
+        let height = max(1, boxHeight.resolve(dpi: context.dpi))
+        let thick = isFilled ? min(width, height) : max(1, thickness.resolve(dpi: context.dpi))
 
         let color = isWhite ? "W" : "B"
 

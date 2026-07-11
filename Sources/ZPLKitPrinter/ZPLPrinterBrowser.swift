@@ -82,17 +82,27 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
             let id = UUID()
 
             lock.lock()
-            continuations[id] = continuation
-            // Emit already-discovered printers
-            for printer in discovered.values {
-                continuation.yield(printer)
+            // stop() may have run between start() above and this registration;
+            // registering on a stopped browser would strand the iterator on a
+            // stream that never yields and never finishes.
+            let active = isStarted
+            if active {
+                continuations[id] = continuation
+                // Emit already-discovered printers
+                for printer in discovered.values {
+                    continuation.yield(printer)
+                }
             }
             lock.unlock()
 
-            continuation.onTermination = { [weak self] _ in
-                self?.lock.lock()
-                self?.continuations.removeValue(forKey: id)
-                self?.lock.unlock()
+            if active {
+                continuation.onTermination = { [weak self] _ in
+                    self?.lock.lock()
+                    self?.continuations.removeValue(forKey: id)
+                    self?.lock.unlock()
+                }
+            } else {
+                continuation.finish()
             }
         }
     }
@@ -123,19 +133,26 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
     /// Stops browsing and releases resources.
     public func stop() {
         lock.lock()
-        defer { lock.unlock() }
-
-        guard isStarted else { return }
+        guard isStarted else {
+            lock.unlock()
+            return
+        }
         isStarted = false
         browser.cancel()
         // The cancelled browser is terminal; the next start() must recreate it.
         browserIsTerminal = true
 
-        for continuation in continuations.values {
-            continuation.finish()
-        }
+        let toFinish = Array(continuations.values)
         continuations.removeAll()
         discovered.removeAll()
+        lock.unlock()
+
+        // finish() synchronously invokes each stream's onTermination handler,
+        // which re-acquires `lock`; calling it while holding the non-reentrant
+        // lock deadlocks the calling thread.
+        for continuation in toFinish {
+            continuation.finish()
+        }
     }
 
     private func setupBrowser() {
