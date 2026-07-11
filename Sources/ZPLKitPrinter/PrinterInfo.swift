@@ -176,8 +176,15 @@ extension PrinterInfo {
             }
         }
 
-        // Fallback: try parsing without STX/ETX framing (some printers may not include it)
-        if let str = String(data: data, encoding: .utf8)?
+        // Fallback: try parsing without STX/ETX framing (some printers may not
+        // include it, and a truncated response may have lost its ETX). Strip a
+        // leading STX so a partial framed response doesn't leak the 0x02
+        // control byte into the parsed model string.
+        var fallback = data
+        if fallback.first == ControlChar.stx {
+            fallback = fallback.dropFirst()
+        }
+        if let str = String(data: fallback, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !str.isEmpty {
             return str

@@ -413,10 +413,10 @@ final class FakePrinter: @unchecked Sendable {
     /// Builds a `^HH` (configuration readback) plaintext response.
     ///
     /// `^HH` is a multi-line two-column text dump (value on the left, field
-    /// name on the right). It is NOT STX/ETX framed by all printers, but real
-    /// Zebra units wrap the dump in STX ... ETX CR LF; the parser tolerates
-    /// both. We include the framing plus a trailing LF so query()'s completion
-    /// check (`buffer.last == 0x0A` && >=1 ETX frame) fires promptly.
+    /// name on the right). Real Zebra units (ZM400 V53, GX420t V56 fixtures)
+    /// frame it as STX ... CR LF ETX — the ETX is the FINAL byte, unlike the
+    /// per-frame ETX CR LF of ~HI/~HS/~HM. query()'s completion check accepts
+    /// a trailing ETX, so this shape completes promptly without the idle timer.
     static func makeHHResponse(
         darkness: Int = 15,
         printSpeed: Int = 4,
@@ -444,7 +444,7 @@ final class FakePrinter: @unchecked Sendable {
         let body = lines.joined(separator: "\r\n") + "\r\n"
         var data = Data([stx])
         data.append(contentsOf: Array(body.utf8))
-        data.append(contentsOf: [etx, cr, lf])
+        data.append(etx)
         return data
     }
 }

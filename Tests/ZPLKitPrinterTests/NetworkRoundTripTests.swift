@@ -245,6 +245,38 @@ struct NetworkRoundTripTests {
         }
     }
 
+    // MARK: - query(): timeout edge cases
+
+    @Test("query() accepts an infinite timeout without trapping")
+    func queryInfiniteTimeout() async throws {
+        // .infinity used to trap in the seconds->nanoseconds conversion
+        // (rounds up to exactly 2^64); it now clamps to the 1-day ceiling.
+        let fake = try FakePrinter(behaviors: [.respond(chunks: [FakePrinter.makeHIResponse()], gap: 0)])
+        defer { fake.shutdown() }
+
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: .infinity)
+        let info = try await printer.queryInfo(responseTimeout: .infinity)
+        #expect(info.dotsPerMillimeter == 8)
+    }
+
+    @Test("queryConfiguration() completes on the trailing ^HH ETX, not the idle timer")
+    func hhCompletesOnTrailingETX() async throws {
+        let fake = try FakePrinterRouting()
+        defer { fake.shutdown() }
+
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
+        // Warm up NWConnection so cold-start doesn't pollute the timing below.
+        _ = try await printer.queryInfo(responseTimeout: successTimeout)
+
+        let start = DispatchTime.now().uptimeNanoseconds
+        _ = try await printer.queryConfiguration(responseTimeout: successTimeout)
+        let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000_000
+        // The idle-timer fallback waits >= 1s after the last byte; completing
+        // on the trailing ETX (real ^HH dumps end 0x0D 0x0A 0x03) returns in
+        // milliseconds.
+        #expect(elapsed < 0.9, "took \(elapsed)s; idle-timer fallback suspected")
+    }
+
     // MARK: - query(): timeout
 
     @Test("query() times out when the server accepts but never replies")

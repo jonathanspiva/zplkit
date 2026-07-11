@@ -20,9 +20,9 @@
 - [x] `DataMatrix.rows()` without `.columns()` emits rows in the columns slot (DataMatrix.swift:66)
 
 #### Medium: printer networking
-- [ ] `query(responseTimeout: .infinity)` traps in `nanoseconds(from:)` (rounds to 2^64); deadline addition can also overflow; `send()` clamps but `query()` doesn't (ZPLPrinter.swift:418)
-- [ ] `poll()` EINTR/-1 misreported as `.timeout`; should re-poll on EINTR, `connectionFailed` otherwise (ZPLPrinter.swift:325)
-- [ ] `^HH` early-completion requires trailing LF but real devices end `0D 0A 03`; every queryConfiguration burns ~1-1.5s idle timer and >1s stalls truncate silently (ZPLPrinter.swift:633)
+- [x] `query(responseTimeout: .infinity)` traps in `nanoseconds(from:)` (rounds to 2^64); deadline addition can also overflow; `send()` clamps but `query()` doesn't (ZPLPrinter.swift:418)
+- [x] `poll()` EINTR/-1 misreported as `.timeout`; should re-poll on EINTR, `connectionFailed` otherwise (ZPLPrinter.swift:325)
+- [x] `^HH` early-completion requires trailing LF but real devices end `0D 0A 03`; every queryConfiguration burns ~1-1.5s idle timer and >1s stalls truncate silently (ZPLPrinter.swift:633)
 
 #### Medium: renderer parsing/fidelity
 - [x] `^B3` param order wrong: check-digit flag comes before height per spec (BarcodeParser.swift:22 via ZPLParser.swift:174)
@@ -49,12 +49,11 @@
 - [x] Template substitution: a value containing `{{key}}` gets expanded by later iterations (ZPLLabel.swift:235)
 - [x] Shapes/label emit zero/negative resolved dimensions verbatim; clamp to >=1 like Graphic (Box.swift:100 et al, ZPLLabel.swift:101)
 - [ ] Verifier `verify {}` with empty/conditionally-empty builder passes vacuously (ZPLVerifier.swift:181)
-- [ ] `PrinterInfo.extractContent` no-ETX fallback keeps leading STX byte (PrinterInfo.swift:180)
+- [x] `PrinterInfo.extractContent` no-ETX fallback keeps leading STX byte (PrinterInfo.swift:180)
 - [x] `printers`/`stop()` race can strand an iterator on a never-terminated stream (ZPLPrinterBrowser.swift:78)
-- [ ] SO_SNDTIMEO expiry surfaces as sendFailed("Resource temporarily unavailable") instead of `.timeout` (ZPLPrinter.swift:387)
-- [ ] `send()`/`query()` share the global concurrent queue; mass fan-out can saturate GCD threads (ZPLPrinter.swift:236,601) - consider bounding, may defer
-- [ ] `queryDiagnostics()` blanket catch swallows `CancellationError` (ZPLPrinter+Configuration.swift:194)
-- [ ] Doc comment says 10s default, actual 15s (ZPLPrinter+Configuration.swift:146,164)
+- [x] SO_SNDTIMEO expiry surfaces as sendFailed("Resource temporarily unavailable") instead of `.timeout` (ZPLPrinter.swift:387)
+- [x] `queryDiagnostics()` blanket catch swallows `CancellationError` (ZPLPrinter+Configuration.swift:194)
+- [x] Doc comment says 10s default, actual 15s (ZPLPrinter+Configuration.swift:146,164)
 - [x] `^BY` third param (default barcode height) ignored, hardcoded 100 (ZPLParser.swift:139, BarcodeParser.swift:8)
 - [x] `^FB` maxLines not enforced (frameHeight doubled); lineSpacing/hangingIndent parsed but unapplied (CoreGraphicsRenderer.swift:237)
 - [x] `^GB` border strokes centered on path; ZPL draws inside the box (CoreGraphicsRenderer.swift:268)
@@ -71,6 +70,7 @@
 
 ## Later
 ### Deferred low-severity review items
+- [ ] `send()`/`query()` share the global concurrent queue; mass fan-out (60+ concurrent sends to unreachable printers) can saturate GCD threads and stall query() callbacks (ZPLPrinter.swift). Deferred: needs a bounded-concurrency design (dedicated queue or semaphore), not a spot fix.
 - [x] Switch Labelary calls to https (Tools/VisualTests/main.swift:459)
 - [x] Add `.claude/` to .gitignore so worktrees/settings can't be accidentally committed
 - [x] `try await` in ZPLVerifier doc snippets (ZPLVerifier.swift)
