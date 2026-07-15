@@ -50,7 +50,9 @@ jobs:
           # toolchains (unlike the old .build/*/debug/Modules glob, which the
           # Swift 6.4 / Xcode 27 SPM layout no longer matches).
           MODDIR="$(swift build --show-bin-path)"
-          if [ ! -f "$MODDIR/ZPLKit.swiftmodule" ]; then
+          # ZPLKit.swiftmodule is a directory bundle (per-arch) under the new
+          # SPM layout, so test for existence (-e), not a regular file (-f).
+          if [ ! -e "$MODDIR/ZPLKit.swiftmodule" ]; then
             echo "::error::Built ZPLKit module not found in $MODDIR"; exit 1
           fi
           fail=0
