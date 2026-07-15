@@ -5,24 +5,37 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  # Live-printer tests are opt-in: they need a printer powered on and they
+  # mutate printer config, so they never gate a normal push/PR.
+  workflow_dispatch:
+    inputs:
+      printer_ip:
+        description: "Printer IP for live-hardware PrinterTests"
+        required: false
+        default: "192.168.7.5"
 
 permissions:
   contents: read
 
-# Cancel superseded runs on the same branch/PR; macOS runners are expensive.
+# Cancel superseded runs on the same branch/PR.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The package requires the macOS 27 SDK / Swift 6.4, which GitHub-hosted runner
+# images don't carry yet, so all jobs run on the self-hosted mini. Target it by
+# capability label (macos-27) rather than a machine name, so other projects can
+# share the same runner. DEVELOPER_DIR pins the Xcode 27 beta toolchain without
+# sudo (the Command Line Tools toolchain can't run the swift-testing suite).
+env:
+  DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
+
 jobs:
   build-and-test:
-    runs-on: macos-26
-    timeout-minutes: 20
+    runs-on: [self-hosted, macos-27]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Select latest Xcode 26
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
 
       - name: Show Swift version
         run: swift --version
@@ -52,14 +65,11 @@ jobs:
         run: swift test
 
   visual-tests:
-    runs-on: macos-26
+    runs-on: [self-hosted, macos-27]
     timeout-minutes: 30
     needs: build-and-test
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Select latest Xcode 26
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
 
       - name: Build
         run: swift build -c release
@@ -86,3 +96,19 @@ jobs:
             Tests/VisualTestHarness/output-diff/
             Tests/VisualTestHarness/reference/
           retention-days: 7
+
+  # Manual-only: exercises the real networking stack against a physical printer
+  # on the runner's LAN. Requires a runner that can reach the printers (the
+  # `printers` label) and a printer powered on at `printer_ip`. Never gates PRs.
+  live-printer:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, macos-27, printers]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run live PrinterTests
+        run: swift run PrinterTests --timeout 15 "${{ github.event.inputs.printer_ip }}"
