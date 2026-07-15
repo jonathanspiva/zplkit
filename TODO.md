@@ -20,12 +20,15 @@ below were already available at the 26 floor and are bundled in here.
   trailing-ETX `^HH` in <0.9s, idle fallback, graceful-close, responseTimeout,
   prompt cancellation. Note: `NetworkConnection` is macOS 26, so this did not
   require the 27 bump; `async defer` is the 6.4-specific win.
-- [ ] **Phase 1b: `send()` -> NetworkConnection - HOLD for hardware.** `send()`
-  uses POSIX sockets deliberately: NWConnection's `cancel()` sends TCP RST that
-  makes real Zebra units discard buffered print data (see memory
-  `nwconnection-issues.md`). Whether the new `NetworkConnection` close is a clean
-  FIN is a real-device question; FakePrinter cannot catch an RST-discard
-  regression. Verify against ZM400/GX420t before rewriting.
+- [x] **Phase 1b: `send()` -> NetworkConnection** - Done and hardware-verified.
+  The old POSIX-socket rationale was NWConnection's `cancel()` sending an RST
+  that made printers discard buffered data. Empirically settled on macOS 27: a
+  teardown probe (NetworkConnection -> slow-draining POSIX listener) showed a
+  clean FIN with payload intact across 5/5 trials, and on the real GX420t
+  (`192.168.7.5`, FW V56.17.17Z) the send()-based `applyConfiguration` /
+  `saveAndRestore` / `calibrateAfterSetup` round-trips all landed and read back
+  correctly (28/28 PrinterTests). Connect-error mapping preserved
+  (`ETIMEDOUT`/unreachable -> `.timeout`, `ECONNREFUSED` -> `.connectionFailed`).
 - [ ] **Phase 1c: `ZPLPrinterBrowser` -> NetworkBrowser - HOLD for hardware.**
   Only exercised by live mDNS (GX420t doesn't even advertise the service type).
   Rewrite + verify on the real LAN, not loopback.
