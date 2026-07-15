@@ -46,9 +46,12 @@ jobs:
       - name: Typecheck examples
         run: |
           set -euo pipefail
-          MODDIR=$(dirname "$(find .build -path '*/debug/Modules/ZPLKit.swiftmodule' ! -path '*index-build*' | head -1)")
-          if [ -z "$MODDIR" ] || [ ! -d "$MODDIR" ]; then
-            echo "::error::Could not locate built ZPLKit module directory"; exit 1
+          # Products dir holds every built .swiftmodule; layout is stable across
+          # toolchains (unlike the old .build/*/debug/Modules glob, which the
+          # Swift 6.4 / Xcode 27 SPM layout no longer matches).
+          MODDIR="$(swift build --show-bin-path)"
+          if [ ! -f "$MODDIR/ZPLKit.swiftmodule" ]; then
+            echo "::error::Built ZPLKit module not found in $MODDIR"; exit 1
           fi
           fail=0
           for f in Examples/*.swift; do
