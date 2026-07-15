@@ -24,105 +24,6 @@ private func posixErrorString(_ code: Int32) -> String {
     return "Unknown error \(code)"
 }
 
-/// Actor to safely manage query (send + receive) state across async callbacks.
-private actor QueryState {
-    private var continuation: CheckedContinuation<Data, Error>?
-    private var hasCompleted = false
-    private var pendingResult: Result<Data, Error>?
-    private var responseBuffer = Data()
-    private var hasSentCommand = false
-    private var lastReceiveTime: UInt64 = 0
-    private var cleanupTasks: [Task<Void, Never>] = []
-
-    /// Registers a background task (e.g. a timeout timer) to be cancelled when
-    /// the query completes, so timers don't linger and sleep for the full
-    /// timeout after a result has already been produced. If the query has
-    /// already completed, the task is cancelled immediately.
-    func registerCleanup(_ task: Task<Void, Never>) {
-        if hasCompleted {
-            task.cancel()
-        } else {
-            cleanupTasks.append(task)
-        }
-    }
-
-    func setContinuation(_ continuation: CheckedContinuation<Data, Error>) {
-        // If a result was already produced before the continuation was
-        // registered (e.g. the connection failed before the detached
-        // setup task ran), resume immediately with that result rather than
-        // storing the continuation. Otherwise the continuation would never
-        // be resumed and query() would hang forever.
-        if let pending = pendingResult {
-            self.pendingResult = nil
-            QueryState.resume(continuation, with: pending)
-        } else {
-            self.continuation = continuation
-        }
-    }
-
-    func markCommandSent() {
-        hasSentCommand = true
-    }
-
-    func hasCommandBeenSent() -> Bool {
-        hasSentCommand
-    }
-
-    func appendResponse(_ data: Data) {
-        responseBuffer.append(data)
-        lastReceiveTime = DispatchTime.now().uptimeNanoseconds
-    }
-
-    func getResponseBuffer() -> Data {
-        responseBuffer
-    }
-
-    func getLastReceiveTime() -> UInt64 {
-        lastReceiveTime
-    }
-
-    /// Number of complete ETX-terminated frames in the response buffer.
-    func etxFrameCount() -> Int {
-        responseBuffer.reduce(0) { $1 == 0x03 ? $0 + 1 : $0 }
-    }
-
-    func complete(with result: Result<Data, Error>) {
-        // Only the first completion wins; subsequent calls are ignored.
-        guard !hasCompleted else { return }
-        hasCompleted = true
-
-        // Cancel any lingering timeout timers so they stop sleeping for the
-        // full timeout after the result is in.
-        for task in cleanupTasks { task.cancel() }
-        cleanupTasks.removeAll()
-
-        if let continuation = continuation {
-            self.continuation = nil
-            QueryState.resume(continuation, with: result)
-        } else {
-            // The continuation hasn't been registered yet. Stash the result
-            // so setContinuation() can resume it as soon as it arrives.
-            pendingResult = result
-        }
-    }
-
-    func isCompleted() -> Bool {
-        hasCompleted
-    }
-
-    private static func resume(
-        _ continuation: CheckedContinuation<Data, Error>,
-        with result: Result<Data, Error>
-    ) {
-        switch result {
-        case .success(let data):
-            continuation.resume(returning: data)
-        case .failure(let error):
-            continuation.resume(throwing: error)
-        }
-    }
-}
-
 /// Sends ZPL commands to a Zebra printer over TCP.
 ///
 /// ZPLPrinter provides a simple async interface for sending ZPL data to printers
@@ -211,6 +112,12 @@ public struct ZPLPrinter: Sendable {
     /// TCP RST which causes printers to discard buffered data, and its
     /// .finalMessage mode has issues with subsequent connections from the same
     /// process. POSIX close() sends a clean TCP FIN that printers handle correctly.
+    ///
+    /// - Note: This still uses POSIX sockets rather than the Swift-native
+    ///   `NetworkConnection` API. Whether `NetworkConnection`'s close is a clean
+    ///   FIN (and not the RST that makes printers drop buffered data) is a
+    ///   real-device question that has to be validated against hardware before
+    ///   this can migrate. See TODO Phase 1b.
     ///
     /// - Parameter data: The data to send.
     /// - Throws: `PrinterError` if the connection or send fails.
@@ -442,17 +349,23 @@ public struct ZPLPrinter: Sendable {
     /// Converts a `TimeInterval` (seconds) to nanoseconds, clamped to
     /// [0, 1 day] like `send()`.
     ///
-    /// The ceiling matters twice over: `TimeInterval(UInt64.max) / 1e9 * 1e9`
-    /// rounds UP to exactly 2^64 and traps the `UInt64` conversion (so
-    /// `.infinity` or `.greatestFiniteMagnitude` timeouts crashed here), and a
-    /// huge finite value would overflow the later `uptimeNanoseconds + timeout`
-    /// deadline addition.
+    /// The ceiling matters: `TimeInterval(UInt64.max) / 1e9 * 1e9` rounds UP to
+    /// exactly 2^64 and traps the `UInt64` conversion, so `.infinity` or
+    /// `.greatestFiniteMagnitude` timeouts would crash here without the clamp.
     private func nanoseconds(from interval: TimeInterval) -> UInt64 {
         let clamped = min(max(0, interval), 86_400)
         return UInt64(clamped * 1_000_000_000)
     }
 
     // MARK: - Query (Bidirectional Communication)
+
+    /// Reference holder for the response `Data` produced inside the
+    /// `withNetworkConnection` handler (whose closure returns `Void`). The
+    /// handler fully completes (via `await`) before the value is read, so this
+    /// crosses no real concurrency boundary.
+    private final class ResponseBox: @unchecked Sendable {
+        var data = Data()
+    }
 
     /// Sends a command and waits for a response from the printer.
     ///
@@ -483,6 +396,13 @@ public struct ZPLPrinter: Sendable {
 
     /// Sends raw data and waits for a response from the printer.
     ///
+    /// Uses the Swift-native `NetworkConnection` API (macOS 26+): the connection
+    /// is established and torn down by `withNetworkConnection`, the command is
+    /// sent, and the response is read with structured-concurrency `receive`
+    /// calls. The response timeout is a task-group race started *after* the send
+    /// completes, so a slow connect is bounded by the TCP connect timeout rather
+    /// than mislabeled as a response timeout.
+    ///
     /// - Parameters:
     ///   - data: The data to send.
     ///   - responseTimeout: Time to wait for response after sending. Defaults to 5 seconds.
@@ -491,215 +411,164 @@ public struct ZPLPrinter: Sendable {
     public func query(_ data: Data, responseTimeout: TimeInterval = 5) async throws -> Data {
         let host = self.host
         let port = self.port
-        // Clamp timeouts to a non-negative range to avoid trapping when
-        // converting a negative or absurdly large TimeInterval to UInt64.
-        let connectionTimeoutNanos = nanoseconds(from: timeout)
         let responseTimeoutNanos = nanoseconds(from: responseTimeout)
+        // TCP connect timeout in whole seconds, clamped to [1, 1 day]. A 0 would
+        // be ambiguous (disable vs immediate); .infinity clamps to the ceiling.
+        let connectTimeoutSeconds = UInt32(min(max(1, timeout), 86_400))
 
-        // Reject port 0 explicitly. NWEndpoint.Port(rawValue:) accepts 0 (so the
-        // original force-unwrap would not have crashed on 0 specifically), but 0
-        // is not a connectable port and connecting to it just hangs until the
-        // timeout. Guarding also covers any future rawValue that returns nil.
+        // Reject port 0 explicitly: it is not a connectable port and connecting
+        // to it just hangs until the timeout.
         guard port != 0, let endpointPort = NWEndpoint.Port(rawValue: port) else {
             throw PrinterError.invalidConfiguration("Port \(port) is not valid")
         }
-
-        let connection = NWConnection(
-            host: NWEndpoint.Host(host),
-            port: endpointPort,
-            using: .tcp
-        )
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: endpointPort)
 
         // The ~HS (Host Status) query returns three separate
         // <STX>...<ETX><CR><LF> frames, which can arrive in separate TCP
-        // segments. Detect it so the receive handler waits for all three
-        // frames rather than completing on the first ETX. Other queries
-        // (~HI, ~HM, ...) return a single frame and complete on one ETX.
+        // segments. Detect it so the receive loop waits for all three frames
+        // rather than completing on the first ETX. Other queries (~HI, ~HM, ...)
+        // return a single frame and complete on one ETX.
         let isStatusQuery = (String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .uppercased() == "~HS")
 
-        let state = QueryState()
+        let box = ResponseBox()
 
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
-                Task {
-                    await state.setContinuation(continuation)
-                }
+        do {
+            try await withNetworkConnection(
+                to: endpoint,
+                using: { TCP().connectionTimeout(connectTimeoutSeconds) }
+            ) { connection in
+                try await connection.send(data)
 
-                // Connection timeout: guards only the connect phase. It is
-                // cancelled in the `.ready` handler below once the connection is
-                // established, so it can't spuriously fire (returning a bogus
-                // PrinterError.timeout) in the narrow window where the command is
-                // already in flight but markCommandSent() hasn't run yet.
-                let connectionTimeoutTask = Task {
-                    try? await Task.sleep(nanoseconds: connectionTimeoutNanos)
-                    if Task.isCancelled { return }
-                    if await !state.hasCommandBeenSent() {
-                        await state.complete(with: .failure(PrinterError.timeout(host: host, port: port)))
-                        connection.cancel()
+                // Response timeout starts here, after the send: race the receive
+                // loop against a sleep. Whichever finishes first wins; cancelAll
+                // tears down the loser (and `withNetworkConnection` closes the
+                // connection when this handler returns or throws).
+                box.data = try await withThrowingTaskGroup(of: Data.self) { group in
+                    group.addTask {
+                        try await Self.collectResponse(
+                            from: connection,
+                            isStatusQuery: isStatusQuery,
+                            host: host,
+                            port: port
+                        )
                     }
-                }
-                Task { await state.registerCleanup(connectionTimeoutTask) }
-
-                connection.stateUpdateHandler = { connectionState in
-                    switch connectionState {
-                    case .ready:
-                        // Connection established: the connect phase is over, so
-                        // cancel the connection-timeout timer. The response
-                        // timeout (started after the send completes) governs the
-                        // rest of the exchange.
-                        connectionTimeoutTask.cancel()
-                        // Connection established, send command
-                        connection.send(content: data, completion: .contentProcessed { error in
-                            Task {
-                                if let error = error {
-                                    await state.complete(with: .failure(PrinterError.sendFailed(underlying: error.localizedDescription)))
-                                    connection.cancel()
-                                    return
-                                }
-
-                                await state.markCommandSent()
-
-                                // Start response timeout after send completes.
-                                // Uses an idle check: if data has been received but
-                                // no new data arrives within 1s, return what we have.
-                                // This is the fallback for responses whose framing
-                                // the completion check doesn't recognize.
-                                let responseTimeoutTask = Task {
-                                    let idleThresholdNanos: UInt64 = 1_000_000_000  // 1 second
-                                    let checkIntervalNanos: UInt64 = 500_000_000     // check every 500ms
-                                    let deadline = DispatchTime.now().uptimeNanoseconds + responseTimeoutNanos
-
-                                    while DispatchTime.now().uptimeNanoseconds < deadline {
-                                        try? await Task.sleep(nanoseconds: checkIntervalNanos)
-                                        if await state.isCompleted() { return }
-
-                                        let buffer = await state.getResponseBuffer()
-                                        let lastRecv = await state.getLastReceiveTime()
-                                        if !buffer.isEmpty && lastRecv > 0 {
-                                            let elapsed = DispatchTime.now().uptimeNanoseconds - lastRecv
-                                            if elapsed >= idleThresholdNanos {
-                                                await state.complete(with: .success(buffer))
-                                                connection.cancel()
-                                                return
-                                            }
-                                        }
-                                    }
-
-                                    // Full timeout reached
-                                    if await !state.isCompleted() {
-                                        let buffer = await state.getResponseBuffer()
-                                        if buffer.isEmpty {
-                                            await state.complete(with: .failure(PrinterError.responseTimeout(host: host, port: port)))
-                                        } else {
-                                            await state.complete(with: .success(buffer))
-                                        }
-                                        connection.cancel()
-                                    }
-                                }
-                                await state.registerCleanup(responseTimeoutTask)
-
-                                // Start receiving response
-                                self.receiveResponse(connection: connection, state: state, isStatusQuery: isStatusQuery)
-                            }
-                        })
-
-                    case .failed(let error):
-                        Task {
-                            await state.complete(with: .failure(PrinterError.connectionFailed(
-                                host: host,
-                                port: port,
-                                underlying: error.localizedDescription
-                            )))
-                        }
-                        connection.cancel()
-
-                    case .cancelled:
-                        // The connection was cancelled (e.g. the awaiting task
-                        // was cancelled via onCancel). Complete with
-                        // CancellationError so query() resolves immediately
-                        // rather than hanging until the connection-timeout task
-                        // fires. complete() is idempotent, so if a real result
-                        // was already produced before cancellation this is a
-                        // no-op.
-                        Task {
-                            await state.complete(with: .failure(CancellationError()))
-                        }
-
-                    default:
-                        break
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: responseTimeoutNanos)
+                        throw PrinterError.responseTimeout(host: host, port: port)
                     }
+                    let first = try await group.next()!
+                    group.cancelAll()
+                    return first
                 }
-
-                connection.start(queue: .global())
             }
-        } onCancel: {
-            connection.cancel()
+        } catch let error as PrinterError {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            // Connect-phase failures (refused, unreachable, connect timeout)
+            // surface as NWError here.
+            throw PrinterError.connectionFailed(
+                host: host, port: port, underlying: String(describing: error))
         }
+
+        return box.data
     }
 
-    /// Recursively receives response data until complete or connection closes.
+    /// Reads response frames until the response is complete, the printer closes
+    /// the connection, or the receive stream goes idle for 1s after data has
+    /// started arriving (a fallback for responses whose framing the completion
+    /// check doesn't recognize).
     ///
     /// - Parameter isStatusQuery: When true (a `~HS` query), the response is
     ///   three `<STX>...<ETX><CR><LF>` frames and may span multiple TCP
     ///   segments, so completion waits until all three ETX frames have arrived.
     ///   Single-frame queries (~HI, ~HM, ...) complete on their single ETX.
-    private func receiveResponse(connection: NWConnection, state: QueryState, isStatusQuery: Bool) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { content, _, isComplete, error in
-            Task {
-                if await state.isCompleted() {
-                    return
+    private static func collectResponse(
+        from connection: NetworkConnection<TCP>,
+        isStatusQuery: Bool,
+        host: String,
+        port: UInt16
+    ) async throws -> Data {
+        let idleThresholdNanos: UInt64 = 1_000_000_000  // 1 second
+        var buffer = Data()
+
+        while true {
+            if buffer.isEmpty {
+                // No data yet: wait for the first bytes. The outer response
+                // timeout bounds this, so there's no per-receive idle timer.
+                let message = try await connection.receive(atLeast: 1, atMost: 4096)
+                buffer.append(message.content)
+                if responseIsComplete(buffer, isStatusQuery: isStatusQuery) {
+                    return buffer
                 }
-
-                if let error = error {
-                    await state.complete(with: .failure(PrinterError.receiveFailed(underlying: error.localizedDescription)))
-                    connection.cancel()
-                    return
-                }
-
-                if let data = content, !data.isEmpty {
-                    await state.appendResponse(data)
-
-                    // Check if the response is complete. Framed responses
-                    // (~HI/~HS/~HM) end each frame with ETX CR LF, so the
-                    // buffer ends 0x0A. A ^HH configuration dump ends with a
-                    // bare ETX after the final CR LF (verified against real
-                    // ZM400/GX420t fixtures: ... 0x0D 0x0A 0x03), so also
-                    // complete on a trailing ETX. A mid-dump segment ending in
-                    // CR LF has no ETX yet, so the frame-count check below
-                    // keeps us waiting.
-                    let buffer = await state.getResponseBuffer()
-                    if (buffer.last == 0x0A || buffer.last == 0x03) && buffer.count >= 3 {
-                        // ~HS returns three ETX-terminated frames; wait for all
-                        // three. Other queries return a single frame and
-                        // complete on their first (and only) ETX. The idle
-                        // timer remains a fallback if fewer frames arrive.
-                        let requiredFrames = isStatusQuery ? 3 : 1
-                        if await state.etxFrameCount() >= requiredFrames {
-                            await state.complete(with: .success(buffer))
-                            connection.cancel()
-                            return
-                        }
-                    }
-                }
-
-                if isComplete {
-                    // Connection closed by printer
-                    let buffer = await state.getResponseBuffer()
+                if message.metadata.endOfStream {
+                    // Printer closed the connection. An empty buffer means it
+                    // never replied (mirrors the old responseTimeout path);
+                    // otherwise return what arrived and let the parser judge it.
                     if buffer.isEmpty {
-                        await state.complete(with: .failure(PrinterError.responseTimeout(host: self.host, port: self.port)))
-                    } else {
-                        await state.complete(with: .success(buffer))
+                        throw PrinterError.responseTimeout(host: host, port: port)
                     }
-                    connection.cancel()
-                    return
+                    return buffer
+                }
+            } else {
+                // Have data: race the next receive against the idle threshold.
+                // If no new bytes arrive within 1s, return what we have. The
+                // idle timer only fires here (never leaves an in-flight receive
+                // pending across another receive on the same connection).
+                enum Step: Sendable {
+                    case chunk(Data, endOfStream: Bool)
+                    case idle
                 }
 
-                // Continue receiving
-                self.receiveResponse(connection: connection, state: state, isStatusQuery: isStatusQuery)
+                let step = try await withThrowingTaskGroup(of: Step.self) { group in
+                    group.addTask {
+                        let message = try await connection.receive(atLeast: 1, atMost: 4096)
+                        return .chunk(message.content, endOfStream: message.metadata.endOfStream)
+                    }
+                    group.addTask {
+                        try? await Task.sleep(nanoseconds: idleThresholdNanos)
+                        return .idle
+                    }
+                    let first = try await group.next()!
+                    group.cancelAll()
+                    return first
+                }
+
+                switch step {
+                case .idle:
+                    return buffer
+                case .chunk(let content, let endOfStream):
+                    buffer.append(content)
+                    if responseIsComplete(buffer, isStatusQuery: isStatusQuery) {
+                        return buffer
+                    }
+                    if endOfStream {
+                        return buffer
+                    }
+                }
             }
         }
+    }
+
+    /// Whether the accumulated buffer represents a complete response.
+    ///
+    /// Framed responses (~HI/~HS/~HM) end each frame with ETX CR LF, so the
+    /// buffer ends 0x0A. A `^HH` configuration dump ends with a bare ETX after
+    /// the final CR LF (verified against real ZM400/GX420t fixtures:
+    /// `... 0x0D 0x0A 0x03`), so a trailing ETX also completes. ~HS returns
+    /// three ETX-terminated frames and requires all three; other queries return
+    /// a single frame and complete on their first (and only) ETX.
+    private static func responseIsComplete(_ buffer: Data, isStatusQuery: Bool) -> Bool {
+        guard buffer.count >= 3, let last = buffer.last,
+              last == 0x0A || last == 0x03 else {
+            return false
+        }
+        let requiredFrames = isStatusQuery ? 3 : 1
+        let etxFrameCount = buffer.reduce(0) { $1 == 0x03 ? $0 + 1 : $0 }
+        return etxFrameCount >= requiredFrames
     }
 
     /// Convenience method to send ZPL to a discovered printer.
