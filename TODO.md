@@ -1,6 +1,45 @@
 # ZPLKit TODO
 
 ## Now
+### Require macOS/iOS/tvOS/watchOS 27 + Swift 6.4 (2026-07-15)
+
+Platform floor raised from 26 to 27 (Xcode 27 beta / Swift 6.4). What the bump
+actually unlocks is Swift 6.4 language ergonomics; the framework modernizations
+below were already available at the 26 floor and are bundled in here.
+
+- [x] **Phase 0: floor bump** - `Package.swift` swift-tools 6.3->6.4 and all four
+  platforms .v26->.v27; README badges. Builds clean, 243 tests pass on Swift 6.4.
+- [x] **Phase 2: Vision Swift API** - No-op. Verifier already uses the modern
+  `DetectBarcodesRequest`/`RecognizeTextRequest`/`ImageRequestHandler` API (that
+  API shipped iOS 18 / macOS 15, well below the floor). No legacy `VN*` left.
+- [ ] **Phase 1a: `query()` -> NetworkConnection** - Replace the NWConnection +
+  `QueryState`-actor machinery in `query()` with the Swift-native
+  `NetworkConnection` async API (`receive`/`send`, `TCP().connectionTimeout`) and
+  `async defer` (SE-0493) for cleanup. Verifiable now via NetworkRoundTripTests
+  (loopback FakePrinter). Must preserve: single-ETX completion, 3-frame `~HS`,
+  trailing-ETX `^HH` in <0.9s, idle fallback, graceful-close, responseTimeout,
+  prompt cancellation. Note: `NetworkConnection` is macOS 26, so this did not
+  require the 27 bump; `async defer` is the 6.4-specific win.
+- [x] **Phase 1b: `send()` -> NetworkConnection** - Done and hardware-verified.
+  The old POSIX-socket rationale was NWConnection's `cancel()` sending an RST
+  that made printers discard buffered data. Empirically settled on macOS 27: a
+  teardown probe (NetworkConnection -> slow-draining POSIX listener) showed a
+  clean FIN with payload intact across 5/5 trials, and on the real GX420t
+  (`192.168.7.5`, FW V56.17.17Z) the send()-based `applyConfiguration` /
+  `saveAndRestore` / `calibrateAfterSetup` round-trips all landed and read back
+  correctly (28/28 PrinterTests). Connect-error mapping preserved
+  (`ETIMEDOUT`/unreachable -> `.timeout`, `ECONNREFUSED` -> `.connectionFailed`).
+- [ ] **Phase 1c: `ZPLPrinterBrowser` -> NetworkBrowser - HOLD for hardware.**
+  Only exercised by live mDNS (GX420t doesn't even advertise the service type).
+  Rewrite + verify on the real LAN, not loopback.
+- [ ] **Phase 0 (CI): `ci.yml` -> macos-27** - Held until the self-hosted Mac
+  mini runner exists (mini updating to Golden Gate). Flipping to `macos-27` now
+  would red CI until a runner with Xcode 27 is available. Plan: keep hosted
+  `macos-26` build/unit job, add self-hosted job for Xcode-27 build + live
+  printer tests on the LAN.
+- [ ] **Phase 3: verify** - Once the mini is up: `swift test` under Xcode 27 on
+  the runner, plus live ZM400/GX420t passes for any networking rewrite.
+
 ### Code review pass 2026-07-10 (53 findings)
 
 #### High severity
