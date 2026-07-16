@@ -1,83 +1,72 @@
 import Foundation
-import Network
+#if canImport(Darwin)
+import Darwin
+#endif
 
-/// Discovers Zebra printers on the local network via Bonjour/mDNS.
+/// Discovers Zebra printers on the local network using Zebra's proprietary
+/// UDP discovery protocol (the same mechanism Zebra's Link-OS `NetworkDiscoverer`
+/// uses), **not** Bonjour/mDNS.
 ///
-/// ZPLPrinterBrowser scans for printers advertising the `_pdl-datastream._tcp`
-/// service, which is the standard service type for raw TCP printing.
+/// Zebra network print servers do not advertise themselves over Bonjour by
+/// default — browsing `_pdl-datastream._tcp` finds generic IPP/socket printers
+/// (e.g. an office inkjet) but not Zebra units. Instead, a client broadcasts a
+/// small request to UDP port 4201 and each Zebra printer replies (unicast) with
+/// its identity: system name, product number, firmware, and network config.
+///
+/// ## Protocol
+///
+/// - Request: broadcast `2E 2C 3A 01 00 00` (`,.:` + flags) to `255.255.255.255:4201`.
+/// - Reply: unicast packet beginning `3A 2C 2E` (`:,.`) containing the print
+///   server name, product number, firmware version, IP/netmask/gateway, and the
+///   configured system (friendly) name.
 ///
 /// ## Usage
 ///
 /// ```swift
 /// let browser = ZPLPrinterBrowser()
-///
-/// // Async iteration
 /// for await printer in browser.printers {
 ///     print("Found: \(printer.name) at \(printer.host)")
 /// }
-///
-/// // Or get current list
-/// let current = browser.discoveredPrinters
 /// ```
 ///
-/// ## Lifecycle
+/// The browser starts automatically when you access `printers` or call `start()`,
+/// re-broadcasting periodically so printers that power on later are found. Call
+/// `stop()` when done to release the socket and finish the streams.
 ///
-/// The browser starts automatically when you access `printers` or call `start()`.
-/// Call `stop()` when you're done to release resources.
+/// - Note: On iOS (and macOS apps under the App Sandbox), UDP broadcast triggers
+///   the local-network privacy permission — the app needs the entitlement and
+///   the user's approval, or no replies are received.
 public final class ZPLPrinterBrowser: @unchecked Sendable {
-    /// Service type for raw TCP printing (used by Zebra and other label printers).
-    public static let serviceType = "_pdl-datastream._tcp"
+    /// Zebra's proprietary discovery UDP port.
+    public static let discoveryPort: UInt16 = 4201
 
-    // NWBrowser is terminal once cancelled and cannot be restarted, so it is
-    // recreated on the next start() after a stop(). Guarded by `lock`.
-    private var browser: NWBrowser
-    private let queue = DispatchQueue(label: "ZPLPrinterBrowser", qos: .userInitiated)
+    /// Discovery request payload (`,.:` + version/flags).
+    private static let probe: [UInt8] = [0x2E, 0x2C, 0x3A, 0x01, 0x00, 0x00]
+    /// Reply packets begin with `:,.`.
+    private static let replyMagic: [UInt8] = [0x3A, 0x2C, 0x2E]
 
-    private var discovered: [String: DiscoveredPrinter] = [:]
-    private var continuations: [UUID: AsyncStream<DiscoveredPrinter>.Continuation] = [:]
     private let lock = NSLock()
-
-    private var isStarted = false
-
-    // Set when the current browser instance has been cancelled. A cancelled
-    // NWBrowser is dead and must be replaced before browsing can resume.
-    private var browserIsTerminal = false
+    private var discovered: [String: DiscoveredPrinter] = [:]   // keyed by host IP
+    private var continuations: [UUID: AsyncStream<DiscoveredPrinter>.Continuation] = [:]
+    private var isRunning = false
+    private var thread: Thread?
+    private var sock: Int32 = -1
 
     /// Creates a new printer browser.
-    public init() {
-        self.browser = Self.makeBrowser()
-        setupBrowser()
-    }
+    public init() {}
 
-    /// Builds a fresh NWBrowser configured for the printing service type.
-    private static func makeBrowser() -> NWBrowser {
-        let parameters = NWParameters()
-        parameters.includePeerToPeer = true
+    deinit { stop() }
 
-        return NWBrowser(
-            for: .bonjour(type: Self.serviceType, domain: nil),
-            using: parameters
-        )
-    }
-
-    deinit {
-        stop()
-    }
-
-    /// The currently discovered printers.
+    /// The printers discovered so far.
     public var discoveredPrinters: [DiscoveredPrinter] {
-        lock.lock()
-        defer { lock.unlock() }
+        lock.lock(); defer { lock.unlock() }
         return Array(discovered.values)
     }
 
-    /// An async sequence of discovered printers.
-    ///
-    /// Each printer is emitted as it's discovered. The sequence continues
-    /// until the browser is stopped.
+    /// An async sequence of discovered printers. Each printer is emitted as it's
+    /// first discovered; the sequence continues until the browser is stopped.
     public var printers: AsyncStream<DiscoveredPrinter> {
         start()
-
         return AsyncStream { continuation in
             let id = UUID()
 
@@ -85,13 +74,10 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
             // stop() may have run between start() above and this registration;
             // registering on a stopped browser would strand the iterator on a
             // stream that never yields and never finishes.
-            let active = isStarted
+            let active = isRunning
             if active {
                 continuations[id] = continuation
-                // Emit already-discovered printers
-                for printer in discovered.values {
-                    continuation.yield(printer)
-                }
+                for printer in discovered.values { continuation.yield(printer) }
             }
             lock.unlock()
 
@@ -107,223 +93,208 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
         }
     }
 
-    /// Starts browsing for printers.
-    ///
-    /// Browsing starts automatically when you access `printers`. Call this
-    /// method explicitly if you want to pre-warm the discovery.
+    /// Starts broadcasting for printers. Called automatically by `printers`.
     public func start() {
         lock.lock()
-        defer { lock.unlock() }
+        guard !isRunning else { lock.unlock(); return }
+        isRunning = true
+        lock.unlock()
 
-        guard !isStarted else { return }
-
-        // If the previous browser was cancelled (via stop()), it is terminal
-        // and cannot be restarted. Replace it with a fresh instance so the
-        // public API keeps working after stop().
-        if browserIsTerminal {
-            browser = Self.makeBrowser()
-            browserIsTerminal = false
-            setupBrowser()
-        }
-
-        isStarted = true
-        browser.start(queue: queue)
+        let t = Thread { [weak self] in self?.discoveryLoop() }
+        t.name = "ZPLPrinterBrowser.udp4201"
+        t.stackSize = 512 * 1024
+        lock.lock(); thread = t; lock.unlock()
+        t.start()
     }
 
-    /// Stops browsing and releases resources.
+    /// Stops broadcasting and releases resources. Safe to call multiple times.
     public func stop() {
         lock.lock()
-        guard isStarted else {
-            lock.unlock()
-            return
-        }
-        isStarted = false
-        browser.cancel()
-        // The cancelled browser is terminal; the next start() must recreate it.
-        browserIsTerminal = true
-
+        guard isRunning else { lock.unlock(); return }
+        isRunning = false
+        let s = sock
+        sock = -1
         let toFinish = Array(continuations.values)
         continuations.removeAll()
         discovered.removeAll()
         lock.unlock()
 
+        // Closing the socket unblocks the discovery thread's recvfrom.
+        if s >= 0 { Darwin.close(s) }
+
         // finish() synchronously invokes each stream's onTermination handler,
-        // which re-acquires `lock`; calling it while holding the non-reentrant
-        // lock deadlocks the calling thread.
-        for continuation in toFinish {
-            continuation.finish()
-        }
+        // which re-acquires `lock`; call it *outside* the lock to avoid a
+        // re-entrant deadlock.
+        for continuation in toFinish { continuation.finish() }
     }
 
-    private func setupBrowser() {
-        browser.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .failed:
-                // NOTE: NWBrowser failed. There is no error channel on the
-                // public AsyncStream API, so we stop browsing (which finishes
-                // the stream) rather than leaking to the host app's console.
-                self?.stop()
-            case .cancelled:
-                break
-            default:
-                break
+    // MARK: - Discovery thread
+
+    private func discoveryLoop() {
+        let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        guard fd >= 0 else { return }
+
+        var on: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, socklen_t(MemoryLayout<Int32>.size))
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size))
+        // Wake up periodically so the loop can re-broadcast and observe stop().
+        var tv = timeval(tv_sec: 1, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+        // Bind an ephemeral port; replies arrive unicast to this socket.
+        var bindAddr = sockaddr_in()
+        bindAddr.sin_family = sa_family_t(AF_INET)
+        bindAddr.sin_port = 0
+        bindAddr.sin_addr.s_addr = in_addr_t(0)  // INADDR_ANY
+        let bindResult = withUnsafePointer(to: &bindAddr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
-
-        browser.browseResultsChangedHandler = { [weak self] results, changes in
-            self?.handleResults(results, changes: changes)
-        }
-    }
-
-    private func handleResults(_ results: Set<NWBrowser.Result>, changes: Set<NWBrowser.Result.Change>) {
-        for change in changes {
-            switch change {
-            case .added(let result):
-                resolveEndpoint(result)
-
-            case .removed(let result):
-                removeResult(result)
-
-            case .changed(old: _, new: let result, flags: _):
-                // A `.changed` event is usually TXT-record (metadata) churn, not
-                // an address change. If this endpoint is already resolved, refresh
-                // its metadata in place rather than opening another TCP connection
-                // to the print port — repeatedly resolving can starve printers
-                // that accept only a few concurrent connections (and the
-                // resolution connection's RST-on-cancel disrupts them further).
-                if !refreshMetadataIfKnown(result) {
-                    resolveEndpoint(result)
-                }
-
-            case .identical:
-                break
-
-            @unknown default:
-                break
-            }
-        }
-    }
-
-    private func resolveEndpoint(_ result: NWBrowser.Result) {
-        // Extract name from the result
-        guard case .service(let name, _, _, _) = result.endpoint else { return }
-
-        let id = endpointID(result)
-
-        // Create a connection to resolve the endpoint
-        let connection = NWConnection(to: result.endpoint, using: .tcp)
-
-        connection.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .ready:
-                // Get the resolved endpoint
-                if let endpoint = connection.currentPath?.remoteEndpoint,
-                   case .hostPort(let host, let port) = endpoint {
-                    let hostString: String
-                    switch host {
-                    case .ipv4(let addr):
-                        hostString = self?.ipv4String(addr) ?? "unknown"
-                    case .ipv6(let addr):
-                        hostString = self?.ipv6String(addr) ?? "unknown"
-                    case .name(let hostname, _):
-                        hostString = hostname
-                    @unknown default:
-                        hostString = "unknown"
-                    }
-
-                    let printer = DiscoveredPrinter(
-                        id: id,
-                        name: name,
-                        host: hostString,
-                        port: port.rawValue,
-                        metadata: self?.extractMetadata(result) ?? [:]
-                    )
-
-                    self?.addPrinter(printer)
-                }
-                connection.cancel()
-
-            case .failed, .cancelled:
-                connection.cancel()
-
-            default:
-                break
-            }
-        }
-
-        connection.start(queue: queue)
-
-        // Cancel after timeout to avoid hanging
-        queue.asyncAfter(deadline: .now() + 5) {
-            connection.cancel()
-        }
-    }
-
-    /// Updates the TXT metadata of an already-resolved printer without opening a
-    /// new connection. Returns false if the endpoint hasn't been resolved yet
-    /// (in which case the caller should resolve it).
-    private func refreshMetadataIfKnown(_ result: NWBrowser.Result) -> Bool {
-        let id = endpointID(result)
-        let metadata = extractMetadata(result)
+        guard bindResult == 0 else { Darwin.close(fd); return }
 
         lock.lock()
-        defer { lock.unlock() }
-        guard let existing = discovered[id] else { return false }
-        discovered[id] = DiscoveredPrinter(
-            id: existing.id,
-            name: existing.name,
-            host: existing.host,
-            port: existing.port,
-            metadata: metadata
-        )
-        return true
+        guard isRunning else { lock.unlock(); Darwin.close(fd); return }
+        sock = fd
+        lock.unlock()
+
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        var lastBroadcast = Date.distantPast
+
+        while true {
+            lock.lock(); let running = isRunning; lock.unlock()
+            if !running { break }
+
+            if Date().timeIntervalSince(lastBroadcast) > 3 {
+                broadcastProbe(fd)
+                lastBroadcast = Date()
+            }
+
+            var from = sockaddr_in()
+            var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+            let n = withUnsafeMutablePointer(to: &from) { fromPtr in
+                fromPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                    buffer.withUnsafeMutableBytes { raw in
+                        recvfrom(fd, raw.baseAddress, raw.count, 0, sa, &fromLen)
+                    }
+                }
+            }
+
+            if n > 0 {
+                let data = Array(buffer[0..<n])
+                let host = Self.ipString(from.sin_addr)
+                if let printer = Self.parseReply(data, host: host) {
+                    addPrinter(printer)
+                }
+            } else if n < 0 {
+                // EAGAIN/EWOULDBLOCK: the recv timeout expired — loop and
+                // re-broadcast. EBADF: stop() closed the socket — exit.
+                if errno == EBADF { break }
+            }
+        }
+
+        lock.lock(); let s = sock; sock = -1; lock.unlock()
+        if s >= 0 { Darwin.close(s) }
+    }
+
+    private func broadcastProbe(_ fd: Int32) {
+        var dest = sockaddr_in()
+        dest.sin_family = sa_family_t(AF_INET)
+        dest.sin_port = UInt16(Self.discoveryPort).bigEndian
+        dest.sin_addr.s_addr = in_addr_t(0xFFFF_FFFF)  // 255.255.255.255
+        Self.probe.withUnsafeBytes { raw in
+            _ = withUnsafePointer(to: &dest) { ptr in
+                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                    sendto(fd, raw.baseAddress, raw.count, 0, sa, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
     }
 
     private func addPrinter(_ printer: DiscoveredPrinter) {
         lock.lock()
-        let isNew = discovered[printer.id] == nil
-        discovered[printer.id] = printer
+        let isNew = discovered[printer.host] == nil
+        discovered[printer.host] = printer
+        let toYield = isNew ? Array(continuations.values) : []
+        lock.unlock()
+        for continuation in toYield { continuation.yield(printer) }
+    }
 
-        if isNew {
-            for continuation in continuations.values {
-                continuation.yield(printer)
+    private static func ipString(_ addr: in_addr) -> String {
+        var a = addr
+        var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+        guard let result = inet_ntop(AF_INET, &a, &buf, socklen_t(INET_ADDRSTRLEN)) else {
+            return ""
+        }
+        return String(cString: result)  // pointer overload (the [CChar] overload is deprecated)
+    }
+
+    // MARK: - Reply parsing
+
+    /// Parses a Zebra UDP/4201 discovery reply into a `DiscoveredPrinter`.
+    /// Returns `nil` if the packet isn't a recognizable Zebra reply.
+    ///
+    /// Layout (observed on ZebraNet wired print servers, FW V53/V56):
+    /// `3A 2C 2E` magic; product number at offset 4; print-server name at 12;
+    /// firmware `V##.##.##<letter>` near offset 39; IP at 72; and the configured
+    /// system (friendly) name, null-terminated, at offset 84.
+    static func parseReply(_ data: [UInt8], host: String) -> DiscoveredPrinter? {
+        guard data.count >= 88, Array(data[0..<3]) == replyMagic else { return nil }
+
+        func cString(at offset: Int, max: Int) -> String {
+            guard offset < data.count else { return "" }
+            let end = min(offset + max, data.count)
+            var bytes: [UInt8] = []
+            for i in offset..<end {
+                let b = data[i]
+                if b == 0 { break }
+                bytes.append(b)
             }
+            return String(decoding: bytes, as: UTF8.self)
         }
-        lock.unlock()
-    }
 
-    private func removeResult(_ result: NWBrowser.Result) {
-        let id = endpointID(result)
+        let product = cString(at: 4, max: 16)          // e.g. "79071"
+        let serverName = cString(at: 12, max: 24)       // e.g. "ZebraNet Wired PS"
+        let systemName = cString(at: 84, max: 48)       // e.g. "ZPLKit-Test"
+        let firmware = extractFirmware(data)
 
-        lock.lock()
-        discovered.removeValue(forKey: id)
-        lock.unlock()
-    }
-
-    private func endpointID(_ result: NWBrowser.Result) -> String {
-        if case .service(let name, let type, let domain, _) = result.endpoint {
-            return "\(name).\(type).\(domain)"
-        }
-        return UUID().uuidString
-    }
-
-    private func extractMetadata(_ result: NWBrowser.Result) -> [String: String] {
-        guard case .bonjour(let record) = result.metadata else {
-            return [:]
-        }
+        let name = !systemName.isEmpty ? systemName
+            : (!serverName.isEmpty ? serverName : "Zebra printer")
 
         var metadata: [String: String] = [:]
-        for (key, value) in record.dictionary {
-            metadata[key] = value
+        if !firmware.isEmpty { metadata["firmware"] = firmware }
+        if !product.isEmpty { metadata["product"] = product }
+        if !serverName.isEmpty { metadata["server"] = serverName }
+
+        // Key by host so repeated broadcasts update (rather than duplicate) the
+        // same printer. Port 9100 is the raw-printing port send()/query() use.
+        return DiscoveredPrinter(id: host, name: name, host: host,
+                                 port: ZPLPrinter.defaultPort, metadata: metadata)
+    }
+
+    /// Extracts a Zebra firmware token (`V##.##.##<letter>`) from the header
+    /// region of a reply. Bounded to the first 80 bytes to avoid the binary
+    /// tail of the packet.
+    private static func extractFirmware(_ data: [UInt8]) -> String {
+        let limit = min(80, data.count)
+        let chars = (0..<limit).map { i -> Character in
+            let b = data[i]
+            return (32 <= b && b < 127) ? Character(UnicodeScalar(b)) : " "
         }
-        return metadata
-    }
-
-    private func ipv4String(_ addr: IPv4Address) -> String {
-        addr.debugDescription
-    }
-
-    private func ipv6String(_ addr: IPv6Address) -> String {
-        addr.debugDescription
+        var i = 0
+        while i < chars.count {
+            if chars[i] == "V", i + 1 < chars.count, chars[i + 1].isNumber {
+                var j = i + 1
+                while j < chars.count, chars[j].isNumber || chars[j] == "." { j += 1 }
+                var token = String(chars[i..<j])
+                // Single trailing version letter (e.g. the "Z" in "V56.17.17Z").
+                if j < chars.count, chars[j].isLetter, chars[j].isUppercase {
+                    token.append(chars[j])
+                }
+                if token.filter({ $0 == "." }).count >= 2 { return token }
+            }
+            i += 1
+        }
+        return ""
     }
 }

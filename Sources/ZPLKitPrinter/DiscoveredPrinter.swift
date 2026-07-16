@@ -1,12 +1,11 @@
 import Foundation
-import Network
 
-/// A printer discovered via Bonjour/mDNS on the local network.
+/// A printer discovered on the local network (via `ZPLPrinterBrowser`).
 public struct DiscoveredPrinter: Sendable, Hashable, Identifiable, CustomStringConvertible {
     /// Unique identifier for this printer instance.
     public let id: String
 
-    /// The display name of the printer (from Bonjour).
+    /// The display name of the printer (its configured system name).
     public let name: String
 
     /// The hostname or IP address of the printer.
@@ -15,7 +14,7 @@ public struct DiscoveredPrinter: Sendable, Hashable, Identifiable, CustomStringC
     /// The port number (typically 9100 for raw printing).
     public let port: UInt16
 
-    /// Additional metadata from the Bonjour TXT record, if available.
+    /// Additional discovery metadata (e.g. `firmware`, `product`, `server`).
     public let metadata: [String: String]
 
     public init(

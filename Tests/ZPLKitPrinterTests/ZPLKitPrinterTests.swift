@@ -113,9 +113,43 @@ struct ZPLKitPrinterTests {
         #expect(configError.errorDescription?.contains("Port must be positive") == true)
     }
 
-    @Test("ZPLPrinterBrowser service type is correct")
-    func browserServiceType() {
-        #expect(ZPLPrinterBrowser.serviceType == "_pdl-datastream._tcp")
+    @Test("ZPLPrinterBrowser uses Zebra's UDP discovery port")
+    func browserDiscoveryPort() {
+        #expect(ZPLPrinterBrowser.discoveryPort == 4201)
+    }
+
+    @Test("ZPLPrinterBrowser parses a real Zebra 4201 discovery reply")
+    func browserParsesReply() throws {
+        // Captured from a real ZebraNet wired print server (GX420t, FW V56.17.17Z,
+        // system name "ZPLKit-Test"), first 96 bytes.
+        let hex =
+            "3a2c2e0337393037310000005a656272" +
+            "614e6574205769726564205053000000" +
+            "333335334100005635362e31372e3137" +
+            "5a5a4252006100074d40ab2434323338" +
+            "3131360000000100c0a80705fffffc00" +
+            "c0a804015a504c4b69742d5465737400"
+        let data: [UInt8] = stride(from: 0, to: hex.count, by: 2).map {
+            let s = hex.index(hex.startIndex, offsetBy: $0)
+            return UInt8(hex[s..<hex.index(s, offsetBy: 2)], radix: 16)!
+        }
+
+        let printer = try #require(ZPLPrinterBrowser.parseReply(data, host: "192.168.7.5"))
+        #expect(printer.host == "192.168.7.5")
+        #expect(printer.port == 9100)
+        #expect(printer.name == "ZPLKit-Test")             // system name at offset 84
+        #expect(printer.metadata["product"] == "79071")
+        #expect(printer.metadata["server"] == "ZebraNet Wired PS")
+        #expect(printer.metadata["firmware"] == "V56.17.17Z")
+        #expect(printer.id == "192.168.7.5")               // keyed by host
+    }
+
+    @Test("ZPLPrinterBrowser rejects non-Zebra packets")
+    func browserRejectsGarbage() {
+        // Wrong magic / too short.
+        #expect(ZPLPrinterBrowser.parseReply([0x00, 0x01, 0x02], host: "1.2.3.4") == nil)
+        // Right length, wrong magic (e.g. an unrelated UDP reply).
+        #expect(ZPLPrinterBrowser.parseReply([UInt8](repeating: 0x41, count: 128), host: "1.2.3.4") == nil)
     }
 
     // MARK: - Network Error Tests
