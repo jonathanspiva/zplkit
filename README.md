@@ -214,11 +214,15 @@ if status.isReadyToPrint {
 
 ## Known Issues
 
-### NWConnection and Zebra printers
+### `send()` uses POSIX sockets, not Network.framework (deliberate)
 
-`ZPLPrinter.send()` uses POSIX sockets instead of Apple's `NWConnection` for TCP communication. `NWConnection.cancel()` sends a TCP RST (reset) which causes Zebra printers to discard buffered data, dropping small payloads like single labels. The alternative, `.finalMessage` mode, intermittently fails with `ENETDOWN` errors and corrupts subsequent connections from the same process.
+`ZPLPrinter.send()` uses POSIX sockets (`socket`/`connect`/`write`/`close`) instead of Apple's Network.framework (`NWConnection` or the newer Swift-native `NetworkConnection`). This is **intentional and load-bearing** — do not "modernize" it without the verification below.
 
-POSIX `close()` sends a proper TCP FIN (graceful shutdown) that printers handle correctly. This works reliably across all payload sizes and on all Apple platforms. `query()` still uses `NWConnection` for bidirectional communication, where the connection stays open for the response and RST is not an issue.
+**Why:** Network.framework's connection teardown discards the print job on real Zebra printers. The connection closes before the printer commits the buffered data (the classic RST-on-close behavior), so labels silently fail to print. POSIX `close()` sends a clean TCP FIN the printer commits reliably, across all payload sizes and Apple platforms.
+
+**The trap (recorded so it isn't repeated):** on 2026-07-15 a `NetworkConnection`-based `send()` was written and merged (PR #4). It **passed a loopback flush test and the automated live-printer suite**, then intermittently dropped jobs on a real GX420t and ZM400. It was reverted. The failure is not reproducible against a loopback socket — only against physical hardware. The decisive test: send **identical bytes** to port 9100 two ways — via `printf ... | nc <printer> 9100` (prints reliably) and via the candidate `send()` (dropped the job). **If you ever revisit this, verify on a physical printer with that A/B test, not a socket or a unit test.**
+
+`query()` does use the Swift-native `NetworkConnection` API — there the connection stays open to receive the printer's response, so the teardown race doesn't apply, and it is verified reliable.
 
 ## Known Limitations
 
@@ -228,8 +232,8 @@ POSIX `close()` sends a proper TCP FIN (graceful shutdown) that printers handle 
 
 ## Requirements
 
-- Swift 6.3+
-- iOS 26+ / macOS 26+ / tvOS 26+ / watchOS 26+
+- Swift 6.4+
+- iOS 27+ / macOS 27+ / tvOS 27+ / watchOS 27+
 
 The narrow, latest-OS-only floor is intentional. ZPLKit targets the most recent OS releases so it can use the newest Swift concurrency and Vision APIs without back-compatibility shims. If you need wider platform support, pin to a fork rather than expecting older-OS compatibility.
 
