@@ -223,8 +223,10 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
     private static func ipString(_ addr: in_addr) -> String {
         var a = addr
         var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
-        inet_ntop(AF_INET, &a, &buf, socklen_t(INET_ADDRSTRLEN))
-        return String(cString: buf)
+        guard let result = inet_ntop(AF_INET, &a, &buf, socklen_t(INET_ADDRSTRLEN)) else {
+            return ""
+        }
+        return String(cString: result)  // pointer overload (the [CChar] overload is deprecated)
     }
 
     // MARK: - Reply parsing
