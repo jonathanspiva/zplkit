@@ -5,7 +5,7 @@ import ZPLKitPrinter
 /// Integration test harness for ZPLKitPrinter against real Zebra printers.
 ///
 /// Tests query commands (~HS, ~HI, ~HM, ^HH, ^HW), network behavior
-/// (concurrent queries, rapid bursts, timeouts), Bonjour discovery,
+/// (concurrent queries, rapid bursts, timeouts), network discovery,
 /// and error paths. Validates that ZPLKit's parsing code produces
 /// correct results from real printer responses.
 ///
@@ -463,16 +463,16 @@ func testTimeoutDifferentiation(printer: ZPLPrinter, host: String) async -> Test
     }
 }
 
-// MARK: - Bonjour Discovery Tests
+// MARK: - Network Discovery Tests
 
-func testBonjourDiscovery(hosts: [String]) async -> [TestResult] {
+func testNetworkDiscovery(hosts: [String]) async -> [TestResult] {
     var results: [TestResult] = []
 
     let start = Date()
     let browser = ZPLPrinterBrowser()
 
-    // Wait for discovery (printers advertise _pdl-datastream._tcp)
-    print("  Scanning for printers via Bonjour (5s)...")
+    // Zebra printers answer a UDP broadcast on port 4201 (they don't use Bonjour).
+    print("  Scanning for Zebra printers via UDP 4201 (5s)...")
     try? await Task.sleep(nanoseconds: 5_000_000_000)
 
     let discovered = browser.discoveredPrinters
@@ -482,9 +482,9 @@ func testBonjourDiscovery(hosts: [String]) async -> [TestResult] {
 
     if discovered.isEmpty {
         results.append(TestResult(
-            name: "bonjourDiscovery", printer: "network",
-            passed: true, // Not a failure; printers may not advertise mDNS
-            message: "No printers found via Bonjour (printers may not advertise _pdl-datastream._tcp)",
+            name: "networkDiscovery", printer: "network",
+            passed: true, // Not a failure; there may be no Zebra printers on this LAN
+            message: "No Zebra printers found on UDP 4201",
             duration: discoveryTime
         ))
         return results
@@ -492,7 +492,7 @@ func testBonjourDiscovery(hosts: [String]) async -> [TestResult] {
 
     // Test: discovered printers exist
     results.append(TestResult(
-        name: "bonjourDiscovery", printer: "network",
+        name: "networkDiscovery", printer: "network",
         passed: true,
         message: "Found \(discovered.count) printer(s): \(discovered.map(\.name).joined(separator: ", "))",
         duration: discoveryTime
@@ -500,7 +500,7 @@ func testBonjourDiscovery(hosts: [String]) async -> [TestResult] {
 
     // Test: discovered printer fields are valid
     for dp in discovered {
-        let fieldResult = await runTest(name: "bonjourFields[\(dp.name)]", printer: dp.host) {
+        let fieldResult = await runTest(name: "discoveryFields[\(dp.name)]", printer: dp.host) {
             try assert(!dp.name.isEmpty, "Discovered printer name should not be empty")
             try assert(!dp.host.isEmpty, "Discovered printer host should not be empty")
             try assert(dp.port > 0, "Discovered printer port should be positive, got \(dp.port)")
@@ -511,7 +511,7 @@ func testBonjourDiscovery(hosts: [String]) async -> [TestResult] {
 
     // Test: connect to a discovered printer and query it
     if let first = discovered.first {
-        let connectResult = await runTest(name: "bonjourConnect[\(first.name)]", printer: first.host) {
+        let connectResult = await runTest(name: "discoveryConnect[\(first.name)]", printer: first.host) {
             let printer = ZPLPrinter(first)
             let info = try await printer.queryInfo()
             try assert(!info.model.isEmpty, "Should get valid info from discovered printer")
@@ -642,7 +642,7 @@ func parseArgs() -> (hosts: [String], timeout: TimeInterval) {
             Usage: swift run PrinterTests [OPTIONS] <IP> [<IP> ...]
 
             Runs integration tests against real Zebra printers.
-            Tests query commands, network behavior, Bonjour discovery,
+            Tests query commands, network behavior, network discovery,
             and error paths.
 
             Options:
@@ -773,13 +773,13 @@ for host in config.hosts {
     print()
 }
 
-// Bonjour discovery tests (run once across all printers)
-print("[Bonjour Discovery]")
-let bonjourResults = await testBonjourDiscovery(hosts: config.hosts)
-for result in bonjourResults {
+// Network discovery tests (run once across all printers)
+print("[Network Discovery]")
+let discoveryResults = await testNetworkDiscovery(hosts: config.hosts)
+for result in discoveryResults {
     printResult(result)
 }
-allResults.append(contentsOf: bonjourResults)
+allResults.append(contentsOf: discoveryResults)
 print()
 
 // Summary

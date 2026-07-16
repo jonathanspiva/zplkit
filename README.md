@@ -34,7 +34,7 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 ### ZPLKitPrinter (Network Printing)
 
 - **Send ZPL to printers** over TCP (port 9100)
-- **Bonjour discovery** to find printers on the local network
+- **Network discovery** of Zebra printers via Zebra's UDP protocol (port 4201) — not Bonjour, which Zebra units don't advertise
 - **Printer configuration** with type-safe enums, presets, and zero-touch setup
 - **Query printer status**, info, memory, and full configuration
 - **Diagnostics** combining status, info, memory, and settings in one call

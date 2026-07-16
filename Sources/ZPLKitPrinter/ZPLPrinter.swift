@@ -80,7 +80,7 @@ public struct ZPLPrinter: Sendable {
     /// Creates a printer from a discovered printer.
     ///
     /// - Parameters:
-    ///   - printer: A printer discovered via Bonjour.
+    ///   - printer: A printer discovered on the network.
     ///   - timeout: Connection timeout in seconds. Defaults to 10.
     public init(
         _ printer: DiscoveredPrinter,
