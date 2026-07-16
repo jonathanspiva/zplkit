@@ -1,6 +1,21 @@
 # ZPLKit TODO
 
 ## Now
+### Live-hardware findings (2026-07-15)
+
+- [ ] **Test ZPLKit `calibrate()` against a manual media calibration.** On the
+  GX420t, `ZPLPrinter.setup()` / `calibrate()` (which sends `~JC`) did NOT fully
+  re-register the media — labels printed but sat misaligned, borders crossing
+  the label gaps. The printer's **manual 2-blink media calibration** (hold FEED,
+  release on the 2nd green flash) fixed alignment. Verify what `calibrate()` and
+  `calibrateFull()` actually emit and whether they should trigger the fuller
+  length/gap re-measure rather than just `~JC`.
+- [x] **`send()` reverted to POSIX sockets** (PR #5) — a `NetworkConnection`
+  `send()` (PR #4) passed tests but intermittently dropped jobs on real Zebra
+  printers. GX420t + ZM400 now print reliably via `send()`; verified on hardware.
+- [x] **`GraphicPrintTest` hardened** (PR #6) — traceable ID/timestamp footers,
+  sensor-safe margins, `--fiducial` and `--calibrate` modes.
+
 ### Require macOS/iOS/tvOS/watchOS 27 + Swift 6.4 (2026-07-15)
 
 Platform floor raised from 26 to 27 (Xcode 27 beta / Swift 6.4). What the bump
