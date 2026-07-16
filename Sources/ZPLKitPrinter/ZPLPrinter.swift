@@ -1,6 +1,29 @@
 import Foundation
 import Network
 
+/// Thread-safe replacement for `strerror`, which returns a pointer to a shared
+/// static buffer and is therefore not reentrant. `send()` runs its blocking
+/// socket work on `DispatchQueue.global()`, so concurrent calls can race on
+/// that buffer. `strerror_r` writes into a caller-provided buffer instead.
+///
+/// On Darwin (and other XSI-compliant platforms) `strerror_r` returns an
+/// `Int32` (0 on success); the GNU variant that returns a `char *` is not used
+/// here.
+private func posixErrorString(_ code: Int32) -> String {
+    var buffer = [UInt8](repeating: 0, count: 256)
+    let result = buffer.withUnsafeMutableBytes { raw -> Int32 in
+        guard let base = raw.baseAddress else { return -1 }
+        return strerror_r(code, base.assumingMemoryBound(to: CChar.self), raw.count)
+    }
+    // XSI-compliant strerror_r returns 0 on success.
+    if result == 0 {
+        // Decode up to the NUL terminator written by strerror_r.
+        let bytes = buffer.prefix { $0 != 0 }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+    return "Unknown error \(code)"
+}
+
 /// Sends ZPL commands to a Zebra printer over TCP.
 ///
 /// ZPLPrinter provides a simple async interface for sending ZPL data to printers
@@ -85,68 +108,244 @@ public struct ZPLPrinter: Sendable {
 
     /// Sends raw data to the printer.
     ///
-    /// Uses the Swift-native `NetworkConnection` API (macOS 26+):
-    /// `withNetworkConnection` establishes the connection, the data is written
-    /// with a single async `send`, and the connection is torn down when the
-    /// handler returns. That teardown is a clean TCP FIN (empirically verified
-    /// against a slow-draining listener on macOS 27: payload preserved, no RST),
-    /// so printers receive buffered data intact — the reason the old code used
-    /// POSIX `close()` rather than `NWConnection.cancel()`, which sent an RST
-    /// that made printers discard buffered data.
+    /// Uses POSIX sockets (`socket`/`connect`/`write`/`close`) rather than the
+    /// Swift-native `NetworkConnection` API. This is **deliberate and
+    /// load-bearing** — see the "Known issue: `send()` uses POSIX sockets" note
+    /// in the README. A `NetworkConnection`-based `send()` intermittently fails
+    /// to print on real Zebra hardware: the connection tears down before the
+    /// printer commits the buffered job, so the label is silently discarded
+    /// (the RST-on-close problem). A blocking `write()` + `close()` sends a
+    /// clean TCP FIN the printer commits reliably.
+    ///
+    /// - Warning: A `NetworkConnection` rewrite (PR #4) passed a loopback flush
+    ///   test yet dropped jobs against a real GX420t/ZM400 on 2026-07-15. Do NOT
+    ///   migrate this off POSIX without verifying on a **physical** printer
+    ///   (identical bytes via `nc` print; via `NetworkConnection` they don't).
     ///
     /// - Parameter data: The data to send.
     /// - Throws: `PrinterError` if the connection or send fails.
     public func send(_ data: Data) async throws {
-        // An empty send is a no-op success and opens no connection.
+        // An empty send is a no-op success. Returning early also avoids a
+        // trap on `baseAddress` being nil for empty Data in withUnsafeBytes.
         guard !data.isEmpty else { return }
 
-        // Honor cancellation before opening a connection.
+        // Honor cancellation before committing to blocking C socket work.
         try Task.checkCancellation()
 
         let host = self.host
         let port = self.port
-        // TCP connect timeout in whole seconds, clamped to [1, 1 day]; the same
-        // deadline bounds the send drain so a paused printer can't hang forever.
-        let connectTimeoutSeconds = UInt32(min(max(1, timeout), 86_400))
-        let sendTimeoutNanos = nanoseconds(from: timeout)
+        let timeout = self.timeout
 
         // Validate the port up front for parity with query(). A zero port
         // cannot be connected to and would otherwise fail opaquely.
-        guard port != 0, let endpointPort = NWEndpoint.Port(rawValue: port) else {
+        guard port != 0 else {
             throw PrinterError.invalidConfiguration("Port \(port) is not valid")
         }
-        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: endpointPort)
 
-        do {
-            try await withNetworkConnection(
-                to: endpoint,
-                using: { TCP().connectionTimeout(connectTimeoutSeconds) }
-            ) { connection in
-                // Bound the write: if the printer stops draining (paused, buffer
-                // full), the send would otherwise hang. Mirrors the old
-                // SO_SNDTIMEO -> timeout behavior.
-                try await withThrowingTaskGroup(of: Void.self) { group in
-                    group.addTask {
-                        try await connection.send(data)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue.global().async {
+                // Set send timeout, preserving fractional seconds. Clamp to a
+                // 1-day ceiling so an extreme/.infinity timeout can't trap the
+                // Int/Int32 conversions below.
+                let clampedTimeout = min(max(0, timeout), 86_400)
+                let timeoutSeconds = Int(clampedTimeout)
+                let timeoutMicros = Int32((clampedTimeout - Double(timeoutSeconds)) * 1_000_000)
+
+                // Resolve the host with getaddrinfo, supporting both IPv4 and
+                // IPv6 (and DNS hostnames). The original code only accepted IPv4
+                // dotted-quad literals via inet_pton, but the API promises
+                // "hostname or IP address" and DiscoveredPrinter.host can be a
+                // hostname or an IPv6 string.
+                var hints = addrinfo()
+                hints.ai_family = AF_UNSPEC
+                hints.ai_socktype = SOCK_STREAM
+                hints.ai_protocol = IPPROTO_TCP
+
+                var addrList: UnsafeMutablePointer<addrinfo>?
+                let gaiResult = host.withCString { hostPtr in
+                    String(port).withCString { portPtr in
+                        getaddrinfo(hostPtr, portPtr, &hints, &addrList)
                     }
-                    group.addTask {
-                        try await Task.sleep(nanoseconds: sendTimeoutNanos)
-                        throw PrinterError.timeout(host: host, port: port)
+                }
+
+                guard gaiResult == 0, let resolved = addrList else {
+                    if let addrList { freeaddrinfo(addrList) }
+                    let detail = String(cString: gai_strerror(gaiResult))
+                    continuation.resume(throwing: PrinterError.connectionFailed(
+                        host: host, port: port, underlying: "Could not resolve host: \(detail)"))
+                    return
+                }
+                // freeaddrinfo must run on every exit path below.
+                defer { freeaddrinfo(resolved) }
+
+                // Try each resolved address until one connects.
+                var lastError: PrinterError?
+                var connectedSock: Int32 = -1
+
+                var candidate: UnsafeMutablePointer<addrinfo>? = resolved
+                connectLoop: while let info = candidate {
+                    defer { candidate = info.pointee.ai_next }
+
+                    let sock = socket(info.pointee.ai_family,
+                                      info.pointee.ai_socktype,
+                                      info.pointee.ai_protocol)
+                    guard sock >= 0 else {
+                        lastError = PrinterError.connectionFailed(
+                            host: host, port: port, underlying: "Failed to create socket")
+                        continue
                     }
-                    // Wait for the send to finish (or the timeout to fire), then
-                    // cancel the loser.
-                    try await group.next()
-                    group.cancelAll()
+
+                    // Prevent SIGPIPE (which terminates the host process by
+                    // default) if the printer resets the connection mid-write.
+                    // Darwin has no MSG_NOSIGNAL, so SO_NOSIGPIPE is the right
+                    // mechanism.
+                    var on: Int32 = 1
+                    setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+
+                    var tv = timeval(tv_sec: timeoutSeconds, tv_usec: timeoutMicros)
+                    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+                    // Non-blocking connect with poll() for connect timeout.
+                    let getFlags = fcntl(sock, F_GETFL, 0)
+                    guard getFlags >= 0 else {
+                        let savedErrno = errno
+                        let err = posixErrorString(savedErrno)
+                        Darwin.close(sock)
+                        lastError = PrinterError.connectionFailed(
+                            host: host, port: port, underlying: "fcntl(F_GETFL) failed: \(err)")
+                        continue
+                    }
+                    _ = fcntl(sock, F_SETFL, getFlags | O_NONBLOCK)
+
+                    let connectResult = Darwin.connect(sock, info.pointee.ai_addr, info.pointee.ai_addrlen)
+                    let connectErrno = errno
+
+                    if connectResult != 0 && connectErrno != EINPROGRESS {
+                        let err = posixErrorString(connectErrno)
+                        Darwin.close(sock)
+                        lastError = PrinterError.connectionFailed(
+                            host: host, port: port, underlying: err)
+                        continue
+                    }
+
+                    if connectResult != 0 {
+                        // poll() expects milliseconds; preserve fractional timeout.
+                        let pollTimeoutMillis = Int32((clampedTimeout * 1000).rounded())
+                        var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
+                        // Re-poll on EINTR with the remaining timeout: a signal
+                        // (SIGCHLD, debugger attach) mid-connect is not a
+                        // printer timeout.
+                        let pollStartNanos = DispatchTime.now().uptimeNanoseconds
+                        var pollResult: Int32
+                        var pollErrno: Int32 = 0
+                        while true {
+                            let elapsedMillis = (DispatchTime.now().uptimeNanoseconds - pollStartNanos) / 1_000_000
+                            let remainingMillis = Int32(max(Int64(pollTimeoutMillis) - Int64(clamping: elapsedMillis), 0))
+                            pollResult = poll(&pfd, 1, remainingMillis)
+                            if pollResult < 0 {
+                                pollErrno = errno
+                                if pollErrno == EINTR { continue }
+                            }
+                            break
+                        }
+                        if pollResult < 0 {
+                            Darwin.close(sock)
+                            lastError = PrinterError.connectionFailed(
+                                host: host, port: port,
+                                underlying: "poll() failed: \(posixErrorString(pollErrno))")
+                            continue
+                        }
+                        if pollResult == 0 {
+                            Darwin.close(sock)
+                            lastError = PrinterError.timeout(host: host, port: port)
+                            continue
+                        }
+
+                        var soError: Int32 = 0
+                        var soLen = socklen_t(MemoryLayout<Int32>.size)
+                        let getsockoptResult = getsockopt(sock, SOL_SOCKET, SO_ERROR, &soError, &soLen)
+                        if getsockoptResult != 0 {
+                            let savedErrno = errno
+                            let err = posixErrorString(savedErrno)
+                            Darwin.close(sock)
+                            lastError = PrinterError.connectionFailed(
+                                host: host, port: port, underlying: "getsockopt(SO_ERROR) failed: \(err)")
+                            continue
+                        }
+                        if soError != 0 {
+                            Darwin.close(sock)
+                            if soError == ETIMEDOUT {
+                                lastError = PrinterError.timeout(host: host, port: port)
+                            } else if soError == ECONNREFUSED {
+                                lastError = PrinterError.connectionFailed(
+                                    host: host, port: port, underlying: "Connection refused")
+                            } else {
+                                let err = posixErrorString(soError)
+                                lastError = PrinterError.connectionFailed(
+                                    host: host, port: port, underlying: err)
+                            }
+                            continue
+                        }
+                    }
+
+                    // Connected successfully.
+                    connectedSock = sock
+                    break connectLoop
+                }
+
+                guard connectedSock >= 0 else {
+                    continuation.resume(throwing: lastError ?? PrinterError.connectionFailed(
+                        host: host, port: port, underlying: "Could not connect to any resolved address"))
+                    return
+                }
+
+                let sock = connectedSock
+
+                // Restore blocking mode for write.
+                let blockingFlags = fcntl(sock, F_GETFL, 0)
+                if blockingFlags >= 0 {
+                    _ = fcntl(sock, F_SETFL, blockingFlags & ~O_NONBLOCK)
+                }
+
+                // Loop until all bytes are written. A single blocking write()
+                // can short-write large payloads (e.g. ^GFA graphics) and can
+                // be interrupted (EINTR) on a healthy socket.
+                let count = data.count
+                var sent = 0
+                var writeErrno: Int32 = 0
+                data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                    guard let base = raw.baseAddress else { return }
+                    while sent < count {
+                        let n = Darwin.write(sock, base + sent, count - sent)
+                        if n < 0 {
+                            if errno == EINTR { continue }
+                            writeErrno = errno
+                            break
+                        }
+                        if n == 0 { break }
+                        sent += n
+                    }
+                }
+
+                // close() sends TCP FIN for graceful shutdown.
+                Darwin.close(sock)
+
+                if sent == count {
+                    continuation.resume()
+                } else if writeErrno == EAGAIN || writeErrno == EWOULDBLOCK {
+                    // SO_SNDTIMEO expiry surfaces as EAGAIN on a blocking write:
+                    // the printer stopped draining (paused, buffer full). Report
+                    // it as a timeout, not a cryptic "Resource temporarily
+                    // unavailable" send failure.
+                    continuation.resume(throwing: PrinterError.timeout(host: host, port: port))
+                } else if writeErrno != 0 {
+                    let err = posixErrorString(writeErrno)
+                    continuation.resume(throwing: PrinterError.sendFailed(underlying: err))
+                } else {
+                    continuation.resume(throwing: PrinterError.sendFailed(
+                        underlying: "Partial write: \(sent) of \(count) bytes"))
                 }
             }
-        } catch let error as PrinterError {
-            throw error
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            // Connect-phase failures (refused, unreachable, connect timeout) and
-            // mid-send resets surface as NWError here.
-            throw Self.mapConnectionError(error, host: host, port: port)
         }
     }
 
