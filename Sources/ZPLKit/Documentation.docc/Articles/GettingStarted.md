@@ -34,7 +34,7 @@ Barcode128("ABC123", at: .inches(0.5, 1.0))?
     .height(.inches(0.5))
     .showText(true)
 
-Code39("HELLO-123", at: .inches(0.5, 1.5))
+Code39("HELLO-123", at: .inches(0.5, 1.5))?
     .height(.inches(0.4))
 
 EAN13("5901234123457", at: .inches(0.5, 2.0))
@@ -82,13 +82,11 @@ DiagonalLine(at: .inches(0.5, 1.0), width: .inches(1.0), height: .inches(1.0))
 ### Graphics
 
 ```swift
-// From CGImage
+// From a CGImage. `width` is required; height defaults to preserving the
+// image's aspect ratio, and `invert:` flips black/white if needed.
 if let cgImage = loadImage() {
-    Graphic(cgImage, at: .inches(0.5, 0.5))
+    Graphic(cgImage, at: .inches(0.5, 0.5), width: .inches(1.0))
 }
-
-// From raw bitmap data
-Graphic(bitmapData: bytes, bytesPerRow: 10, at: .inches(0.5, 0.5))
 ```
 
 ### Serial Numbers
@@ -157,7 +155,7 @@ let label = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
 .defaultFont(.default, height: 30)
 .printDarkness(15)
 .printSpeed(4)
-.labelHome(x: 10, y: 10)
+.labelHome(10, 10)
 .reversePrint(true)  // White on black
 ```
 
@@ -171,7 +169,7 @@ import ZPLKitRenderer
 let renderer = ZPLRenderer()
 let zpl = label.render()
 
-if let pngData = try? renderer.renderToPNG(zpl, width: 812, height: 1218) {
+if let (pngData, _) = try? renderer.renderToPNG(zpl, dpi: .dpi203) {
     // Display in UIImageView, save to file, etc.
 }
 

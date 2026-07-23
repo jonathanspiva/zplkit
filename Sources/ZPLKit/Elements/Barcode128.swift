@@ -112,7 +112,15 @@ public struct Barcode128: ZPLElement, Equatable, Hashable {
         let textFlag = showText ? "Y" : "N"
         let aboveFlag = isTextAbove ? "Y" : "N"
 
-        let (needsHex, escapedData) = escapeZPLFieldData(data)
+        // Code 128 treats `>` in `^BC` field data as an invocation-code prefix:
+        // `>9`/`>:`/`>;` switch subsets, `>1`-`>8`/`><`/`>=` are function codes,
+        // and `>0` is the escape for a literal `>`. Left raw, caller data like
+        // "PRICE>5" would silently encode a subset/function switch instead of the
+        // intended `>`, corrupting the printed symbol. Emit `>0` for every literal
+        // `>` so the payload round-trips verbatim. Runs before hex escaping, which
+        // never touches `>` or digits, so the two transforms don't interfere.
+        let invocationSafe = data.replacingOccurrences(of: ">", with: ">0")
+        let (needsHex, escapedData) = escapeZPLFieldData(invocationSafe)
 
         var result = "^FO\(pos.x),\(pos.y)"
         result += "^BY\(moduleWidth)"

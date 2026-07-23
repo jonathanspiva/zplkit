@@ -143,7 +143,8 @@ Available dither methods:
 import ZPLKitRenderer
 
 let renderer = ZPLRenderer()
-if let pngData = try? renderer.renderToPNG(zpl, width: 812, height: 1218) {
+// renderToPNG derives the pixel size from the label geometry and the DPI.
+if let (pngData, _) = try? renderer.renderToPNG(zpl, dpi: .dpi203) {
     // Display in UIImageView, save to file, etc.
 }
 ```

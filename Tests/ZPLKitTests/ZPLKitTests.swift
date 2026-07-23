@@ -1355,6 +1355,29 @@ struct BarcodeEscapingTests {
         #expect(zpl.contains("^FDABC123^FS"))
     }
 
+    @Test("Barcode128 escapes literal > as >0 invocation code")
+    func barcode128EscapesGreaterThan() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("PRICE>5", at: .inches(0.25, 0.5))
+        }
+        let zpl = label.render()
+        // A raw `>` would be read as a subset/function switch; `>0` encodes a
+        // literal `>`, so the printed payload matches "PRICE>5" verbatim.
+        #expect(zpl.contains("^FDPRICE>05^FS"))
+        #expect(!zpl.contains("^FDPRICE>5^FS"))
+    }
+
+    @Test("Barcode128 escapes > alongside hex-escaped chars")
+    func barcode128EscapesGreaterThanWithHex() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("A>_B", at: .inches(0.25, 0.5))
+        }
+        let zpl = label.render()
+        // `>` -> `>0` runs before hex escaping; `_` (0x5F) still becomes `_5F`.
+        #expect(zpl.contains("^FH"))
+        #expect(zpl.contains("^FDA>0_5FB^FS"))
+    }
+
     @Test("QR code escapes payload but keeps MA, prefix unescaped")
     func qrCodeEscapesSpecialCharsKeepingPrefix() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {

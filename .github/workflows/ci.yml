@@ -12,7 +12,7 @@ on:
       printer_ip:
         description: "Printer IP for live-hardware PrinterTests"
         required: false
-        default: "192.168.7.5"
+        default: "192.168.1.100"
 
 permissions:
   contents: read
@@ -30,10 +30,20 @@ concurrency:
 env:
   DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
 
+# Fork PRs must NOT run on the self-hosted runner: it lives on a private LAN
+# (with printer access), so a fork PR running there would execute untrusted code
+# on that machine. This condition runs jobs for pushes and same-repo PRs only;
+# fork PRs are skipped until a GitHub-hosted macOS 27 image exists to run them
+# safely. As a second layer, keep Actions -> "Require approval for all outside
+# collaborators" enabled on the repo settings.
 jobs:
   build-and-test:
-    # push/PR only; a manual dispatch runs just the live-printer job.
-    if: github.event_name != 'workflow_dispatch'
+    # push/PR only (a manual dispatch runs just the live-printer job), and never
+    # for PRs opened from a fork (see the note above).
+    if: >-
+      github.event_name != 'workflow_dispatch' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, macos-27]
     timeout-minutes: 30
     steps:
@@ -72,7 +82,11 @@ jobs:
         run: swift test
 
   visual-tests:
-    if: github.event_name != 'workflow_dispatch'
+    # Same fork-gate as build-and-test (see the note above).
+    if: >-
+      github.event_name != 'workflow_dispatch' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, macos-27]
     timeout-minutes: 30
     needs: build-and-test
