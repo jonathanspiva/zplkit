@@ -170,7 +170,7 @@ struct NetworkRoundTripTests {
     @Test("queryConfiguration() parses a ^HH response into PrinterSettings")
     func queryConfigurationRoundTrip() async throws {
         let response = FakePrinter.makeHHResponse(
-            darkness: 15, printSpeed: 4, serial: "31J114702349",
+            darkness: 15, printSpeed: 4, serial: "50J000000001",
             firmware: "V53.17.14Z", printWidth: 832, labelLength: 1218)
         let fake = try FakePrinter(behaviors: [.respond(chunks: [response], gap: 0)])
         defer { fake.shutdown() }
@@ -180,7 +180,7 @@ struct NetworkRoundTripTests {
 
         #expect(settings.darkness == 15)
         #expect(settings.printSpeed == 4)
-        #expect(settings.serialNumber == "31J114702349")
+        #expect(settings.serialNumber == "50J000000001")
         #expect(settings.firmware == "V53.17.14Z")
         #expect(settings.printWidthDots == 832)
         #expect(settings.labelLengthDots == 1218)
@@ -414,7 +414,7 @@ struct NetworkRoundTripTests {
         #expect(diag.status.isReadyToPrint)
         #expect(diag.memory.total == 2097152)
         #expect(diag.settings != nil)
-        #expect(diag.serialNumber == "31J114702349")
+        #expect(diag.serialNumber == "50J000000001")
         #expect(diag.lifetimeUsageInches == 111367)
     }
 

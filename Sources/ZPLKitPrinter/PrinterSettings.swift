@@ -44,7 +44,7 @@ public struct PrinterSettings: Sendable, Equatable, Codable {
 
     // MARK: - Diagnostic Fields
 
-    /// Printer serial number (e.g., "31J114702349").
+    /// Printer serial number (e.g., "50J000000001").
     public var serialNumber: String?
 
     /// Firmware version string from `^HH` (e.g., "V53.17.24Z").
@@ -199,7 +199,7 @@ extension PrinterSettings {
                 }
             }
 
-            // Serial number: "31J114702349        SERIAL NUMBER"
+            // Serial number: "50J000000001        SERIAL NUMBER"
             if upper.hasSuffix("SERIAL NUMBER") {
                 if let value = extractLeftValue(from: line, suffix: "SERIAL NUMBER") {
                     settings.serialNumber = value

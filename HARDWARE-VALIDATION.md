@@ -22,11 +22,12 @@ Three layers, in decreasing order of "runs everywhere":
 Verbatim byte captures of `~HI`, `~HS`, `~HM`, and `^HH` responses from the
 printers above are committed under
 [`Tests/ZPLKitPrinterTests/Fixtures/RealDevice/`](Tests/ZPLKitPrinterTests/Fixtures/RealDevice/)
-and parsed by `RealDeviceFixtureTests`. These assert that
+and parsed by `RealDeviceFixtureTests`. (Device serial numbers in these captures
+have been replaced with placeholder values; every other byte is as-emitted.) These assert that
 `PrinterInfo` / `PrinterStatus` / `MemoryStatus` / `PrinterSettings` extract the
 correct values from the exact bytes these firmwares emit — e.g. ZM400 reports
 `darkness 30, 2 IPS, 812-dot width, thermal-transfer`, GX420t reports
-`darkness 15, 4 IPS, 816-dot width, direct-thermal, serial 31J114702349`. This
+`darkness 15, 4 IPS, 816-dot width, direct-thermal, serial 50J000000001`. This
 layer runs on every CI build with no printer attached, so parser regressions
 against real-firmware output are caught automatically.
 
@@ -40,17 +41,22 @@ and multi-setting), `apply()`/`setup()` with real `~JC` calibration, and full
 
 ```sh
 ZPLTOOL_LIVE_TESTS=1 \
-ZPLTOOL_ZM400_HOST=192.168.7.4 \
-ZPLTOOL_GX420T_HOST=192.168.7.5 \
+ZPLTOOL_ZM400_HOST=192.168.1.100 \
+ZPLTOOL_GX420T_HOST=192.168.1.101 \
 swift test --filter LivePrinterTests
 ```
 
 On 2026-06-09 all 18 live tests passed against both printers above (ZM400 in
 ribbon mode, GX420t in direct-thermal). `Tools/PrinterTests` provides an
 additional standalone integration sweep (`swift run PrinterTests <ip>`) covering
-concurrent queries, rapid bursts, timeout differentiation, query-after-timeout,
-and Bonjour discovery — 27/28 passed on the GX420t (the one failure was the
-printer being left paused, not a code defect).
+concurrent queries, rapid bursts, timeout differentiation, and query-after-timeout;
+on that date 27/28 checks passed on the GX420t (the one failure was the printer
+being left paused, not a code defect).
+
+> **Note:** LAN discovery was rewritten after this sweep from Bonjour/mDNS to
+> Zebra's UDP-4201 broadcast protocol (see below). The `PrinterTests` discovery
+> check now targets UDP 4201 but has not yet been re-run against physical
+> hardware; that re-validation is outstanding.
 
 ### 3. Synthetic + malicious-input fixtures (run in CI)
 
@@ -66,9 +72,12 @@ untrusted network input rather than trapping.
   or write it) and `^HH` has no name field. The `^KN` ZPL emission is verified
   correct by unit tests; confirming the round-trip end-to-end needs a Link-OS
   printer (e.g. ZD-series, ZT411, ZD621).
-- **Bonjour discovery**: these printers don't advertise `_pdl-datastream._tcp`,
-  so they aren't discoverable via mDNS (a printer setting). The service type is
-  correct — an HP printer on the same network advertises it and resolves fine.
+- **LAN discovery**: Zebra print servers don't advertise `_pdl-datastream._tcp`
+  over Bonjour/mDNS by default (browsing it finds generic IPP/socket printers
+  like an office inkjet, not Zebra units), so `ZPLPrinterBrowser` uses Zebra's
+  proprietary UDP-4201 broadcast protocol instead. The UDP request/response
+  parsing is covered by unit tests; an end-to-end discovery run against physical
+  Zebra hardware is still outstanding (see the note above).
 - **`^NS` network reconfiguration** is intentionally not exercised against shared
   lab printers (a wrong value would take the printer off the network); the ZPL
   emission is covered by unit tests.

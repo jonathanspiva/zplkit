@@ -107,7 +107,7 @@ struct RealDeviceFixtureTests {
         #expect(s.printSpeed == 4)
         #expect(s.printWidthDots == 816)
         #expect(s.mediaType == .directThermal)      // "DIRECT-THERMAL" PRINT METHOD
-        #expect(s.serialNumber == "31J114702349")
+        #expect(s.serialNumber == "50J000000001")
         #expect(s.firmware?.contains("V56.17.17Z") == true)
     }
 

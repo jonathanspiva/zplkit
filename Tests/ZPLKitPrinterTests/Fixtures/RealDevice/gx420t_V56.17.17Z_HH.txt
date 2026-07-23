@@ -55,6 +55,6 @@
   94,186 IN           TOTAL USAGE       
   94,186 IN           RESET CNTR1       
   94,186 IN           RESET CNTR2       
-  31J114702349        SERIAL NUMBER     
+  50J000000001        SERIAL NUMBER     
   MAINT. OFF          EARLY WARNING     
 
