@@ -16,6 +16,19 @@
 - [x] **`GraphicPrintTest` hardened** (PR #6) — traceable ID/timestamp footers,
   sensor-safe margins, `--fiducial` and `--calibrate` modes.
 
+### Live-hardware findings (2026-07-23)
+
+- [x] **Barcode symbology print pass** (`Tools/BarcodePrintTest`, PR #10) — all 12
+  symbologies printed to the ZM400 + GX420t. Library output correct across the
+  board; the ZM400 right-half streaking was a ribbon/printhead artifact (tracked
+  position not symbology, cleared in the left column, absent on the GX420t). See
+  HARDWARE-VALIDATION.md 2b.
+- [ ] **Verify USPS IMb encoding on hardware.** IMb prints its 4-state bar
+  structure but its codeword encoding is unverified — decode a printed sample
+  with an IMb-capable scanner. The renderer's IMb encoder is a placeholder (see
+  "Someday"), so confirm the `^BZ` field-data path actually yields a valid,
+  scannable Intelligent Mail symbol before advertising IMb support.
+
 ### Require macOS/iOS/tvOS/watchOS 27 + Swift 6.4 (2026-07-15)
 
 Platform floor raised from 26 to 27 (Xcode 27 beta / Swift 6.4). What the bump

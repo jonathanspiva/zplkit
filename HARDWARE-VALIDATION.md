@@ -73,6 +73,18 @@ being left paused, not a code defect).
   host, port 9100, system name, product, `ZebraNet Wired PS`, and firmware
   (`V53.17.24Z` / `V56.17.17Z`). Note: `discoveredPrinters` is emptied by
   `stop()`, so read it while the browser is running.
+- **Barcode symbology print pass** (2026-07-23, `Tools/BarcodePrintTest`): one
+  sample of all 12 ZPLKit symbologies (code128, code39, i2of5, imb, ean13, ean8,
+  upca, upce, qr, datamatrix, pdf417, aztec) printed to both printers. All 12
+  render correctly on the GX420t (direct-thermal). On the ZM400 the same
+  symbologies were correct wherever they landed in the label's left half; a
+  ribbon/printhead streak band on the *right* half degraded the tall 1-D bars
+  there. That was confirmed to be a printer-hardware artifact, not a generation
+  defect: it tracked label position (not symbology), cleared when the affected
+  codes were reprinted in the left column, and was absent entirely on the GX420t.
+  Caveat: **USPS IMb** prints its 4-state bar structure but its codeword
+  *encoding* is unverified — a scanner decode is still outstanding, and the
+  renderer's IMb encoder is a known placeholder (see TODO "Someday").
 
 ### 3. Synthetic + malicious-input fixtures (run in CI)
 
