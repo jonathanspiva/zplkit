@@ -16,6 +16,19 @@
 - [x] **`GraphicPrintTest` hardened** (PR #6) — traceable ID/timestamp footers,
   sensor-safe margins, `--fiducial` and `--calibrate` modes.
 
+### Live-hardware findings (2026-07-23)
+
+- [x] **Barcode symbology print pass** (`Tools/BarcodePrintTest`, PR #10) — all 12
+  symbologies printed to the ZM400 + GX420t. Library output correct across the
+  board; the ZM400 right-half streaking was a ribbon/printhead artifact (tracked
+  position not symbology, cleared in the left column, absent on the GX420t). See
+  HARDWARE-VALIDATION.md 2b.
+- [ ] **Verify USPS IMb encoding on hardware.** IMb prints its 4-state bar
+  structure but its codeword encoding is unverified — decode a printed sample
+  with an IMb-capable scanner. The renderer's IMb encoder is a placeholder (see
+  "Someday"), so confirm the `^BZ` field-data path actually yields a valid,
+  scannable Intelligent Mail symbol before advertising IMb support.
+
 ### Require macOS/iOS/tvOS/watchOS 27 + Swift 6.4 (2026-07-15)
 
 Platform floor raised from 26 to 27 (Xcode 27 beta / Swift 6.4). What the bump
@@ -46,16 +59,18 @@ below were already available at the 26 floor and are bundled in here.
 - [x] **Phase 1c: `ZPLPrinterBrowser` rewritten off Bonjour (PR #7).** Zebra
   units don't advertise `_pdl-datastream._tcp` over mDNS, so the browser now uses
   Zebra's proprietary UDP-4201 broadcast protocol. Request/response parsing is
-  unit-tested; end-to-end discovery against physical Zebra hardware on the LAN is
-  still outstanding (tracked under Phase 3).
+  unit-tested, and end-to-end discovery was validated on hardware 2026-07-23
+  (ZM400 + GX420t both discovered via the async `printers` stream; see
+  HARDWARE-VALIDATION.md 2b).
 - [x] **Phase 0 (CI): `ci.yml` -> macos-27** - Done. All push/PR jobs run on a
   self-hosted `macos-27` runner with the Xcode 27 beta toolchain (pinned via
   `DEVELOPER_DIR`), since no GitHub-hosted image carries the macOS 27 SDK / Swift
   6.4 yet. Fork PRs are skipped (they can't use the self-hosted runner); the live
   printer job is `workflow_dispatch`-only.
-- [ ] **Phase 3: verify** - Outstanding: re-run live ZM400/GX420t passes for the
-  UDP-4201 discovery rewrite (Phase 1c) on the LAN runner. Add a GitHub-hosted
-  build/unit job for fork PRs once a `macos-27` hosted image ships.
+- [ ] **Phase 3: verify** - UDP-4201 discovery validated on hardware 2026-07-23
+  (Phase 1c). Still outstanding: wire the live sweep into the self-hosted runner's
+  `workflow_dispatch` job, and add a GitHub-hosted build/unit job for fork PRs
+  once a `macos-27` hosted image ships.
 
 ### Code review pass 2026-07-10 (53 findings)
 
