@@ -2,6 +2,11 @@
 /// Intelligent Mail (also called OneCode or 4-State Customer Barcode) is used
 /// by USPS for mail tracking and sorting.
 /// Encodes 20, 25, 29, or 31 digits depending on the routing information included.
+///
+/// The symbol itself is encoded by the printer's `^BZ` firmware (postal type 3);
+/// ZPLKit emits the `^BZ` command and the digit field. Note that the software
+/// renderer (`ZPLKitRenderer`) draws an approximate placeholder for the preview,
+/// not a pixel-accurate 4-state symbol — validate final output on a printer.
 public struct IntelligentMail: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
@@ -24,6 +29,12 @@ public struct IntelligentMail: ZPLElement, Equatable, Hashable {
             return nil
         }
         guard data.allSatisfy({ $0.isASCIIDigit }) else {
+            return nil
+        }
+        // The first two digits are the Barcode Identifier; per USPS-B-3200 its
+        // second digit must be 0-4. A larger value can't be encoded, so reject it
+        // rather than let the printer produce an out-of-spec symbol.
+        guard let secondDigit = data.dropFirst().first, ("0"..."4").contains(secondDigit) else {
             return nil
         }
         self.data = data

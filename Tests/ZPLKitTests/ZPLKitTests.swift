@@ -291,10 +291,23 @@ struct BarcodeValidityTests {
         ("12345678901234567890123", false),               // 23
         ("012345678901234567890123", false),              // 24
         ("1234567890123456789012345678901234", false),    // 34
-        ("0123456789012345678A", false)                   // non-numeric (20 chars)
+        ("0123456789012345678A", false),                  // non-numeric (20 chars)
+        ("05234567890123456789", false)                   // 20, Barcode-ID 2nd digit 5 (> 4)
     ])
     func intelligentMailValidity(input: String, expectedValid: Bool) {
         #expect((IntelligentMail(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
+    }
+
+    @Test("IntelligentMail emits ^BZ with postal type 3 and the data verbatim")
+    func intelligentMailGeneratesBZ() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            IntelligentMail("01234567094987654321", at: .dots(10, 10))
+        }
+        let zpl = label.render()
+        // The 5th ^BZ param must be 3 (Intelligent Mail); 0 would print POSTNET.
+        #expect(zpl.contains("^BZN,"))
+        #expect(zpl.contains(",N,N,3"))
+        #expect(zpl.contains("^FD01234567094987654321^FS"))
     }
 }
 

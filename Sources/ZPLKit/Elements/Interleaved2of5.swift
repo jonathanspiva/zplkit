@@ -1,6 +1,7 @@
 /// An Interleaved 2 of 5 barcode element using ZPL's ^B2 command.
 /// Commonly used in shipping, warehousing, and the logistics industry.
-/// Only encodes numeric data (digits 0-9). Data length must be even.
+/// Only encodes numeric data (digits 0-9). I2of5 encodes digit pairs; odd-length
+/// input is accepted but the printer prepends a leading 0 (see the initializer).
 public struct Interleaved2of5: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
@@ -12,9 +13,11 @@ public struct Interleaved2of5: ZPLElement, Equatable, Hashable {
     private var moduleWidth: Int = 2  // 1-10
 
     /// Creates an Interleaved 2 of 5 barcode at the given position.
-    /// Returns nil if the data contains non-numeric characters or has odd length.
+    /// Returns nil if the data contains non-numeric characters.
     /// - Parameters:
-    ///   - data: The numeric data to encode (digits only, even length).
+    ///   - data: The numeric data to encode (digits only). Odd-length input is
+    ///     accepted; the printer prepends a leading 0 (see the note below), so
+    ///     pass even-length data when the scan must match the input exactly.
     ///   - position: The position on the label.
     public init?(_ data: String, at position: Position) {
         // Validate: I2of5 only supports digits 0-9

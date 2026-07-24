@@ -35,14 +35,6 @@ extension PrinterConfiguration {
         return nil
     }
 
-    /// Validates a field-rotation letter against the four ZPL `^FW` values,
-    /// falling back to "N" (normal) for anything else.
-    private static func validatedFieldRotation(_ value: String) -> String {
-        let allowed: Set<String> = ["N", "R", "I", "B"]
-        let upper = value.uppercased()
-        return allowed.contains(upper) ? upper : "N"
-    }
-
     /// Generates the ZPL commands for this configuration.
     ///
     /// Only non-nil fields produce commands. Commands are ordered correctly:
@@ -144,10 +136,10 @@ extension PrinterConfiguration {
             formatCommands.append("^PO\(orientation.rawValue)")
         }
 
-        // ^FW: Field Default Rotation. Only N/R/I/B are valid; anything else
-        // falls back to N rather than emitting an invalid (or injectable) value.
+        // ^FW: Field Default Rotation. The FieldRotation enum guarantees one of
+        // the four valid N/R/I/B letters.
         if let fieldRotation {
-            formatCommands.append("^FW\(Self.validatedFieldRotation(fieldRotation))")
+            formatCommands.append("^FW\(fieldRotation.rawValue)")
         }
 
         // ^LH: Label Home Position

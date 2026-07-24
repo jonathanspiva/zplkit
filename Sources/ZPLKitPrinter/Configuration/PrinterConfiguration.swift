@@ -74,8 +74,7 @@ public struct PrinterConfiguration: Sendable, Equatable, Codable {
     public var orientation: PrintOrientation?
 
     /// Default field rotation for all fields. ZPL: `^FW`.
-    /// Values: "N" (normal), "R" (90), "I" (180), "B" (270).
-    public var fieldRotation: String?
+    public var fieldRotation: FieldRotation?
 
     /// Slew speed in inches per second. ZPL: `^PR` (second parameter).
     public var slewSpeedIPS: Int?
@@ -211,7 +210,7 @@ public struct PrinterConfiguration: Sendable, Equatable, Codable {
     }
 
     /// Sets the default field rotation.
-    public func fieldRotation(_ value: String) -> PrinterConfiguration {
+    public func fieldRotation(_ value: FieldRotation) -> PrinterConfiguration {
         var copy = self
         copy.fieldRotation = value
         return copy

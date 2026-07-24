@@ -1,6 +1,10 @@
 import Foundation
 
 /// A printer discovered on the local network (via `ZPLPrinterBrowser`).
+///
+/// - Note: `Equatable`/`Hashable` conformance is based on ``id`` alone, so two
+///   snapshots of the same printer compare equal even if their `name`/`metadata`
+///   differ between discovery cycles.
 public struct DiscoveredPrinter: Sendable, Hashable, Identifiable, CustomStringConvertible {
     /// Unique identifier for this printer instance.
     public let id: String
@@ -17,6 +21,14 @@ public struct DiscoveredPrinter: Sendable, Hashable, Identifiable, CustomStringC
     /// Additional discovery metadata (e.g. `firmware`, `product`, `server`).
     public let metadata: [String: String]
 
+    /// Creates a discovered-printer snapshot.
+    /// - Parameters:
+    ///   - id: Stable identifier (the browser keys printers by host IP). Defaults
+    ///     to a fresh UUID for manually-constructed instances.
+    ///   - name: The printer's configured system name.
+    ///   - host: Hostname or IP address.
+    ///   - port: Raw-print port (default 9100).
+    ///   - metadata: Additional discovery fields (e.g. `firmware`, `product`).
     public init(
         id: String = UUID().uuidString,
         name: String,

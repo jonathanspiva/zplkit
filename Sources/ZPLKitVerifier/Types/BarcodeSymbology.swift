@@ -4,7 +4,10 @@ import Vision
 ///
 /// These map to the Vision framework's `BarcodeSymbology` types that are
 /// available on macOS 26+.
-@frozen
+///
+/// Not `@frozen`: Vision gains symbologies over time, so new cases may be added
+/// in future releases. Consumers switching over this enum should include a
+/// `default` case.
 public enum BarcodeSymbology: String, Sendable, Codable, Hashable, CaseIterable, CustomStringConvertible {
     case aztec
     case codabar
