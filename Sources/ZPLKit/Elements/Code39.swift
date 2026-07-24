@@ -6,6 +6,7 @@ public struct Code39: ZPLElement, Equatable, Hashable {
     private var showText: Bool = true
     private var checkDigit: Bool = false
     private var rotation: Rotation = .normal
+    private var moduleWidth: Int = 2  // 1-10
 
     /// Valid characters for Code 39.
     private static let validCharacters = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.$/+%")
@@ -53,6 +54,15 @@ public struct Code39: ZPLElement, Equatable, Hashable {
         return copy
     }
 
+    /// Sets the module (narrow-bar) width via `^BY`. Default is 2.
+    ///
+    /// - Parameter width: Module width from 1 to 10.
+    public func moduleWidth(_ width: Int) -> Code39 {
+        var copy = self
+        copy.moduleWidth = min(10, max(1, width))
+        return copy
+    }
+
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
         let height = barcodeHeight.resolve(dpi: context.dpi)
@@ -61,6 +71,7 @@ public struct Code39: ZPLElement, Equatable, Hashable {
         let textFlag = showText ? "Y" : "N"
 
         var result = "^FO\(pos.x),\(pos.y)"
+        result += "^BY\(moduleWidth)"
         // ^B3: orientation, check digit, height, print text, print text above
         result += "^B3\(rotation.rawValue),\(checkFlag),\(height),\(textFlag),N"
         result += "^FD\(data)^FS"

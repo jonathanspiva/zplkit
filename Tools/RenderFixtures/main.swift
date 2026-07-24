@@ -54,17 +54,8 @@ struct RenderFixtures {
             do {
                 let zpl = try String(contentsOfFile: zplPath, encoding: .utf8)
 
-                // Parse DPI from filename (e.g., test_4x6_203.zpl)
-                let dpi: DPI
-                if file.contains("_600.zpl") {
-                    dpi = .dpi600
-                } else if file.contains("_300.zpl") {
-                    dpi = .dpi300
-                } else {
-                    dpi = .dpi203
-                }
-
-                let (data, metrics) = try renderer.renderToPNG(zpl, dpi: dpi)
+                // Output dimensions come from the ZPL's ^PW/^LL dot values.
+                let (data, metrics) = try renderer.renderToPNG(zpl)
                 try data.write(to: URL(fileURLWithPath: pngPath))
 
                 let parseMs = String(format: "%.1f", metrics.parseTimeSeconds * 1000)

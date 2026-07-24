@@ -151,16 +151,13 @@ public final class ZPLRenderer: Sendable {
     }
 
     /// Renders a ZPL string to a CGImage.
-    /// - Parameters:
-    ///   - zpl: The ZPL string to render
-    ///   - dpi: Currently informational/reserved. Output pixel dimensions are
-    ///     derived from the label's `^PW`/`^LL` dot values in the ZPL (which the
-    ///     ZPLKit DSL already resolves from DPI when generating the ZPL), so this
-    ///     parameter does not change the rendered image. Kept for API stability and
-    ///     possible future use.
+    ///
+    /// Output pixel dimensions are derived from the label's `^PW`/`^LL` dot values
+    /// in the ZPL (which the ZPLKit DSL already resolves from DPI when generating
+    /// the ZPL), so no DPI parameter is needed here.
+    /// - Parameter zpl: The ZPL string to render
     /// - Returns: A RenderResult containing the image and performance metrics
-    public func render(_ zpl: String, dpi: DPI = .dpi203) throws -> RenderResult {
-        _ = dpi  // Reserved; see note above.
+    public func render(_ zpl: String) throws -> RenderResult {
         let parseStart = CFAbsoluteTimeGetCurrent()
         let parsed = try ZPLParser.parse(zpl)
         let parseEnd = CFAbsoluteTimeGetCurrent()
@@ -183,13 +180,10 @@ public final class ZPLRenderer: Sendable {
     }
 
     /// Renders a ZPL string to PNG data.
-    /// - Parameters:
-    ///   - zpl: The ZPL string to render
-    ///   - dpi: Currently informational/reserved; does not change output dimensions.
-    ///     See ``render(_:dpi:)`` for details.
+    /// - Parameter zpl: The ZPL string to render
     /// - Returns: PNG data and performance metrics
-    public func renderToPNG(_ zpl: String, dpi: DPI = .dpi203) throws -> (data: Data, metrics: RenderMetrics) {
-        let result = try render(zpl, dpi: dpi)
+    public func renderToPNG(_ zpl: String) throws -> (data: Data, metrics: RenderMetrics) {
+        let result = try render(zpl)
 
         guard let data = result.image.pngData() else {
             throw ZPLRendererError.pngEncodingFailed

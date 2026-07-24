@@ -19,6 +19,7 @@ public struct UPCE: ZPLElement, Equatable, Hashable {
     private var showText: Bool = true
     private var isTextAbove: Bool = false
     private var checkDigit: Bool = true
+    private var moduleWidth: Int = 2  // 1-10
 
     /// Creates a UPC-E barcode at the given position.
     ///
@@ -79,6 +80,15 @@ public struct UPCE: ZPLElement, Equatable, Hashable {
         return copy
     }
 
+    /// Sets the module (narrow-bar) width via `^BY`. Default is 2.
+    ///
+    /// - Parameter width: Module width from 1 to 10.
+    public func moduleWidth(_ width: Int) -> UPCE {
+        var copy = self
+        copy.moduleWidth = min(10, max(1, width))
+        return copy
+    }
+
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
         let height = barcodeHeight.resolve(dpi: context.dpi)
@@ -88,6 +98,7 @@ public struct UPCE: ZPLElement, Equatable, Hashable {
         let checkFlag = checkDigit ? "Y" : "N"
 
         var result = "^FO\(pos.x),\(pos.y)"
+        result += "^BY\(moduleWidth)"
         result += "^B9\(rotation.rawValue),\(height),\(textFlag),\(aboveFlag),\(checkFlag)"
         result += "^FD\(data)^FS"
 

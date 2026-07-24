@@ -172,7 +172,7 @@ struct VisualTests {
                 let zpl = try String(contentsOfFile: zplPath, encoding: .utf8)
                 let dpi = parseDPI(from: file)
 
-                let (data, metrics) = try renderer.renderToPNG(zpl, dpi: dpi)
+                let (data, metrics) = try renderer.renderToPNG(zpl)
                 try data.write(to: URL(fileURLWithPath: pngPath))
 
                 let parseMs = metrics.parseTimeSeconds * 1000

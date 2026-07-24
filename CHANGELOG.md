@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+- `ZPLKitVerifier`'s expectation types were renamed `Text` → `TextExpectation` and
+  `Barcode` → `BarcodeExpectation`, so `Text` no longer collides with `ZPLKit.Text`
+  when both modules are imported for the build → render → verify workflow.
+- Removed the inert `dpi:` parameter from `ZPLRenderer.render(_:)` and
+  `renderToPNG(_:)`. Output dimensions are derived from the label's `^PW`/`^LL`
+  dot values, so the parameter never had any effect.
+
+### Changed
+- `ParsedLabel` / `ParsedElement` and the other `Parsed*` types are now documented
+  as part of the public, semver-stable API (the "may change without notice"
+  disclaimer is gone); `ParsedElement` may still gain cases in minor releases.
+
+### Fixed
+- `^BY` module width is now emitted by every 1-D barcode (`Code39`, `EAN13`,
+  `EAN8`, `UPCA`, `UPCE`, joining `Barcode128`/`Interleaved2of5`), and all expose
+  a `moduleWidth(_:)` modifier. Previously a preceding barcode's module width
+  could leak in via `^BY` stickiness.
+- `EAN13`/`EAN8`/`UPCA` now reject a fully-specified value whose trailing check
+  digit doesn't match the computed one, instead of letting the printer silently
+  re-derive a different digit.
+- `HorizontalLine`/`VerticalLine` clamp resolved length/thickness to ≥ 1 dot,
+  matching `Box`/`Circle`/`Ellipse` (a `^GB0` dimension is out-of-range on real
+  firmware).
+- `PrinterInfo.dpi` now reports 152 (not 150) for 6 dots/mm, matching its own
+  docs and `DPI.dpi152`.
+
 ## [1.0.0]
 
 <!-- set release date when tagging -->

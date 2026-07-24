@@ -32,8 +32,8 @@ import Vision
 ///
 /// ```swift
 /// let result = try await verifier.verify(renderedImage) {
-///     Barcode(.code128, containing: "SKU-12345")
-///     Text("FRAGILE")
+///     BarcodeExpectation(.code128, containing: "SKU-12345")
+///     TextExpectation("FRAGILE")
 /// }
 ///
 /// if !result.passed {

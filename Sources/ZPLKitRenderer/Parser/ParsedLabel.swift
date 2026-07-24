@@ -3,16 +3,13 @@ import ZPLKit
 
 // MARK: - Parsed Types
 //
-// These types represent the internal structure of parsed ZPL commands.
-// They are public to allow advanced use cases (custom renderers, analysis tools)
-// but their structure may change between releases. Avoid tight coupling to
-// specific properties in production code.
+// The result of `ZPLParser.parse(_:)`: a structured view of a ZPL label for
+// rendering, inspection, and analysis tools. These are part of the public API
+// and follow semantic versioning like the rest of the package.
 
-/// Represents a parsed ZPL label ready for rendering.
+/// A parsed ZPL label: its geometry, elements, and print settings.
 ///
-/// - Important: This type is intended for internal rendering use. Its structure
-///   may change between releases without notice. Avoid depending on specific
-///   properties in production code.
+/// Returned by ``ZPLParser/parse(_:)``. Part of the public, semver-stable API.
 public struct ParsedLabel: Sendable {
     public let width: Int      // dots
     public let height: Int     // dots
@@ -21,10 +18,11 @@ public struct ParsedLabel: Sendable {
     public let printDarkness: Int?
 }
 
-/// Enumeration of all parsed element types.
+/// One parsed element within a ``ParsedLabel``.
 ///
-/// - Important: This type is intended for internal rendering use. Its structure
-///   may change between releases without notice.
+/// - Note: New cases may be added in future minor releases as support for more
+///   ZPL commands is added, so consumers switching over this enum should include
+///   a `default` case.
 public enum ParsedElement: Sendable {
     case text(ParsedText)
     case textBlock(ParsedTextBlock)

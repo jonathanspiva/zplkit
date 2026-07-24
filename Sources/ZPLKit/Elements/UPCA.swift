@@ -9,9 +9,11 @@ public struct UPCA: ZPLElement, Equatable, Hashable {
     private var showText: Bool = true
     private var isTextAbove: Bool = false
     private var checkDigit: Bool = true
+    private var moduleWidth: Int = 2  // 1-10
 
     /// Creates a UPC-A barcode at the given position.
-    /// Returns nil if the data is not exactly 11 or 12 digits.
+    /// Returns nil if the data is not exactly 11 or 12 digits, or if a 12-digit
+    /// value carries a check digit that doesn't match the first 11.
     /// - Parameters:
     ///   - data: The numeric data to encode (11 digits, or 12 with check digit).
     ///   - position: The position on the label.
@@ -21,6 +23,10 @@ public struct UPCA: ZPLElement, Equatable, Hashable {
             return nil
         }
         guard data.allSatisfy({ $0.isASCIIDigit }) else {
+            return nil
+        }
+        // A supplied 12th digit must be the correct check digit (see EAN13).
+        if data.count == 12, !hasValidGTINCheckDigit(data) {
             return nil
         }
         self.data = data
@@ -62,6 +68,15 @@ public struct UPCA: ZPLElement, Equatable, Hashable {
         return copy
     }
 
+    /// Sets the module (narrow-bar) width via `^BY`. Default is 2.
+    ///
+    /// - Parameter width: Module width from 1 to 10.
+    public func moduleWidth(_ width: Int) -> UPCA {
+        var copy = self
+        copy.moduleWidth = min(10, max(1, width))
+        return copy
+    }
+
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
         let height = barcodeHeight.resolve(dpi: context.dpi)
@@ -71,6 +86,7 @@ public struct UPCA: ZPLElement, Equatable, Hashable {
         let checkFlag = checkDigit ? "Y" : "N"
 
         var result = "^FO\(pos.x),\(pos.y)"
+        result += "^BY\(moduleWidth)"
         result += "^BU\(rotation.rawValue),\(height),\(textFlag),\(aboveFlag),\(checkFlag)"
         result += "^FD\(data)^FS"
 
