@@ -35,25 +35,27 @@ below were already available at the 26 floor and are bundled in here.
   trailing-ETX `^HH` in <0.9s, idle fallback, graceful-close, responseTimeout,
   prompt cancellation. Note: `NetworkConnection` is macOS 26, so this did not
   require the 27 bump; `async defer` is the 6.4-specific win.
-- [x] **Phase 1b: `send()` -> NetworkConnection** - Done and hardware-verified.
-  The old POSIX-socket rationale was NWConnection's `cancel()` sending an RST
-  that made printers discard buffered data. Empirically settled on macOS 27: a
-  teardown probe (NetworkConnection -> slow-draining POSIX listener) showed a
-  clean FIN with payload intact across 5/5 trials, and on the real GX420t
-  (`192.168.7.5`, FW V56.17.17Z) the send()-based `applyConfiguration` /
-  `saveAndRestore` / `calibrateAfterSetup` round-trips all landed and read back
-  correctly (28/28 PrinterTests). Connect-error mapping preserved
-  (`ETIMEDOUT`/unreachable -> `.timeout`, `ECONNREFUSED` -> `.connectionFailed`).
-- [ ] **Phase 1c: `ZPLPrinterBrowser` -> NetworkBrowser - HOLD for hardware.**
-  Only exercised by live mDNS (GX420t doesn't even advertise the service type).
-  Rewrite + verify on the real LAN, not loopback.
-- [ ] **Phase 0 (CI): `ci.yml` -> macos-27** - Held until the self-hosted Mac
-  mini runner exists (mini updating to Golden Gate). Flipping to `macos-27` now
-  would red CI until a runner with Xcode 27 is available. Plan: keep hosted
-  `macos-26` build/unit job, add self-hosted job for Xcode-27 build + live
-  printer tests on the LAN.
-- [ ] **Phase 3: verify** - Once the mini is up: `swift test` under Xcode 27 on
-  the runner, plus live ZM400/GX420t passes for any networking rewrite.
+- [x] **Phase 1b: `send()` -> NetworkConnection - TRIED AND REVERTED (PR #5).**
+  Do NOT re-attempt without a physical-printer A/B test. A `NetworkConnection`
+  `send()` (PR #4) passed all loopback tests but intermittently **dropped print
+  jobs on real Zebra hardware** (teardown races the printer's job commit). It was
+  reverted to POSIX sockets in PR #5; the GX420t (FW V56.17.17Z) and ZM400 now
+  print reliably. See the README "Known Issues" section before touching `send()`.
+  Connect-error mapping preserved (`ETIMEDOUT`/unreachable -> `.timeout`,
+  `ECONNREFUSED` -> `.connectionFailed`).
+- [x] **Phase 1c: `ZPLPrinterBrowser` rewritten off Bonjour (PR #7).** Zebra
+  units don't advertise `_pdl-datastream._tcp` over mDNS, so the browser now uses
+  Zebra's proprietary UDP-4201 broadcast protocol. Request/response parsing is
+  unit-tested; end-to-end discovery against physical Zebra hardware on the LAN is
+  still outstanding (tracked under Phase 3).
+- [x] **Phase 0 (CI): `ci.yml` -> macos-27** - Done. All push/PR jobs run on a
+  self-hosted `macos-27` runner with the Xcode 27 beta toolchain (pinned via
+  `DEVELOPER_DIR`), since no GitHub-hosted image carries the macOS 27 SDK / Swift
+  6.4 yet. Fork PRs are skipped (they can't use the self-hosted runner); the live
+  printer job is `workflow_dispatch`-only.
+- [ ] **Phase 3: verify** - Outstanding: re-run live ZM400/GX420t passes for the
+  UDP-4201 discovery rewrite (Phase 1c) on the LAN runner. Add a GitHub-hosted
+  build/unit job for fork PRs once a `macos-27` hosted image ships.
 
 ### Code review pass 2026-07-10 (53 findings)
 
@@ -148,7 +150,7 @@ below were already available at the 26 floor and are bundled in here.
   - Discover printers, query status, configure, and print labels via natural language
   - Tools: `discover_printers`, `printer_status`, `configure_printer`, `print_label`, `preview_label`
   - Swift executable using the MCP protocol over stdio
-  - Could live in its own repo (e.g., `swift-zplkit-mcp`) following the `swift-ynab-mcp` pattern
+  - Could live in its own repo (e.g., `swift-zplkit-mcp`)
 
 ## Someday
 - [ ] **Physical print verification** - End-to-end testing with real printers

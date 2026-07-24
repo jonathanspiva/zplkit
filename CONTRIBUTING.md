@@ -6,15 +6,25 @@ Thanks for your interest in contributing to ZPLKit! This document covers the dev
 
 ### Requirements
 
-- macOS 26+ (required for Vision framework in tests)
-- Swift 6.3+
-- Xcode 26+ or VSCode with Swift extension
+- macOS 27+ (required for the macOS 27 SDK and the Vision framework used in tests)
+- Swift 6.4 (`swift-tools-version: 6.4`)
+- Xcode 27 beta (or VSCode with the Swift extension pointed at the same toolchain)
+
+> **Heads up:** ZPLKit targets the macOS 27 SDK / Swift 6.4, which no stable
+> Xcode or GitHub-hosted runner carries yet. Until macOS 27 / Xcode 27 ship as
+> GA, you need the Xcode 27 **beta**. Point `swift` at it with `DEVELOPER_DIR`
+> (the CI does the same):
+>
+> ```bash
+> export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer
+> ```
 
 ### Getting Started
 
 ```bash
 git clone https://github.com/jonathanspiva/zplkit.git
 cd zplkit
+export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer
 swift build
 swift test
 ```

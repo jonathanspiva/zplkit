@@ -420,7 +420,7 @@ final class FakePrinter: @unchecked Sendable {
     static func makeHHResponse(
         darkness: Int = 15,
         printSpeed: Int = 4,
-        serial: String = "31J114702349",
+        serial: String = "50J000000001",
         firmware: String = "V53.17.14Z",
         printWidth: Int = 832,
         labelLength: Int = 1218

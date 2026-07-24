@@ -127,21 +127,21 @@ struct ZPLKitPrinterTests {
             "614e6574205769726564205053000000" +
             "333335334100005635362e31372e3137" +
             "5a5a4252006100074d40ab2434323338" +
-            "3131360000000100c0a80705fffffc00" +
-            "c0a804015a504c4b69742d5465737400"
+            "3131360000000100c0a80164fffffc00" +
+            "c0a801015a504c4b69742d5465737400"
         let data: [UInt8] = stride(from: 0, to: hex.count, by: 2).map {
             let s = hex.index(hex.startIndex, offsetBy: $0)
             return UInt8(hex[s..<hex.index(s, offsetBy: 2)], radix: 16)!
         }
 
-        let printer = try #require(ZPLPrinterBrowser.parseReply(data, host: "192.168.7.5"))
-        #expect(printer.host == "192.168.7.5")
+        let printer = try #require(ZPLPrinterBrowser.parseReply(data, host: "192.168.1.100"))
+        #expect(printer.host == "192.168.1.100")
         #expect(printer.port == 9100)
         #expect(printer.name == "ZPLKit-Test")             // system name at offset 84
         #expect(printer.metadata["product"] == "79071")
         #expect(printer.metadata["server"] == "ZebraNet Wired PS")
         #expect(printer.metadata["firmware"] == "V56.17.17Z")
-        #expect(printer.id == "192.168.7.5")               // keyed by host
+        #expect(printer.id == "192.168.1.100")             // keyed by host
     }
 
     @Test("ZPLPrinterBrowser rejects non-Zebra packets")
@@ -1209,9 +1209,9 @@ struct ZPLKitPrinterTests {
 
     @Test("PrinterSettings parses serial number")
     func printerSettingsParsesSerialNumber() {
-        let text = "  31J114702349        SERIAL NUMBER"
+        let text = "  50J000000001        SERIAL NUMBER"
         let settings = PrinterSettings.parse(from: text)
-        #expect(settings.serialNumber == "31J114702349")
+        #expect(settings.serialNumber == "50J000000001")
     }
 
     @Test("PrinterSettings parses firmware with arrow marker")
@@ -1273,7 +1273,7 @@ struct ZPLKitPrinterTests {
     @Test("PrinterSettings parses extended ZM400 full output")
     func printerSettingsParsesExtendedZM400() {
         let text = """
-          31J114702349        SERIAL NUMBER
+          50J000000001        SERIAL NUMBER
           +15                 DARKNESS
           2 IPS               PRINT SPEED
           +000                TEAR OFF
@@ -1289,7 +1289,7 @@ struct ZPLKitPrinterTests {
           50,234 IN           RESET CNTR1
         """
         let settings = PrinterSettings.parse(from: text)
-        #expect(settings.serialNumber == "31J114702349")
+        #expect(settings.serialNumber == "50J000000001")
         #expect(settings.darkness == 15)
         #expect(settings.printSpeed == 2)
         #expect(settings.mediaType == .thermalTransfer)
@@ -1346,7 +1346,7 @@ struct ZPLKitPrinterTests {
         settings.labelLengthDots = 1218
         settings.printMode = .tearOff
         settings.tearOffAdjust = 16
-        settings.serialNumber = "31J114702349"
+        settings.serialNumber = "50J000000001"
         settings.firmware = "V53.17.24Z"
         settings.nonresetCounterInches = 111367
         settings.resetCounterInches = 50234

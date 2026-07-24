@@ -5,6 +5,8 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [1.0.0]
 
 <!-- set release date when tagging -->
@@ -16,8 +18,8 @@ These affect anyone who built against pre-release code:
 
 - The `ZPLVerifier` module (product) was renamed to `ZPLKitVerifier`. Update imports to `import ZPLKitVerifier`. The entry type is still named `ZPLVerifier`.
 - `ZPLVerifier.analyze(_:)` and the `verify(...)` overloads are now `async throws` (migrated to the Swift-native Vision API).
-- Minimum platforms raised to iOS 26 / macOS 26 / tvOS 26 / watchOS 26.
-- Swift 6.3 is required (`swift-tools-version: 6.3`).
+- Minimum platforms raised to iOS 27 / macOS 27 / tvOS 27 / watchOS 27.
+- Swift 6.4 is required (`swift-tools-version: 6.4`).
 - `VerifierError.visionError` was removed (no consumers).
 
 ### Added
@@ -49,7 +51,7 @@ These affect anyone who built against pre-release code:
 
 #### ZPLKitPrinter (Network Printing)
 - `ZPLPrinter`: Send ZPL to printers via TCP (port 9100)
-- `ZPLPrinterBrowser`: Bonjour/mDNS discovery (`_pdl-datastream._tcp`)
+- `ZPLPrinterBrowser`: LAN discovery via Zebra's UDP broadcast protocol (port 4201)
 - `DiscoveredPrinter`: Printer metadata from network discovery
 - **Two-way communication**: `query()` method for bidirectional printer queries
 - **Status queries**: `queryStatus()` for `~HS` (Host Status) response parsing
@@ -96,7 +98,7 @@ These affect anyone who built against pre-release code:
 - Migrated `ZPLVerifier` to the Swift-native Vision API (`DetectBarcodesRequest`, `RecognizeTextRequest`, `ImageRequestHandler`), replacing the legacy `VN`-prefixed completion-handler API.
 - `ZPLVerifier` now runs barcode and text recognition concurrently (`async let`), roughly halving analysis latency.
 - **Removed the `Awesome` dependency** (and the `GraphicsTest` dev tool that used it); the library now has zero external dependencies.
-- CI now runs on the `macos-26` runner with Xcode 26 selected explicitly, enforces `-warnings-as-errors`, has per-job timeouts, and treats the external Labelary visual comparison as non-blocking.
+- CI runs on a self-hosted `macos-27` runner with the Xcode 27 beta toolchain (pinned via `DEVELOPER_DIR`, since no GitHub-hosted image carries the macOS 27 SDK / Swift 6.4 yet), enforces `-warnings-as-errors`, has per-job timeouts, gates the external Labelary visual comparison behind a minimum accuracy score, and skips PRs opened from forks (which cannot use the self-hosted runner).
 
 ### Fixed
 - **Fixed a `query()` hang**: a continuation race in `ZPLPrinter` could drop the result on fast connection failure and hang forever; it now always resumes.

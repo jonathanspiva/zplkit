@@ -426,7 +426,7 @@ struct ResponseParsingTests {
     @Test("^HH parses core fields from a ZM400 dump")
     func hhZM400() {
         let text = """
-          31J114702349        SERIAL NUMBER
+          50J000000001        SERIAL NUMBER
           +15                 DARKNESS
           2 IPS               PRINT SPEED
           +000                TEAR OFF
@@ -440,7 +440,7 @@ struct ResponseParsingTests {
           111,367 IN          NONRESET CNTR
         """
         let s = PrinterSettings.parse(from: text)
-        #expect(s.serialNumber == "31J114702349")
+        #expect(s.serialNumber == "50J000000001")
         #expect(s.darkness == 15)
         #expect(s.printSpeed == 2)
         #expect(s.tearOffAdjust == 0)
@@ -528,7 +528,7 @@ struct ResponseParsingTests {
     @Test("PrinterDiagnostics.description includes optional settings lines")
     func diagnosticsDescriptionWithSettings() {
         var settings = PrinterSettings()
-        settings.serialNumber = "31J114702349"
+        settings.serialNumber = "50J000000001"
         settings.firmware = "V53.17.24Z"
         settings.nonresetCounterInches = 111_367
         settings.resetCounterInches = 50_234
@@ -537,7 +537,7 @@ struct ResponseParsingTests {
 
         let diag = sampleDiagnostics(settings: settings)
         let desc = diag.description
-        #expect(desc.contains("serial: 31J114702349"))
+        #expect(desc.contains("serial: 50J000000001"))
         #expect(desc.contains("config_firmware: V53.17.24Z"))
         #expect(desc.contains("lifetime_usage: 111367 in"))
         #expect(desc.contains("head_usage: 50234 in"))
