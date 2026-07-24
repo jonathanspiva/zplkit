@@ -113,6 +113,9 @@ public struct PrinterConfiguration: Sendable, Equatable, Codable {
     public var printerName: String?
 
     /// Static IP address. ZPL: `^NS`.
+    ///
+    /// - Warning: The `^NS` network-config path is experimental / not
+    ///   hardware-verified — see ``networkConfig(ip:subnet:gateway:dhcp:)``.
     public var ipAddress: String?
 
     /// Subnet mask. ZPL: `^NS`.
@@ -290,6 +293,15 @@ public struct PrinterConfiguration: Sendable, Equatable, Codable {
     }
 
     /// Sets static network configuration.
+    ///
+    /// - Warning: **Experimental / not hardware-verified.** ZPLKit emits a
+    ///   spec-shaped `^NS` command, but on a Zebra GX420t (firmware V56.17.17Z)
+    ///   an `^NSP` static-IP change followed by `~JR` (``ZPLPrinter/powerOnReset()``)
+    ///   was observed **not to take effect** — the printer kept its previous IP.
+    ///   It may require a full power cycle or a firmware/model that applies `^NS`
+    ///   differently. A wrong value can also drop the printer off the network.
+    ///   Verify on a recoverable printer (physical/USB access) before relying on
+    ///   this in production.
     public func networkConfig(
         ip: String,
         subnet: String = "255.255.255.0",
@@ -305,6 +317,8 @@ public struct PrinterConfiguration: Sendable, Equatable, Codable {
     }
 
     /// Enables DHCP (disables static IP configuration).
+    ///
+    /// - Warning: Experimental / not hardware-verified — see ``networkConfig(ip:subnet:gateway:dhcp:)``.
     public func dhcp() -> PrinterConfiguration {
         var copy = self
         copy.dhcpEnabled = true

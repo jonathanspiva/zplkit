@@ -18,6 +18,13 @@
 
 ### Live-hardware findings (2026-07-23)
 
+- [ ] **`^NS` network reconfig does not take effect via `~JR`.** Round-trip test
+  on the GX420t (V56): `^NSP,<free-ip>` + `^JUS` + `~JR` left the IP unchanged.
+  `networkConfig()`/`dhcp()` are now documented as **experimental** (PR #12).
+  Disambiguate when there's time + a recoverable printer: send `^NSP,<free-ip>`,
+  **physically power-cycle**, then re-check via UDP-4201 discovery. If it moves,
+  the fix is "power cycle, not `~JR`"; if not, the emitted `^NS` format is wrong
+  for this firmware. A Link-OS printer would allow SGD read-back (like `^KN`).
 - [x] **Barcode symbology print pass** (`Tools/BarcodePrintTest`, PR #10) — all 12
   symbologies printed to the ZM400 + GX420t. Library output correct across the
   board; the ZM400 right-half streaking was a ribbon/printhead artifact (tracked

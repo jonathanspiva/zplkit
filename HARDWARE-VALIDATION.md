@@ -105,9 +105,14 @@ untrusted network input rather than trapping.
   like an office inkjet, not Zebra units), so `ZPLPrinterBrowser` uses Zebra's
   proprietary UDP-4201 broadcast protocol instead. Validated end-to-end on
   hardware 2026-07-23 (see 2b above).
-- **`^NS` network reconfiguration** is intentionally not exercised against shared
-  lab printers (a wrong value would take the printer off the network); the ZPL
-  emission is covered by unit tests.
+- **`^NS` network reconfiguration** is **experimental / not verified working.**
+  The `^NS` ZPL emission is covered by unit tests, but a hardware round-trip on
+  2026-07-23 (GX420t V56.17.17Z: `^NSP,192.168.7.50,…` + `^JUS` save + `~JR`) did
+  **not** change the printer's IP — it stayed put. Root cause is undetermined:
+  likely `~JR` doesn't re-init the wired print server (a full power cycle may be
+  required), or this firmware doesn't accept the emitted `^NS` format. Left for a
+  follow-up disambiguation (send `^NSP`, physically power-cycle, re-check via
+  UDP-4201 discovery). `networkConfig()` is documented as experimental until then.
 
 ## Adding another printer
 
