@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disclaimer is gone); `ParsedElement` may still gain cases in minor releases.
 - `BarcodeSymbology` is no longer `@frozen`, so future Vision symbologies can be
   added without a source break (switch over it with a `default` case).
+- `PrinterConfiguration.networkConfig(...)` / `dhcp()` (the `^NS` path) are now
+  documented as **experimental / not hardware-verified**: a static-IP change via
+  `^NSP` + `~JR` was observed not to take effect on a GX420t (V56), so the emitted
+  command shape and reset sequence are still unconfirmed. Use with caution and a
+  recoverable printer.
 
 ### Fixed
 - `^BY` module width is now emitted by every 1-D barcode (`Code39`, `EAN13`,
