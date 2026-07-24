@@ -46,16 +46,18 @@ below were already available at the 26 floor and are bundled in here.
 - [x] **Phase 1c: `ZPLPrinterBrowser` rewritten off Bonjour (PR #7).** Zebra
   units don't advertise `_pdl-datastream._tcp` over mDNS, so the browser now uses
   Zebra's proprietary UDP-4201 broadcast protocol. Request/response parsing is
-  unit-tested; end-to-end discovery against physical Zebra hardware on the LAN is
-  still outstanding (tracked under Phase 3).
+  unit-tested, and end-to-end discovery was validated on hardware 2026-07-23
+  (ZM400 + GX420t both discovered via the async `printers` stream; see
+  HARDWARE-VALIDATION.md 2b).
 - [x] **Phase 0 (CI): `ci.yml` -> macos-27** - Done. All push/PR jobs run on a
   self-hosted `macos-27` runner with the Xcode 27 beta toolchain (pinned via
   `DEVELOPER_DIR`), since no GitHub-hosted image carries the macOS 27 SDK / Swift
   6.4 yet. Fork PRs are skipped (they can't use the self-hosted runner); the live
   printer job is `workflow_dispatch`-only.
-- [ ] **Phase 3: verify** - Outstanding: re-run live ZM400/GX420t passes for the
-  UDP-4201 discovery rewrite (Phase 1c) on the LAN runner. Add a GitHub-hosted
-  build/unit job for fork PRs once a `macos-27` hosted image ships.
+- [ ] **Phase 3: verify** - UDP-4201 discovery validated on hardware 2026-07-23
+  (Phase 1c). Still outstanding: wire the live sweep into the self-hosted runner's
+  `workflow_dispatch` job, and add a GitHub-hosted build/unit job for fork PRs
+  once a `macos-27` hosted image ships.
 
 ### Code review pass 2026-07-10 (53 findings)
 
