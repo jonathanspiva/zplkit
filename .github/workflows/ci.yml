@@ -10,9 +10,12 @@ on:
   workflow_dispatch:
     inputs:
       printer_ip:
-        description: "Printer IP for live-hardware PrinterTests"
+        # Leave blank to fall back to the LIVE_PRINTER_IP repository variable
+        # (Settings -> Secrets and variables -> Actions -> Variables), so the
+        # real lab IP lives in repo settings, not in this committed file.
+        description: "Printer IP (blank = use the LIVE_PRINTER_IP repo variable)"
         required: false
-        default: "192.168.1.100"
+        default: ""
 
 permissions:
   contents: read
@@ -133,4 +136,12 @@ jobs:
         run: swift --version
 
       - name: Run live PrinterTests
-        run: swift run PrinterTests --timeout 15 "${{ github.event.inputs.printer_ip }}"
+        env:
+          # Manual dispatch input wins; otherwise fall back to the repo variable.
+          PRINTER_IP: ${{ github.event.inputs.printer_ip || vars.LIVE_PRINTER_IP }}
+        run: |
+          if [ -z "$PRINTER_IP" ]; then
+            echo "::error::No printer IP. Set the LIVE_PRINTER_IP repository variable or pass one when dispatching."
+            exit 1
+          fi
+          swift run PrinterTests --timeout 15 "$PRINTER_IP"
