@@ -17,8 +17,10 @@ public struct HorizontalLine: ZPLElement, Equatable, Hashable {
 
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
-        let length = lineLength.resolve(dpi: context.dpi)
-        let thick = lineThickness.resolve(dpi: context.dpi)
+        // Clamp to >= 1 dot: ^GB with a zero/negative dimension is out-of-range
+        // and behaves inconsistently across firmware (same guard as Box/Circle).
+        let length = max(1, lineLength.resolve(dpi: context.dpi))
+        let thick = max(1, lineThickness.resolve(dpi: context.dpi))
 
         // A horizontal line is a box with width = length and height = thickness
         return "^FO\(pos.x),\(pos.y)^GB\(length),\(thick),\(thick)^FS"
@@ -44,8 +46,10 @@ public struct VerticalLine: ZPLElement, Equatable, Hashable {
 
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
-        let length = lineLength.resolve(dpi: context.dpi)
-        let thick = lineThickness.resolve(dpi: context.dpi)
+        // Clamp to >= 1 dot: ^GB with a zero/negative dimension is out-of-range
+        // and behaves inconsistently across firmware (same guard as Box/Circle).
+        let length = max(1, lineLength.resolve(dpi: context.dpi))
+        let thick = max(1, lineThickness.resolve(dpi: context.dpi))
 
         // A vertical line is a box with width = thickness and height = length
         return "^FO\(pos.x),\(pos.y)^GB\(thick),\(length),\(thick)^FS"

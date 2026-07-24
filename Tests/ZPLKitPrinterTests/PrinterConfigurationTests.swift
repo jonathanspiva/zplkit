@@ -240,7 +240,7 @@ struct PrinterConfigurationTests {
 
     @Test("Field rotation generates ^FW format command")
     func fieldRotationGeneratesFormat() {
-        let config = PrinterConfiguration().fieldRotation("R")
+        let config = PrinterConfiguration().fieldRotation(.rotate90)
         let commands = config.zplCommands()
         #expect(commands[0] == "^XA^FWR^XZ")
     }
@@ -416,7 +416,7 @@ struct PrinterConfigurationTests {
         config.printMode = .tearOff
         config.sensorType = .transmissive
         config.orientation = .normal
-        config.fieldRotation = "N"
+        config.fieldRotation = .normal
         config.slewSpeedIPS = 8
         config.backfeedSpeedIPS = 4
         config.tearOffAdjust = 16
@@ -590,20 +590,16 @@ struct PrinterConfigurationTests {
         #expect(commands.isEmpty)
     }
 
-    @Test("Invalid field rotation falls back to N")
-    func fieldRotationInvalidFallsBackToN() {
+    @Test("Field rotation enum maps to the correct ^FW letter", arguments: [
+        (FieldRotation.normal, "N"),
+        (.rotate90, "R"),
+        (.rotate180, "I"),
+        (.rotate270, "B"),
+    ])
+    func fieldRotationEnumMapsToLetter(rotation: FieldRotation, letter: String) {
         var config = PrinterConfiguration()
-        config.fieldRotation = "X^XZ"
-        let commands = config.zplCommands()
-        #expect(commands[0] == "^XA^FWN^XZ")
-    }
-
-    @Test("Lowercase field rotation is normalized to uppercase")
-    func fieldRotationLowercaseNormalized() {
-        var config = PrinterConfiguration()
-        config.fieldRotation = "r"
-        let commands = config.zplCommands()
-        #expect(commands[0] == "^XA^FWR^XZ")
+        config.fieldRotation = rotation
+        #expect(config.zplCommands()[0] == "^XA^FW\(letter)^XZ")
     }
 
     // MARK: - Clamping in zplCommands (last line of defense)

@@ -7,12 +7,12 @@ import Foundation
 ///
 /// ```swift
 /// try await verifier.verify(image) {
-///     Text("FRAGILE")
+///     TextExpectation("FRAGILE")
 ///     if includeBarcode {
-///         Barcode(.qr, containing: "SKU-123")
+///         BarcodeExpectation(.qr, containing: "SKU-123")
 ///     }
 ///     for sku in skus {
-///         Barcode(.code128, exactly: sku)
+///         BarcodeExpectation(.code128, exactly: sku)
 ///     }
 /// }
 /// ```

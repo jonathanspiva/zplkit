@@ -8,9 +8,11 @@ public struct EAN13: ZPLElement, Equatable, Hashable {
     private var barcodeHeight: Dimension = .dots(100)
     private var showText: Bool = true
     private var isTextAbove: Bool = false
+    private var moduleWidth: Int = 2  // 1-10
 
     /// Creates an EAN-13 barcode at the given position.
-    /// Returns nil if the data is not exactly 12 or 13 digits.
+    /// Returns nil if the data is not exactly 12 or 13 digits, or if a 13-digit
+    /// value carries a check digit that doesn't match the first 12.
     /// - Parameters:
     ///   - data: The numeric data to encode (12 digits, or 13 with check digit).
     ///   - position: The position on the label.
@@ -20,6 +22,12 @@ public struct EAN13: ZPLElement, Equatable, Hashable {
             return nil
         }
         guard data.allSatisfy({ $0.isASCIIDigit }) else {
+            return nil
+        }
+        // If the caller supplied the full 13 digits, the 13th must be the correct
+        // check digit; otherwise the printer would silently re-derive a different
+        // one from the first 12 and encode a symbol that doesn't match the input.
+        if data.count == 13, !hasValidGTINCheckDigit(data) {
             return nil
         }
         self.data = data
@@ -54,6 +62,15 @@ public struct EAN13: ZPLElement, Equatable, Hashable {
         return copy
     }
 
+    /// Sets the module (narrow-bar) width via `^BY`. Default is 2.
+    ///
+    /// - Parameter width: Module width from 1 to 10.
+    public func moduleWidth(_ width: Int) -> EAN13 {
+        var copy = self
+        copy.moduleWidth = min(10, max(1, width))
+        return copy
+    }
+
     public func render(context: ZPLRenderContext) -> String {
         let pos = position.resolve(dpi: context.dpi)
         let height = barcodeHeight.resolve(dpi: context.dpi)
@@ -62,6 +79,9 @@ public struct EAN13: ZPLElement, Equatable, Hashable {
         let aboveFlag = isTextAbove ? "Y" : "N"
 
         var result = "^FO\(pos.x),\(pos.y)"
+        // Emit ^BY so a preceding barcode's module width can't leak in (^BY is
+        // sticky within a format).
+        result += "^BY\(moduleWidth)"
         result += "^BE\(rotation.rawValue),\(height),\(textFlag),\(aboveFlag)"
         result += "^FD\(data)^FS"
 

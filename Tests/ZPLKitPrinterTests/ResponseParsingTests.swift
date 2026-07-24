@@ -230,7 +230,7 @@ struct ResponseParsingTests {
     @Test(
         "~HI dpi maps standard Zebra resolutions exactly",
         arguments: [
-            (6, 150),
+            (6, 152),
             (8, 203),
             (12, 300),
             (24, 600),

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Expectation that a barcode of a specific type exists in the image.
-public struct Barcode: Expectation {
+public struct BarcodeExpectation: Expectation {
     /// The expected barcode symbology.
     public let symbology: BarcodeSymbology
 

@@ -28,7 +28,7 @@ struct VerificationBuilderMethodTests {
     func singleBlock() {
         @VerificationBuilder
         func build() -> [any Expectation] {
-            Barcode(.code128)
+            BarcodeExpectation(.code128)
         }
         let result = build()
         #expect(result.count == 1)
@@ -39,9 +39,9 @@ struct VerificationBuilderMethodTests {
     func ordering() {
         @VerificationBuilder
         func build() -> [any Expectation] {
-            Text("FIRST")
-            Barcode(.qr)
-            Text("LAST")
+            TextExpectation("FIRST")
+            BarcodeExpectation(.qr)
+            TextExpectation("LAST")
         }
         let result = build()
         #expect(result.count == 3)
@@ -60,9 +60,9 @@ struct VerificationBuilderMethodTests {
     func forLoopBuildsArray() {
         @VerificationBuilder
         func build(_ skus: [String]) -> [any Expectation] {
-            Text("HEADER")
+            TextExpectation("HEADER")
             for sku in skus {
-                Barcode(.code128, exactly: sku)
+                BarcodeExpectation(.code128, exactly: sku)
             }
         }
         let result = build(["A1", "B2", "C3"])
@@ -75,9 +75,9 @@ struct VerificationBuilderMethodTests {
     func forLoopEmpty() {
         @VerificationBuilder
         func build(_ skus: [String]) -> [any Expectation] {
-            Text("ONLY")
+            TextExpectation("ONLY")
             for sku in skus {
-                Barcode(.code128, exactly: sku)
+                BarcodeExpectation(.code128, exactly: sku)
             }
         }
         #expect(build([]).count == 1)
@@ -87,9 +87,9 @@ struct VerificationBuilderMethodTests {
     func ifWithoutElse() {
         @VerificationBuilder
         func build(_ include: Bool) -> [any Expectation] {
-            Text("ALWAYS")
+            TextExpectation("ALWAYS")
             if include {
-                Barcode(.qr, containing: "SKU-123")
+                BarcodeExpectation(.qr, containing: "SKU-123")
             }
         }
         #expect(build(true).count == 2)
@@ -101,10 +101,10 @@ struct VerificationBuilderMethodTests {
         @VerificationBuilder
         func build(_ useQR: Bool) -> [any Expectation] {
             if useQR {
-                Barcode(.qr)
+                BarcodeExpectation(.qr)
             } else {
-                Barcode(.code128)
-                Text("FALLBACK")
+                BarcodeExpectation(.code128)
+                TextExpectation("FALLBACK")
             }
         }
         #expect(build(true).count == 1)
@@ -118,9 +118,9 @@ struct VerificationBuilderMethodTests {
     @Test("buildArray static method flattens nested arrays directly")
     func buildArrayDirect() {
         let nested: [[any Expectation]] = [
-            [Barcode(.code128)],
+            [BarcodeExpectation(.code128)],
             [],
-            [Text("X"), Text("Y")]
+            [TextExpectation("X"), TextExpectation("Y")]
         ]
         #expect(VerificationBuilder.buildArray(nested).count == 3)
     }
@@ -133,7 +133,7 @@ struct VerificationBuilderMethodTests {
 
     @Test("buildExpression lifts a single expectation into a one-element partial")
     func buildExpressionDirect() {
-        let partial = VerificationBuilder.buildExpression(Barcode(.qr))
+        let partial = VerificationBuilder.buildExpression(BarcodeExpectation(.qr))
         #expect(partial.count == 1)
         #expect(partial[0].description == "Barcode(qr)")
     }
@@ -145,7 +145,7 @@ struct VerificationBuilderMethodTests {
 
     @Test("buildLimitedAvailability passes the component through unchanged")
     func buildLimitedAvailabilityDirect() {
-        let component: [any Expectation] = [Barcode(.qr), Text("Z")]
+        let component: [any Expectation] = [BarcodeExpectation(.qr), TextExpectation("Z")]
         #expect(VerificationBuilder.buildLimitedAvailability(component).count == 2)
     }
 }
@@ -161,21 +161,21 @@ struct TextMatchingTests {
 
     @Test("containing: matches a case-mismatched substring (case-insensitive by design)")
     func containingCaseInsensitive() {
-        let expectation = Text("fragile")
+        let expectation = TextExpectation("fragile")
         let regions = [DetectedText(text: "HANDLE WITH CARE - FRAGILE", boundingBox: .zero, confidence: 1)]
         #expect(expectation.check(barcodes: [], textRegions: regions).passed)
     }
 
     @Test("containing: matches when expectation is upper and detection is lower")
     func containingCaseInsensitiveReverse() {
-        let expectation = Text("FRAGILE")
+        let expectation = TextExpectation("FRAGILE")
         let regions = [DetectedText(text: "fragile item", boundingBox: .zero, confidence: 1)]
         #expect(expectation.check(barcodes: [], textRegions: regions).passed)
     }
 
     @Test("containing: scans across multiple regions and matches the right one")
     func containingMultipleRegions() {
-        let expectation = Text("WORLD")
+        let expectation = TextExpectation("WORLD")
         let regions = [
             DetectedText(text: "hello", boundingBox: .zero, confidence: 1),
             DetectedText(text: "big world here", boundingBox: .zero, confidence: 1)
@@ -185,7 +185,7 @@ struct TextMatchingTests {
 
     @Test("containing: fails when substring is absent (near-miss)")
     func containingNearMissFails() {
-        let expectation = Text("FRAGILE")
+        let expectation = TextExpectation("FRAGILE")
         let regions = [DetectedText(text: "FRAGILITY", boundingBox: .zero, confidence: 1)]
         // "FRAGILE" is not a substring of "FRAGILITY".
         let result = expectation.check(barcodes: [], textRegions: regions)
@@ -194,7 +194,7 @@ struct TextMatchingTests {
 
     @Test("containing: with no detected text reports (no text detected)")
     func containingNoTextDetected() {
-        let expectation = Text("ANYTHING")
+        let expectation = TextExpectation("ANYTHING")
         let result = expectation.check(barcodes: [], textRegions: [])
         #expect(!result.passed)
         #expect(result.failureMessage?.contains("(no text detected)") ?? false)
@@ -202,7 +202,7 @@ struct TextMatchingTests {
 
     @Test("exactly: is case-sensitive and fails on case mismatch (near-miss)")
     func exactlyCaseSensitiveFails() {
-        let expectation = Text(exactly: "Hello World")
+        let expectation = TextExpectation(exactly: "Hello World")
         let regions = [DetectedText(text: "hello world", boundingBox: .zero, confidence: 1)]
         // exactly: uses == which is case-sensitive; lowercased detection must fail.
         #expect(!expectation.check(barcodes: [], textRegions: regions).passed)
@@ -210,21 +210,21 @@ struct TextMatchingTests {
 
     @Test("exactly: matches an identical string")
     func exactlyMatches() {
-        let expectation = Text(exactly: "Hello World")
+        let expectation = TextExpectation(exactly: "Hello World")
         let regions = [DetectedText(text: "Hello World", boundingBox: .zero, confidence: 1)]
         #expect(expectation.check(barcodes: [], textRegions: regions).passed)
     }
 
     @Test("exactly: fails when detection has extra surrounding text (whole-string match)")
     func exactlyRejectsSuperstring() {
-        let expectation = Text(exactly: "LABEL")
+        let expectation = TextExpectation(exactly: "LABEL")
         let regions = [DetectedText(text: "SHIPPING LABEL", boundingBox: .zero, confidence: 1)]
         #expect(!expectation.check(barcodes: [], textRegions: regions).passed)
     }
 
     @Test("matched item is the detected text on a passing containing: check")
     func containingMatchedItem() {
-        let expectation = Text("OK")
+        let expectation = TextExpectation("OK")
         let detection = DetectedText(text: "STATUS OK", boundingBox: .zero, confidence: 1)
         let result = expectation.check(barcodes: [], textRegions: [detection])
         #expect(result.passed)
@@ -250,13 +250,13 @@ struct BarcodeMatchingTests {
 
     @Test("any: passes when symbology is present regardless of payload")
     func anyPasses() {
-        let result = Barcode(.qr).check(barcodes: [bc(.qr, "whatever")], textRegions: [])
+        let result = BarcodeExpectation(.qr).check(barcodes: [bc(.qr, "whatever")], textRegions: [])
         #expect(result.passed)
     }
 
     @Test("any: fails when symbology is absent")
     func anyMissingSymbology() {
-        let result = Barcode(.qr).check(barcodes: [bc(.code128, "x")], textRegions: [])
+        let result = BarcodeExpectation(.qr).check(barcodes: [bc(.code128, "x")], textRegions: [])
         #expect(!result.passed)
         #expect(result.failureMessage?.contains("No qr") ?? false)
     }
@@ -264,43 +264,43 @@ struct BarcodeMatchingTests {
     @Test("exactly: fails when only the symbology differs (right payload, wrong type)")
     func exactlyWrongSymbology() {
         // Payload matches, but symbology does not: must fail.
-        let result = Barcode(.qr, exactly: "ABC").check(barcodes: [bc(.code128, "ABC")], textRegions: [])
+        let result = BarcodeExpectation(.qr, exactly: "ABC").check(barcodes: [bc(.code128, "ABC")], textRegions: [])
         #expect(!result.passed)
         #expect(result.failureMessage?.contains("No qr") ?? false)
     }
 
     @Test("exactly: fails on payload mismatch even with correct symbology (near-miss)")
     func exactlyWrongPayload() {
-        let result = Barcode(.code128, exactly: "ABC123").check(barcodes: [bc(.code128, "ABC124")], textRegions: [])
+        let result = BarcodeExpectation(.code128, exactly: "ABC123").check(barcodes: [bc(.code128, "ABC124")], textRegions: [])
         #expect(!result.passed)
         #expect(result.failureMessage?.contains("ABC124") ?? false)
     }
 
     @Test("exactly: is case-sensitive on payload (near-miss)")
     func exactlyCaseSensitivePayload() {
-        let result = Barcode(.code128, exactly: "abc").check(barcodes: [bc(.code128, "ABC")], textRegions: [])
+        let result = BarcodeExpectation(.code128, exactly: "abc").check(barcodes: [bc(.code128, "ABC")], textRegions: [])
         #expect(!result.passed)
     }
 
     @Test("containing: payload substring is CASE-SENSITIVE (uses String.contains, not localized)")
     func containingPayloadCaseSensitive() {
         // BarcodeExpectation uses payload.contains(substring) which is case-sensitive,
-        // UNLIKE Text(containing:) which is case-insensitive. Pin this asymmetry so a
+        // UNLIKE TextExpectation(containing:) which is case-insensitive. Pin this asymmetry so a
         // regression toward case-insensitive barcode matching is caught.
-        let result = Barcode(.qr, containing: "abc").check(barcodes: [bc(.qr, "XYZABC123")], textRegions: [])
+        let result = BarcodeExpectation(.qr, containing: "abc").check(barcodes: [bc(.qr, "XYZABC123")], textRegions: [])
         #expect(!result.passed)
     }
 
     @Test("containing: matches a case-exact substring")
     func containingPayloadMatches() {
-        let result = Barcode(.qr, containing: "ABC").check(barcodes: [bc(.qr, "XYZABC123")], textRegions: [])
+        let result = BarcodeExpectation(.qr, containing: "ABC").check(barcodes: [bc(.qr, "XYZABC123")], textRegions: [])
         #expect(result.passed)
     }
 
     @Test("exactly: picks the matching barcode among several of the same symbology")
     func exactlyAmongMany() {
         let barcodes = [bc(.code128, "WRONG1"), bc(.code128, "RIGHT"), bc(.code128, "WRONG2")]
-        let result = Barcode(.code128, exactly: "RIGHT").check(barcodes: barcodes, textRegions: [])
+        let result = BarcodeExpectation(.code128, exactly: "RIGHT").check(barcodes: barcodes, textRegions: [])
         #expect(result.passed)
         if case .barcode(let matched)? = result.matchedItem {
             #expect(matched.payload == "RIGHT")
@@ -312,7 +312,7 @@ struct BarcodeMatchingTests {
     @Test("containing: failure message lists all candidate payloads")
     func containingFailureListsCandidates() {
         let barcodes = [bc(.code128, "FOO"), bc(.code128, "BAR")]
-        let result = Barcode(.code128, containing: "ZZZ").check(barcodes: barcodes, textRegions: [])
+        let result = BarcodeExpectation(.code128, containing: "ZZZ").check(barcodes: barcodes, textRegions: [])
         #expect(!result.passed)
         #expect(result.failureMessage?.contains("FOO") ?? false)
         #expect(result.failureMessage?.contains("BAR") ?? false)
@@ -601,7 +601,7 @@ struct VisionHintsDerivationTests {
 
     @Test("Text(containing:) drops words shorter than 3 chars from custom words")
     func shortWordsDropped() {
-        let hints = Text("OK go now").visionHints
+        let hints = TextExpectation("OK go now").visionHints
         // "OK" (2) and "go" (2) are dropped; "now" (3) is kept.
         #expect(!hints.customWords.contains("OK"))
         #expect(!hints.customWords.contains("go"))
@@ -610,7 +610,7 @@ struct VisionHintsDerivationTests {
 
     @Test("Text(exactly:) splits on whitespace and punctuation for custom words")
     func exactlySplitsPunctuation() {
-        let hints = Text(exactly: "SKU-12345, ABCDEF").visionHints
+        let hints = TextExpectation(exactly: "SKU-12345, ABCDEF").visionHints
         #expect(hints.customWords.contains("12345"))
         #expect(hints.customWords.contains("ABCDEF"))
         #expect(hints.customWords.contains("SKU"))
@@ -618,12 +618,12 @@ struct VisionHintsDerivationTests {
 
     @Test("Very short text expectation yields no custom words")
     func tinyTextNoHints() {
-        #expect(Text("OK").visionHints.customWords.isEmpty)
+        #expect(TextExpectation("OK").visionHints.customWords.isEmpty)
     }
 
     @Test("Barcode visionHints carries only the symbology, no custom words")
     func barcodeHints() {
-        let hints = Barcode(.pdf417, exactly: "PAYLOAD").visionHints
+        let hints = BarcodeExpectation(.pdf417, exactly: "PAYLOAD").visionHints
         #expect(hints.symbologies == [.pdf417])
         #expect(hints.customWords.isEmpty)
     }

@@ -1,7 +1,10 @@
 import Foundation
 
 /// Expectation that specific text exists in the image.
-public struct Text: Expectation {
+///
+/// Named `TextExpectation` (not `Text`) so it never collides with ``ZPLKit/Text``
+/// in code that imports both modules for the build → render → verify workflow.
+public struct TextExpectation: Expectation {
     /// How to match the text.
     public let textMatch: TextMatch
 

@@ -60,8 +60,8 @@ for barcode in result.barcodes {
 
 // Assertion mode: declare what the label must contain.
 let check = try await verifier.verify(cgImage) {
-    Barcode(.qr, containing: "SKU-123")
-    Text("FRAGILE")
+    BarcodeExpectation(.qr, containing: "SKU-123")
+    TextExpectation("FRAGILE")
 }
 if !check.passed {
     print(check.summary)
@@ -143,8 +143,8 @@ Available dither methods:
 import ZPLKitRenderer
 
 let renderer = ZPLRenderer()
-// renderToPNG derives the pixel size from the label geometry and the DPI.
-if let (pngData, _) = try? renderer.renderToPNG(zpl, dpi: .dpi203) {
+// renderToPNG derives the pixel size from the label's ^PW/^LL geometry.
+if let (pngData, _) = try? renderer.renderToPNG(zpl) {
     // Display in UIImageView, save to file, etc.
 }
 ```

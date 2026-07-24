@@ -232,7 +232,8 @@ struct BarcodeValidityTests {
     @Test(arguments: [
         ("590123412345", true),     // 12 digits
         ("123456789012", true),     // 12 digits
-        ("1234567890123", true),    // 13 digits
+        ("1234567890128", true),    // 13 digits, correct check digit (8)
+        ("1234567890123", false),   // 13 digits, wrong check digit
         ("000000000000", true),     // leading zeros, 12 digits
         ("12345", false),           // too short
         ("12345678901234", false),  // 14, too long
@@ -290,10 +291,23 @@ struct BarcodeValidityTests {
         ("12345678901234567890123", false),               // 23
         ("012345678901234567890123", false),              // 24
         ("1234567890123456789012345678901234", false),    // 34
-        ("0123456789012345678A", false)                   // non-numeric (20 chars)
+        ("0123456789012345678A", false),                  // non-numeric (20 chars)
+        ("05234567890123456789", false)                   // 20, Barcode-ID 2nd digit 5 (> 4)
     ])
     func intelligentMailValidity(input: String, expectedValid: Bool) {
         #expect((IntelligentMail(input, at: .inches(0.5, 0.5)) != nil) == expectedValid)
+    }
+
+    @Test("IntelligentMail emits ^BZ with postal type 3 and the data verbatim")
+    func intelligentMailGeneratesBZ() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            IntelligentMail("01234567094987654321", at: .dots(10, 10))
+        }
+        let zpl = label.render()
+        // The 5th ^BZ param must be 3 (Intelligent Mail); 0 would print POSTNET.
+        #expect(zpl.contains("^BZN,"))
+        #expect(zpl.contains(",N,N,3"))
+        #expect(zpl.contains("^FD01234567094987654321^FS"))
     }
 }
 
@@ -797,12 +811,13 @@ struct LineTests {
         #expect(label.render().contains("^GB"))
     }
 
-    @Test("Horizontal line zero length renders degenerate ^GB")
+    @Test("Horizontal line zero length clamps to >= 1 dot")
     func horizontalLineZeroLength() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             HorizontalLine(at: .dots(50, 50), length: .dots(0))
         }
-        #expect(label.render().contains("^GB0,2,2"))
+        // Length clamps to 1; a ^GB0 dimension is out-of-range on real firmware.
+        #expect(label.render().contains("^GB1,2,2"))
     }
 
     @Test("Horizontal line default thickness is 2 dots")
@@ -856,12 +871,13 @@ struct LineTests {
         #expect(label.render().contains("^GB"))
     }
 
-    @Test("Vertical line zero length renders degenerate ^GB")
+    @Test("Vertical line zero length clamps to >= 1 dot")
     func verticalLineZeroLength() {
         let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
             VerticalLine(at: .dots(50, 50), length: .dots(0))
         }
-        #expect(label.render().contains("^GB2,0,2"))
+        // Length clamps to 1; a ^GB0 dimension is out-of-range on real firmware.
+        #expect(label.render().contains("^GB2,1,2"))
     }
 
     @Test("Vertical line default thickness is 2 dots")
@@ -1330,6 +1346,48 @@ struct StringEscapingTests {
 }
 
 // MARK: - Barcode Field-Data Escaping
+
+@Suite("Barcode Module Width (^BY)")
+struct BarcodeModuleWidthTests {
+
+    @Test("1D barcodes emit ^BY with the default module width")
+    func oneDBarcodesEmitDefaultBY() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Code39("ABC", at: .dots(10, 10))
+            EAN13("590123412345", at: .dots(10, 60))
+            EAN8("1234567", at: .dots(10, 110))
+            UPCA("01234567890", at: .dots(10, 160))
+            UPCE("012345", at: .dots(10, 210))
+        }
+        let zpl = label.render()
+        // Every 1D barcode now emits its own ^BY so nothing leaks in via stickiness.
+        #expect(zpl.components(separatedBy: "^BY2").count - 1 == 5)
+    }
+
+    @Test("moduleWidth is emitted and clamped to 1...10")
+    func moduleWidthClamped() {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            EAN13("590123412345", at: .dots(10, 10))?.moduleWidth(4)
+            Code39("ABC", at: .dots(10, 60))?.moduleWidth(99)   // clamps to 10
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^BY4"))
+        #expect(zpl.contains("^BY10"))
+    }
+
+    @Test("A preceding moduleWidth does not leak into a following 1D barcode")
+    func moduleWidthDoesNotLeak() {
+        // ^BY is sticky within a format: before the fix, Code39 would inherit
+        // Barcode128's module width. Now each barcode resets it.
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("SKU-1", at: .dots(10, 10))?.moduleWidth(5)
+            Code39("ABC", at: .dots(10, 60))
+        }
+        let zpl = label.render()
+        #expect(zpl.contains("^BY5"))  // Barcode128's own width
+        #expect(zpl.contains("^BY2"))  // Code39 resets to its default, not 5
+    }
+}
 
 @Suite("Barcode Field-Data Escaping")
 struct BarcodeEscapingTests {

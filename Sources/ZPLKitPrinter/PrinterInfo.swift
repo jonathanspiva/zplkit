@@ -37,7 +37,7 @@ public struct PrinterInfo: Sendable, Equatable, Codable {
     /// dpm 12 yields 305 rather than 304).
     public var dpi: Int {
         switch dotsPerMillimeter {
-        case 6: return 150
+        case 6: return 152
         case 8: return 203
         case 12: return 300
         case 24: return 600

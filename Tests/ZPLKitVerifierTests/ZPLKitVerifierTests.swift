@@ -16,34 +16,34 @@ struct ExpectationConstructionTests {
 
     @Test("Barcode(any) description and vision hints")
     func barcodeExpectationAny() {
-        let expectation = Barcode(.code128)
+        let expectation = BarcodeExpectation(.code128)
         #expect(expectation.description == "Barcode(code128)")
         #expect(expectation.visionHints.symbologies == [.code128])
     }
 
     @Test("Barcode(containing:) description and vision hints")
     func barcodeExpectationContaining() {
-        let expectation = Barcode(.qr, containing: "example.com")
+        let expectation = BarcodeExpectation(.qr, containing: "example.com")
         #expect(expectation.description == "Barcode(qr, containing: \"example.com\")")
         #expect(expectation.visionHints.symbologies == [.qr])
     }
 
     @Test("Barcode(exactly:) description")
     func barcodeExpectationExactly() {
-        let expectation = Barcode(.code128, exactly: "ABC123")
+        let expectation = BarcodeExpectation(.code128, exactly: "ABC123")
         #expect(expectation.description == "Barcode(code128, exactly: \"ABC123\")")
     }
 
     @Test("Text(containing:) description and custom words")
     func textExpectationContaining() {
-        let expectation = Text("FRAGILE")
+        let expectation = TextExpectation("FRAGILE")
         #expect(expectation.description == "Text(containing: \"FRAGILE\")")
         #expect(expectation.visionHints.customWords.contains("FRAGILE"))
     }
 
     @Test("Text(exactly:) description")
     func textExpectationExactly() {
-        let expectation = Text(exactly: "Hello World")
+        let expectation = TextExpectation(exactly: "Hello World")
         #expect(expectation.description == "Text(exactly: \"Hello World\")")
     }
 }
@@ -55,7 +55,7 @@ struct ExpectationCheckTests {
 
     @Test("Barcode exact match passes with matched item")
     func barcodeExpectationCheckPass() {
-        let expectation = Barcode(.code128, exactly: "ABC123")
+        let expectation = BarcodeExpectation(.code128, exactly: "ABC123")
         let barcodes = [
             DetectedBarcode(
                 symbology: .code128,
@@ -74,7 +74,7 @@ struct ExpectationCheckTests {
 
     @Test("Barcode missing symbology fails with No <symbology> message")
     func barcodeExpectationCheckFailMissingSymbology() {
-        let expectation = Barcode(.code128)
+        let expectation = BarcodeExpectation(.code128)
         let barcodes = [
             DetectedBarcode(
                 symbology: .qr,
@@ -92,7 +92,7 @@ struct ExpectationCheckTests {
 
     @Test("Barcode wrong payload fails and surfaces actual payload")
     func barcodeExpectationCheckFailWrongPayload() {
-        let expectation = Barcode(.code128, exactly: "ABC123")
+        let expectation = BarcodeExpectation(.code128, exactly: "ABC123")
         let barcodes = [
             DetectedBarcode(
                 symbology: .code128,
@@ -110,7 +110,7 @@ struct ExpectationCheckTests {
 
     @Test("Barcode containing match passes on substring payload")
     func barcodeExpectationCheckContaining() {
-        let expectation = Barcode(.qr, containing: "example")
+        let expectation = BarcodeExpectation(.qr, containing: "example")
         let barcodes = [
             DetectedBarcode(
                 symbology: .qr,
@@ -127,7 +127,7 @@ struct ExpectationCheckTests {
 
     @Test("Text containing match passes")
     func textExpectationCheckPass() {
-        let expectation = Text("FRAGILE")
+        let expectation = TextExpectation("FRAGILE")
         let textRegions = [
             DetectedText(
                 text: "HANDLE WITH CARE - FRAGILE",
@@ -143,7 +143,7 @@ struct ExpectationCheckTests {
 
     @Test("Text containing match is case-insensitive")
     func textExpectationCheckPassCaseInsensitive() {
-        let expectation = Text("fragile")
+        let expectation = TextExpectation("fragile")
         let textRegions = [
             DetectedText(
                 text: "FRAGILE",
@@ -159,7 +159,7 @@ struct ExpectationCheckTests {
 
     @Test("Text not found fails and surfaces missing text")
     func textExpectationCheckFailNotFound() {
-        let expectation = Text("MISSING")
+        let expectation = TextExpectation("MISSING")
         let textRegions = [
             DetectedText(
                 text: "HELLO WORLD",
@@ -176,7 +176,7 @@ struct ExpectationCheckTests {
 
     @Test("Text exact match passes")
     func textExpectationExactlyCheckPass() {
-        let expectation = Text(exactly: "Hello World")
+        let expectation = TextExpectation(exactly: "Hello World")
         let textRegions = [
             DetectedText(
                 text: "Hello World",
@@ -192,7 +192,7 @@ struct ExpectationCheckTests {
 
     @Test("Text exact match fails on partial match")
     func textExpectationExactlyCheckFailPartialMatch() {
-        let expectation = Text(exactly: "Hello")
+        let expectation = TextExpectation(exactly: "Hello")
         let textRegions = [
             DetectedText(
                 text: "Hello World",
@@ -404,8 +404,8 @@ struct ResultBuilderTests {
     func verificationBuilder() {
         @VerificationBuilder
         func buildExpectations() -> [any Expectation] {
-            Barcode(.code128)
-            Text("HELLO")
+            BarcodeExpectation(.code128)
+            TextExpectation("HELLO")
         }
 
         #expect(buildExpectations().count == 2)
@@ -415,9 +415,9 @@ struct ResultBuilderTests {
     func verificationBuilderMultipleExpectations() {
         @VerificationBuilder
         func buildExpectations() -> [any Expectation] {
-            Barcode(.code128)
-            Barcode(.qr)
-            Text("HELLO")
+            BarcodeExpectation(.code128)
+            BarcodeExpectation(.qr)
+            TextExpectation("HELLO")
         }
 
         #expect(buildExpectations().count == 3)
@@ -583,7 +583,7 @@ struct VerifierIntegrationTests {
                 .magnification(8)
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier()
         let result = try await verifier.analyze(renderResult.image)
@@ -602,7 +602,7 @@ struct VerifierIntegrationTests {
                 .moduleWidth(3)
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier()
         let result = try await verifier.analyze(renderResult.image)
@@ -619,11 +619,11 @@ struct VerifierIntegrationTests {
                 .moduleWidth(3)
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
-            Barcode(.code128, exactly: testData)
+            BarcodeExpectation(.code128, exactly: testData)
         }
 
         #expect(result.passed, "\(result.summary)")
@@ -637,11 +637,11 @@ struct VerifierIntegrationTests {
                 .moduleWidth(3)
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
-            Barcode(.code128, containing: "12345")
+            BarcodeExpectation(.code128, containing: "12345")
         }
 
         #expect(result.passed, "\(result.summary)")
@@ -655,11 +655,11 @@ struct VerifierIntegrationTests {
                 .moduleWidth(3)
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
-            Barcode(.qr)  // Looking for QR but only Code128 present
+            BarcodeExpectation(.qr)  // Looking for QR but only Code128 present
         }
 
         #expect(!result.passed)
@@ -676,12 +676,12 @@ struct VerifierIntegrationTests {
                 .magnification(6)
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
-            Barcode(.code128, containing: "SKU")
-            Barcode(.qr, containing: "example")
+            BarcodeExpectation(.code128, containing: "SKU")
+            BarcodeExpectation(.qr, containing: "example")
         }
 
         #expect(result.passed, "\(result.summary)")
@@ -695,11 +695,11 @@ struct VerifierIntegrationTests {
                 .font(.default, height: .dots(50), width: .dots(50))
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
-            Text("SHIPPING")
+            TextExpectation("SHIPPING")
         }
 
         #expect(result.passed, "\(result.summary)")
@@ -712,7 +712,7 @@ struct VerifierIntegrationTests {
                 .magnification(8)
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier(configuration: .fast)
         let result = try await verifier.analyze(renderResult.image)
@@ -727,7 +727,7 @@ struct VerifierIntegrationTests {
                 .height(.dots(100))
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier()
         let result = try await verifier.analyze(renderResult.image)
@@ -742,11 +742,11 @@ struct VerifierIntegrationTests {
                 .height(.dots(100))
         }
 
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
 
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
-            Barcode(.code128)
+            BarcodeExpectation(.code128)
         }
 
         #expect(result.verificationTimeSeconds > 0)

@@ -639,7 +639,7 @@ struct SnapshotTests {
         ^XZ
         """
         let renderer = ZPLRenderer()
-        let (pngData, _) = try renderer.renderToPNG(zpl, dpi: .dpi203)
+        let (pngData, _) = try renderer.renderToPNG(zpl)
         #expect(pngData.count > 0)
         let dataBytes = [UInt8](pngData.prefix(4))
         #expect(dataBytes == [0x89, 0x50, 0x4E, 0x47])
@@ -648,7 +648,7 @@ struct SnapshotTests {
     @Test("Box image has expected dimensions")
     func snapshotBox() throws {
         let zpl = "^XA\n^PW200\n^LL200\n^FO50,50^GB100,100,3^FS\n^XZ"
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width == 200)
         #expect(result.image.height == 200)
     }
@@ -656,7 +656,7 @@ struct SnapshotTests {
     @Test("Circle image has expected dimensions")
     func snapshotCircle() throws {
         let zpl = "^XA\n^PW200\n^LL200\n^FO50,50^GC100,3,B^FS\n^XZ"
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width == 200)
         #expect(result.image.height == 200)
     }
@@ -664,7 +664,7 @@ struct SnapshotTests {
     @Test("Barcode image width and positive render time")
     func snapshotBarcode() throws {
         let zpl = "^XA\n^PW400\n^LL200\n^FO50,50^BCN,80,Y,N,N^FD12345^FS\n^XZ"
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width == 400)
         #expect(result.metrics.renderTimeSeconds > 0)
     }
@@ -672,7 +672,7 @@ struct SnapshotTests {
     @Test("QR code image has expected dimensions")
     func snapshotQRCode() throws {
         let zpl = "^XA\n^PW300\n^LL300\n^FO50,50^BQN,2,5^FDMA,https://example.com^FS\n^XZ"
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width == 300)
         #expect(result.image.height == 300)
     }
@@ -692,7 +692,7 @@ struct SnapshotTests {
         ^FO550,100^BQN,2,4^FDMA,TRACK123^FS
         ^XZ
         """
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width == 812)
         #expect(result.image.height == 406)
     }
@@ -707,7 +707,7 @@ struct SnapshotTests {
         ^FO50,100^GB100,50,2^FS
         ^XZ
         """
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.metrics.parseTimeSeconds > 0)
         #expect(result.metrics.renderTimeSeconds > 0)
         #expect(result.metrics.totalTimeSeconds > 0)
@@ -715,29 +715,27 @@ struct SnapshotTests {
         #expect(result.metrics.imageHeight == 200)
     }
 
-    @Test("Same content renders at different DPIs with same dot dimensions")
-    func snapshotDifferentDPIs() throws {
+    @Test("Output dot dimensions come from ^PW/^LL")
+    func snapshotDimensionsFromDots() throws {
         let zpl = "^XA\n^PW200\n^LL100\n^FO10,10^FDTest^FS\n^XZ"
-        let renderer = ZPLRenderer()
-        let result203 = try renderer.render(zpl, dpi: .dpi203)
-        let result300 = try renderer.render(zpl, dpi: .dpi300)
-        #expect(result203.image.width == 200)
-        #expect(result300.image.width == 200)
+        let result = try ZPLRenderer().render(zpl)
+        #expect(result.image.width == 200)
+        #expect(result.image.height == 100)
     }
 
     @Test("Identical input produces byte-identical PNG output")
     func snapshotConsistentOutput() throws {
         let zpl = "^XA\n^PW200\n^LL100\n^FO10,10^FDConsistent^FS\n^XZ"
         let renderer = ZPLRenderer()
-        let (png1, _) = try renderer.renderToPNG(zpl, dpi: .dpi203)
-        let (png2, _) = try renderer.renderToPNG(zpl, dpi: .dpi203)
+        let (png1, _) = try renderer.renderToPNG(zpl)
+        let (png2, _) = try renderer.renderToPNG(zpl)
         #expect(png1 == png2)
     }
 
     @Test("Empty label renders blank image with expected dimensions")
     func snapshotEmptyLabel() throws {
         let zpl = "^XA\n^PW100\n^LL100\n^XZ"
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width == 100)
         #expect(result.image.height == 100)
     }
@@ -785,7 +783,7 @@ struct CoreTests {
     @Test("Basic rendering produces image with metrics")
     func basicRendering() throws {
         let zpl = "^XA\n^PW200\n^LL100\n^FO10,10^A0N,20,20^FDTest^FS\n^XZ"
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width == 200)
         #expect(result.image.height == 100)
         #expect(result.metrics.totalTimeSeconds > 0)
@@ -794,7 +792,7 @@ struct CoreTests {
     @Test("Render metrics populated for basic label")
     func renderMetrics() throws {
         let zpl = "^XA\n^PW400\n^LL200\n^FO50,50^FDHello^FS\n^XZ"
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.metrics.parseTimeSeconds > 0)
         #expect(result.metrics.renderTimeSeconds > 0)
         #expect(result.metrics.imageWidth == 400)
@@ -804,7 +802,7 @@ struct CoreTests {
     @Test("PNG export produces valid PNG data")
     func pngExport() throws {
         let zpl = "^XA\n^PW200\n^LL100\n^FO10,10^GB50,50,2^FS\n^XZ"
-        let (data, metrics) = try ZPLRenderer().renderToPNG(zpl, dpi: .dpi203)
+        let (data, metrics) = try ZPLRenderer().renderToPNG(zpl)
         #expect(data.count > 0)
         #expect(metrics.imageWidth == 200)
         let dataBytes = [UInt8](data.prefix(4))
@@ -839,65 +837,65 @@ struct BarcodeVerificationTests {
             let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
                 QRCode(testData, at: .dots(100, 100)).magnification(8)
             }
-            image = try renderer.render(label.render(), dpi: .dpi203).image
-            result = try await verifier.verify(image) { Barcode(.qr, containing: testData) }
+            image = try renderer.render(label.render()).image
+            result = try await verifier.verify(image) { BarcodeExpectation(.qr, containing: testData) }
 
         case .code128:
             let testData = "ABC123"
             let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
                 Barcode128(testData, at: .dots(50, 50))?.height(.dots(100)).moduleWidth(3)
             }
-            image = try renderer.render(label.render(), dpi: .dpi203).image
-            result = try await verifier.verify(image) { Barcode(.code128, exactly: testData) }
+            image = try renderer.render(label.render()).image
+            result = try await verifier.verify(image) { BarcodeExpectation(.code128, exactly: testData) }
 
         case .code39:
             let testData = "HELLO123"
             let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
                 Code39(testData, at: .dots(50, 50))?.height(.dots(100))
             }
-            image = try renderer.render(label.render(), dpi: .dpi203).image
-            result = try await verifier.verify(image) { Barcode(.code39, exactly: testData) }
+            image = try renderer.render(label.render()).image
+            result = try await verifier.verify(image) { BarcodeExpectation(.code39, exactly: testData) }
 
         case .ean13:
             let testData = "5901234123457"
             let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
                 EAN13(testData, at: .dots(50, 50))?.height(.dots(100))
             }
-            image = try renderer.render(label.render(), dpi: .dpi203).image
-            result = try await verifier.verify(image) { Barcode(.ean13, exactly: testData) }
+            image = try renderer.render(label.render()).image
+            result = try await verifier.verify(image) { BarcodeExpectation(.ean13, exactly: testData) }
 
         case .upcA:
             let testData = "012345678905"
             let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
                 UPCA(testData, at: .dots(50, 50))?.height(.dots(100))
             }
-            image = try renderer.render(label.render(), dpi: .dpi203).image
+            image = try renderer.render(label.render()).image
             // UPC-A may decode as EAN-13 with a leading zero, so match on containing.
-            result = try await verifier.verify(image) { Barcode(.ean13, containing: testData) }
+            result = try await verifier.verify(image) { BarcodeExpectation(.ean13, containing: testData) }
 
         case .aztec:
             let testData = "AZTEC-DATA-123"
             let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
                 Aztec(testData, at: .dots(100, 100)).magnification(6)
             }
-            image = try renderer.render(label.render(), dpi: .dpi203).image
-            result = try await verifier.verify(image) { Barcode(.aztec, exactly: testData) }
+            image = try renderer.render(label.render()).image
+            result = try await verifier.verify(image) { BarcodeExpectation(.aztec, exactly: testData) }
 
         case .pdf417:
             let testData = "PDF417 TEST DATA"
             let label = ZPLLabel(width: 4, height: 3, dpi: .dpi203) {
                 PDF417(testData, at: .dots(50, 50)).columns(4).rows(10)
             }
-            image = try renderer.render(label.render(), dpi: .dpi203).image
-            result = try await verifier.verify(image) { Barcode(.pdf417, exactly: testData) }
+            image = try renderer.render(label.render()).image
+            result = try await verifier.verify(image) { BarcodeExpectation(.pdf417, exactly: testData) }
 
         case .interleaved2of5:
             let testData = "12345678"
             let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
                 Interleaved2of5(testData, at: .dots(50, 50))?.height(.dots(100))
             }
-            image = try renderer.render(label.render(), dpi: .dpi203).image
-            result = try await verifier.verify(image) { Barcode(.i2of5, exactly: testData) }
+            image = try renderer.render(label.render()).image
+            result = try await verifier.verify(image) { BarcodeExpectation(.i2of5, exactly: testData) }
         }
 
         #expect(result.passed, "\(result.summary)")
@@ -913,10 +911,10 @@ struct BarcodeVerificationTests {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             DataMatrix(testData, at: .dots(50, 50)).size(10)
         }
-        let renderResult = try ZPLRenderer().render(label.render(), dpi: .dpi203)
+        let renderResult = try ZPLRenderer().render(label.render())
         let verifier = ZPLVerifier()
         let result = try await verifier.verify(renderResult.image) {
-            Barcode(.dataMatrix, exactly: testData)
+            BarcodeExpectation(.dataMatrix, exactly: testData)
         }
         #expect(result.passed, "\(result.summary)")
     }
@@ -1002,7 +1000,7 @@ struct GraphicHandlingTests {
         let zpl = "^XA^PW200^LL100^FO10,10^GFA,0,0,0,FF^FS^XZ"
         let parsed = try ZPLParser.parse(zpl)
         #expect(graphicCount(in: parsed) == 0)
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width == 200)
         #expect(result.image.height == 100)
     }
@@ -1012,7 +1010,7 @@ struct GraphicHandlingTests {
         let zpl = "^XA^PW200^LL100^FO10,10^GFA,4,4,0,FFFFFFFF^FS^XZ"
         let parsed = try ZPLParser.parse(zpl)
         #expect(graphicCount(in: parsed) == 0)
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
     }
 
     @Test("Well-formed ^GF with positive bytesPerRow still produces a graphic")
@@ -1030,7 +1028,7 @@ struct GraphicHandlingTests {
         #expect(graphic.format == .binary)
         #expect(graphic.bytesPerRow == 1)
         #expect(graphic.data == [0xFF, 0xFF])
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width == 200)
     }
 
@@ -1057,7 +1055,7 @@ struct GraphicHandlingTests {
         #expect(graphics.count == 1)
         #expect(graphics.first?.data.count == 40)
         #expect(graphics.first?.data.allSatisfy { $0 == 0 } ?? false)
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
     }
 
     @Test("^GFC with :B64: payload decodes base64")
@@ -1075,7 +1073,7 @@ struct GraphicHandlingTests {
         let zpl = "^XA^PW200^LL100^FO10,10^GFC,4,4,1,:Z64:not-valid-base64!!!:^FS^XZ"
         let parsed = try ZPLParser.parse(zpl)
         #expect(graphicCount(in: parsed) == 0)
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
     }
 }
 
@@ -1115,8 +1113,8 @@ struct BarcodeRotationTests {
         let renderer = ZPLRenderer()
         let upright = "^XA^PW400^LL400^FO50,50^BCN,80,N,N,N^FD12345^FS^XZ"
         let rotated = "^XA^PW400^LL400^FO50,50^BCR,80,N,N,N^FD12345^FS^XZ"
-        let (uprightPNG, _) = try renderer.renderToPNG(upright, dpi: .dpi203)
-        let (rotatedPNG, _) = try renderer.renderToPNG(rotated, dpi: .dpi203)
+        let (uprightPNG, _) = try renderer.renderToPNG(upright)
+        let (rotatedPNG, _) = try renderer.renderToPNG(rotated)
         #expect(uprightPNG.count > 0)
         #expect(rotatedPNG.count > 0)
         #expect(uprightPNG != rotatedPNG)
@@ -1125,7 +1123,7 @@ struct BarcodeRotationTests {
     @Test("Rotated 2D (QR) barcode renders without error")
     func rotatedQRCodeRendersWithoutError() throws {
         let rotated = "^XA^PW400^LL400^FO50,50^BQR,2,5^FDMA,ROTATED^FS^XZ"
-        let result = try ZPLRenderer().render(rotated, dpi: .dpi203)
+        let result = try ZPLRenderer().render(rotated)
         #expect(result.image.width == 400)
     }
 }
@@ -1162,7 +1160,7 @@ struct MaliciousInputTests {
         #expect(parsed.width <= 20_000)
         #expect(parsed.width >= 1)
         // Render must succeed (clamped) rather than crash.
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width <= 20_000)
     }
 
@@ -1182,7 +1180,7 @@ struct MaliciousInputTests {
         // The malformed graphic is dropped entirely.
         #expect(parsed.elements.allSatisfy { $0.asGraphic == nil })
         // Full render path must not crash.
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
     }
 
     @Test("UPC-E with 9 digits renders without trapping")
@@ -1190,7 +1188,7 @@ struct MaliciousInputTests {
         // 9 input digits previously produced a 7-char sixDigits and trapped on a
         // String index OOB while indexing the 6-char parity pattern.
         let zpl = "^XA^B9N^FD123456789^FS^XZ"
-        let result = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        let result = try ZPLRenderer().render(zpl)
         #expect(result.image.width > 0)
         // Encoder returns empty patterns for invalid input.
         #expect(EANPatterns.encodeUPCE("123456789").isEmpty)
@@ -1199,7 +1197,7 @@ struct MaliciousInputTests {
     @Test("UPC-E with 10 digits renders without trapping")
     func upcE10DigitsNoCrash() throws {
         let zpl = "^XA^B9N^FD1234567890^FS^XZ"
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
         #expect(EANPatterns.encodeUPCE("1234567890").isEmpty)
     }
 
@@ -1221,7 +1219,7 @@ struct MaliciousInputTests {
         if let graphic = parsed.elements.compactMap({ $0.asGraphic }).first {
             #expect(graphic.data.count <= 50_000_000)
         }
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
     }
 
     @Test("^GFA run-length amplification is bounded during decode")
@@ -1234,7 +1232,7 @@ struct MaliciousInputTests {
             // Decoded data is clamped to totalBytes (10) here.
             #expect(graphic.data.count <= 50_000_000)
         }
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
     }
 
     @Test("^FB huge maxLines is clamped")
@@ -1244,7 +1242,7 @@ struct MaliciousInputTests {
         if let block = parsed.elements.compactMap({ $0.asTextBlock }).first {
             #expect(block.maxLines <= 10_000)
         }
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
     }
 
     @Test("Huge barcode height is clamped, render does not blow up")
@@ -1254,7 +1252,7 @@ struct MaliciousInputTests {
         if let bc = parsed.elements.compactMap({ $0.asBarcode }).first {
             #expect(bc.height <= 20_000)
         }
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
     }
 
     @Test("Huge ^BY module width is clamped")
@@ -1264,7 +1262,7 @@ struct MaliciousInputTests {
         if let bc = parsed.elements.compactMap({ $0.asBarcode }).first {
             #expect(bc.moduleWidth <= 100)
         }
-        _ = try ZPLRenderer().render(zpl, dpi: .dpi203)
+        _ = try ZPLRenderer().render(zpl)
     }
 }
 

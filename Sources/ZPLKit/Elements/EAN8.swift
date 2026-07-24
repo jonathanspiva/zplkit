@@ -8,9 +8,11 @@ public struct EAN8: ZPLElement, Equatable, Hashable {
     private var barcodeHeight: Dimension = .dots(100)
     private var showText: Bool = true
     private var isTextAbove: Bool = false
+    private var moduleWidth: Int = 2  // 1-10
 
     /// Creates an EAN-8 barcode at the given position.
-    /// Returns nil if the data is not exactly 7 or 8 digits.
+    /// Returns nil if the data is not exactly 7 or 8 digits, or if an 8-digit
+    /// value carries a check digit that doesn't match the first 7.
     /// - Parameters:
     ///   - data: The numeric data to encode (7 digits, or 8 with check digit).
     ///   - position: The position on the label.
@@ -20,6 +22,10 @@ public struct EAN8: ZPLElement, Equatable, Hashable {
             return nil
         }
         guard data.allSatisfy({ $0.isASCIIDigit }) else {
+            return nil
+        }
+        // A supplied 8th digit must be the correct check digit (see EAN13).
+        if data.count == 8, !hasValidGTINCheckDigit(data) {
             return nil
         }
         self.data = data
@@ -62,9 +68,19 @@ public struct EAN8: ZPLElement, Equatable, Hashable {
         let aboveFlag = isTextAbove ? "Y" : "N"
 
         var result = "^FO\(pos.x),\(pos.y)"
+        result += "^BY\(moduleWidth)"
         result += "^B8\(rotation.rawValue),\(height),\(textFlag),\(aboveFlag)"
         result += "^FD\(data)^FS"
 
         return result
+    }
+
+    /// Sets the module (narrow-bar) width via `^BY`. Default is 2.
+    ///
+    /// - Parameter width: Module width from 1 to 10.
+    public func moduleWidth(_ width: Int) -> EAN8 {
+        var copy = self
+        copy.moduleWidth = min(10, max(1, width))
+        return copy
     }
 }

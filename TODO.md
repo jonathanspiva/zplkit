@@ -23,11 +23,13 @@
   board; the ZM400 right-half streaking was a ribbon/printhead artifact (tracked
   position not symbology, cleared in the left column, absent on the GX420t). See
   HARDWARE-VALIDATION.md 2b.
-- [ ] **Verify USPS IMb encoding on hardware.** IMb prints its 4-state bar
-  structure but its codeword encoding is unverified — decode a printed sample
-  with an IMb-capable scanner. The renderer's IMb encoder is a placeholder (see
-  "Someday"), so confirm the `^BZ` field-data path actually yields a valid,
-  scannable Intelligent Mail symbol before advertising IMb support.
+- [ ] **Decode a printed USPS IMb with a scanner.** Generation is confirmed
+  spec-correct (`^BZ ...,3` = Intelligent Mail, printer-encoded) and the Barcode
+  Identifier is now validated (2nd digit 0-4, PR #11). The only thing left is to
+  scan a printed sample with an IMb-capable reader to confirm end-to-end
+  scannability. Separately, the software-renderer *preview* is still an
+  approximate placeholder (a pixel-accurate 4-state encoder needs the USPS-B-3200
+  reference tables) — low priority since the printer does the real encoding.
 
 ### Require macOS/iOS/tvOS/watchOS 27 + Swift 6.4 (2026-07-15)
 

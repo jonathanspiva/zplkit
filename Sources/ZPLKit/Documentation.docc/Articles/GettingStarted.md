@@ -169,7 +169,7 @@ import ZPLKitRenderer
 let renderer = ZPLRenderer()
 let zpl = label.render()
 
-if let (pngData, _) = try? renderer.renderToPNG(zpl, dpi: .dpi203) {
+if let (pngData, _) = try? renderer.renderToPNG(zpl) {
     // Display in UIImageView, save to file, etc.
 }
 
