@@ -58,6 +58,15 @@ being left paused, not a code defect).
 > check now targets UDP 4201 but has not yet been re-run against physical
 > hardware; that re-validation is outstanding.
 
+### 2b. Ad hoc generation checks on hardware
+
+- **Code 128 `>` invocation-code escaping** (2026-07-23, ZM400 V53.17.24Z +
+  GX420t V56.17.17Z): `Barcode128("PRICE>5")` emits field data `PRICE>05`, and
+  both printers decode the human-readable interpretation line as `PRICE>5`. The
+  raw form (`^FD...PRICE>5`) decodes as `PRICE` on both — the `>5` is consumed as
+  a function/subset invocation code — confirming the `>` -> `>0` escaping is
+  required and correct.
+
 ### 3. Synthetic + malicious-input fixtures (run in CI)
 
 `ResponseParsingTests` complements the real captures with hand-built edge cases
