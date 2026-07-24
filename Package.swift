@@ -116,6 +116,12 @@ let package = Package(
             swiftSettings: sharedSwiftSettings
         ),
         .executableTarget(
+            name: "BarcodePrintTest",
+            dependencies: ["ZPLKit", "ZPLKitPrinter"],
+            path: "Tools/BarcodePrintTest",
+            swiftSettings: sharedSwiftSettings
+        ),
+        .executableTarget(
             name: "DitherTestPrint",
             dependencies: ["ZPLKit", "ZPLKitPrinter"],
             path: "Tools/DitherTestPrint",

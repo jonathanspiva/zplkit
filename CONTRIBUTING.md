@@ -56,8 +56,18 @@ Tools/
 ├── VisualTests/      # Generate comparison HTML
 ├── PrinterTests/     # Network printing integration checks
 ├── GraphicPrintTest/ # Graphic/image printing checks
+├── BarcodePrintTest/ # Prints one sample of every barcode symbology
 ├── DitherTestPrint/  # Dithering output checks
 └── StatusCheck/      # Printer status query checks
+```
+
+To print a visual test pass of every barcode symbology to a physical printer
+(each label stamped with a traceable ID + timestamp):
+
+```sh
+swift run BarcodePrintTest <printer-ip>          # all symbologies
+swift run BarcodePrintTest --type qr <printer-ip>  # just one
+swift run BarcodePrintTest --help
 ```
 
 ## Running Tests
