@@ -225,9 +225,13 @@ if status.isReadyToPrint {
 
 `query()` does use the Swift-native `NetworkConnection` API — there the connection stays open to receive the printer's response, so the teardown race doesn't apply, and it is verified reliable.
 
+### `^NS` network reconfiguration is experimental (unverified on hardware)
+
+Setting a printer's IP/subnet/gateway via `PrinterConfiguration.networkConfig(...)` / `dhcp()` (ZPL `^NS`) is **experimental and not verified working.** ZPLKit emits a spec-shaped `^NS` command (unit-tested), but in a 2026-07-23 round-trip on a GX420t (firmware V56.17.17Z) an `^NSP` static-IP change followed by `~JR` (`powerOnReset()`) did **not** change the printer's IP — it stayed put. The cause is undetermined: it may need a full power cycle rather than `~JR`, or the emitted format may differ from what this firmware accepts. A wrong value can also drop the printer off the network. **Verify on a recoverable printer (physical/USB access) before relying on this.**
+
 ## Known Limitations
 
-- **DataMatrix and Intelligent Mail** generate valid ZPL, but render as labeled placeholder boxes in the renderer preview (CoreImage has no DataMatrix generator, and the Intelligent Mail encoder is not yet implemented). They print correctly on a real printer.
+- **DataMatrix and Intelligent Mail** generate valid ZPL but render as labeled placeholder boxes in the renderer *preview* (CoreImage has no DataMatrix generator, and a pixel-accurate Intelligent Mail preview encoder isn't implemented); the printer encodes both from the ZPL. Note: Intelligent Mail generation is spec-correct (`^BZ` postal type 3, with the Barcode Identifier validated), but a printed symbol's **scannability has not yet been confirmed with an IMb-capable scanner**.
 - **Fonts**: only Font 0 (Roboto Condensed Bold) is bundled. Any other font selection falls back to Font 0 in the renderer preview.
 - **2D barcode previews**: QR, PDF417, Aztec, and Code 128 rendering depend on CoreImage, so preview rendering of those symbologies requires an Apple platform.
 
