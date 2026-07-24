@@ -11,7 +11,8 @@ which hardware and firmware, and how to reproduce it.
 | Zebra **ZM400-200dpi**  | **V53.17.24Z** | 203 | thermal-transfer (ribbon) | TCP / port 9100 |
 | Zebra **GX420t-200dpi** | **V56.17.17Z** | 203 | direct-thermal | TCP / port 9100 |
 
-Last validated: **2026-06-09**.
+Last validated: **2026-07-23** (full `LivePrinterTests` sweep re-run on current
+`main` — 18/18 pass on both printers).
 
 ## How it's validated
 
@@ -46,8 +47,12 @@ ZPLTOOL_GX420T_HOST=192.168.1.101 \
 swift test --filter LivePrinterTests
 ```
 
-On 2026-06-09 all 18 live tests passed against both printers above (ZM400 in
-ribbon mode, GX420t in direct-thermal). `Tools/PrinterTests` provides an
+All 18 live tests passed against both printers above (ZM400 in ribbon mode,
+GX420t in direct-thermal) on 2026-06-09, and again on 2026-07-23 on current
+`main` (after the POSIX-`send()` revert and the UDP-4201 discovery rewrite):
+darkness/speed/multi-setting round-trips, query parsing, `apply()`/`setup()`
+single-payload delivery, and `~JC` calibration all pass. `Tools/PrinterTests`
+provides an
 additional standalone integration sweep (`swift run PrinterTests <ip>`) covering
 concurrent queries, rapid bursts, timeout differentiation, and query-after-timeout;
 on that date 27/28 checks passed on the GX420t (the one failure was the printer
