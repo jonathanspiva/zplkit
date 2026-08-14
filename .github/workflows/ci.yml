@@ -25,21 +25,67 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# The package requires the macOS 27 SDK / Swift 6.4, which GitHub-hosted runner
-# images don't carry yet, so all jobs run on the self-hosted mini. Target it by
-# capability label (macos-27) rather than a machine name, so other projects can
-# share the same runner. DEVELOPER_DIR pins the Xcode 27 beta toolchain without
-# sudo (the Command Line Tools toolchain can't run the swift-testing suite).
-env:
-  DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
+# Two classes of runner, on purpose:
+#
+#   * GitHub-hosted `macos-26` — macOS 26 + Xcode 26.6 (Swift 6.3). This is the
+#     toolchain that matches the package's advertised floor, so it is what
+#     proves the package actually builds for the users we promise support to.
+#     Being hosted, it is also safe for fork PRs.
+#   * Self-hosted mini (`macos-27`) — runs macOS 27 with only the Xcode 27
+#     beta, and is the only machine that can reach the lab printers. It covers
+#     the visual suite and the live-printer job.
+#
+# Stable Xcode 26 is NOT an option on the mini: Apple does not support Xcode
+# 26.x on macOS 27 (it refuses to launch), so the beta is the only usable
+# toolchain there. That is why the floor check lives on the hosted runner
+# instead of just repointing DEVELOPER_DIR.
+#
+# DEVELOPER_DIR is therefore set per-job rather than workflow-wide — the hosted
+# runner has no /Applications/Xcode-beta.app and must use its image default.
 
 # Fork PRs must NOT run on the self-hosted runner: it lives on a private LAN
 # (with printer access), so a fork PR running there would execute untrusted code
 # on that machine. This condition runs jobs for pushes and same-repo PRs only;
-# fork PRs are skipped until a GitHub-hosted macOS 27 image exists to run them
-# safely. As a second layer, keep Actions -> "Require approval for all outside
-# collaborators" enabled on the repo settings.
+# fork PRs are skipped on the self-hosted jobs. They still get build + full
+# test coverage from the hosted `floor-build-and-test` job above, which carries
+# no fork gate. As a second layer, keep Actions -> "Require approval for all
+# outside collaborators" enabled on the repo settings.
 jobs:
+  # The floor check. Runs on a GitHub-hosted image whose default Xcode (26.6 /
+  # Swift 6.3) is exactly the package's minimum, so a change that only compiles
+  # on a newer toolchain fails here. No fork gate: hosted runners are
+  # untrusted-code-safe, so this is the CI signal outside contributors get.
+  floor-build-and-test:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build -Xswiftc -warnings-as-errors
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          swift test 2>&1 | tee "$log"
+          # A green `swift test` does not prove the suite ran: the Xcode 27 beta
+          # silently executed only the first test target and still exited 0
+          # (244 of 670 tests). Assert the count so a truncated run is loud.
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
+          if [ -z "$total" ]; then
+            echo "::error::Could not determine the test count from 'swift test' output"; exit 1
+          fi
+          echo "Total tests run: $total"
+          if [ "$total" -lt 600 ]; then
+            echo "::error::Only $total tests ran; expected the full suite (~670)"; exit 1
+          fi
+
   build-and-test:
     # push/PR only (a manual dispatch runs just the live-printer job), and never
     # for PRs opened from a fork (see the note above).
@@ -49,6 +95,8 @@ jobs:
        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, macos-27]
     timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -81,8 +129,56 @@ jobs:
           done
           exit $fail
 
+      # Do NOT collapse this back to a bare `swift test`.
+      #
+      # On the Xcode 27 beta toolchain (verified 2026-08-14 against
+      # 27A5218g / Swift 6.4), an unfiltered `swift test` executes only the
+      # FIRST test target and still exits 0: it reported "244 tests in 6
+      # suites passed" while the package actually has 670 tests in 73 suites.
+      # The other three targets (ZPLKitTests, ZPLKitRendererTests,
+      # ZPLKitVerifierTests) were silently never run, so a regression in any
+      # of them could not fail CI. All 670 pass when each target is invoked
+      # explicitly, and the stable Swift 6.3 toolchain runs all 670 from a
+      # bare `swift test` — this is a beta SPM bug, not a package problem.
+      #
+      # Targets are derived from `swift test list` rather than hardcoded, so a
+      # newly added test target is picked up automatically. Revisit once the
+      # Xcode 27 GA toolchain runs the full suite unfiltered.
       - name: Run unit tests
-        run: swift test
+        # Explicit bash: the word-splitting of `$targets` below is a bash/sh
+        # behaviour. zsh does not split unquoted expansions, which silently
+        # collapses the loop into a single bogus filter.
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets="$(swift test list 2>/dev/null | grep -oE '^[A-Za-z0-9_]+Tests' | sort -u)"
+          if [ -z "$targets" ]; then
+            echo "::error::Could not enumerate test targets from 'swift test list'"; exit 1
+          fi
+          echo "Test targets: $(echo "$targets" | tr '\n' ' ')"
+          total=0
+          for target in $targets; do
+            echo "::group::$target"
+            log="$(mktemp)"
+            # `< /dev/null` so swift test can't swallow the loop's stdin.
+            swift test --filter "$target" < /dev/null 2>&1 | tee "$log"
+            echo "::endgroup::"
+            # A filter that matches nothing prints this and STILL exits 0, so
+            # an enumeration bug would otherwise pass CI with zero tests run.
+            if grep -q 'No matching test cases were run' "$log"; then
+              echo "::error::Filter '$target' matched no tests"; exit 1
+            fi
+            n="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
+            if [ -z "$n" ]; then
+              echo "::error::Could not determine test count for '$target'"; exit 1
+            fi
+            total=$(( total + n ))
+          done
+          echo "Total tests run: $total"
+          # Backstop against the beta's silent single-target run (244 of 670).
+          if [ "$total" -lt 600 ]; then
+            echo "::error::Only $total tests ran; expected the full suite (~670)"; exit 1
+          fi
 
   visual-tests:
     # Same fork-gate as build-and-test (see the note above).
@@ -93,6 +189,8 @@ jobs:
     runs-on: [self-hosted, macos-27]
     timeout-minutes: 30
     needs: build-and-test
+    env:
+      DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -129,6 +227,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, macos-27, printers]
     timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 

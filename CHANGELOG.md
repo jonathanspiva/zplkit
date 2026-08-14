@@ -49,6 +49,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Corrected `Interleaved2of5` documentation, which claimed data "must be even"
   while the initializer accepts odd-length input (the printer prepends a 0).
 
+### Changed (build)
+- Platform floor lowered from 27 to **26** (iOS/macOS/tvOS/watchOS) and
+  swift-tools from 6.4 to **6.3**, so ZPLKit installs on a shipping toolchain
+  instead of requiring a beta OS. Nothing in the library needed the higher
+  floor: the Swift-native Vision API shipped in iOS 18 / macOS 15 and
+  `NetworkConnection` is macOS 26. Verified with a clean build and all 670
+  tests passing on stable Xcode 26.6 / Swift 6.3.
+
+### Fixed (tooling / CI — no library API change)
+- `VisualTests --labelary` fetched nothing: the percent-encoding added in the
+  previous release made Labelary reject all 124 fixtures with
+  "404 ... ZPL generated no labels". Labelary reads the request body verbatim
+  and never form-decodes it, so the ZPL is now posted as raw bytes.
+- `VisualTests` parsed fixture dimensions with a regex that could not match a
+  decimal, so `2x0.75` became `2x0` and Labelary rejected the zero-height label
+  with HTTP 400. This cost the 13 fixtures with 0.5/0.75-inch heights their
+  reference renders. Unparseable filenames now warn instead of silently
+  defaulting to 4x6.
+- `VisualTests` now exits non-zero when more than 10% of Labelary fetches fail,
+  so a broken comparison can no longer report a green run.
+- CI ran only a third of the test suite. On the Xcode 27 beta toolchain a bare
+  `swift test` executes only the first test target and exits 0 (244 of 670
+  tests). CI now runs every test target explicitly and asserts the total count.
+
 ## [1.0.0]
 
 <!-- set release date when tagging -->
@@ -60,8 +84,8 @@ These affect anyone who built against pre-release code:
 
 - The `ZPLVerifier` module (product) was renamed to `ZPLKitVerifier`. Update imports to `import ZPLKitVerifier`. The entry type is still named `ZPLVerifier`.
 - `ZPLVerifier.analyze(_:)` and the `verify(...)` overloads are now `async throws` (migrated to the Swift-native Vision API).
-- Minimum platforms raised to iOS 27 / macOS 27 / tvOS 27 / watchOS 27.
-- Swift 6.4 is required (`swift-tools-version: 6.4`).
+- Minimum platforms raised to iOS 26 / macOS 26 / tvOS 26 / watchOS 26.
+- Swift 6.3 is required (`swift-tools-version: 6.3`).
 - `VerifierError.visionError` was removed (no consumers).
 
 ### Added

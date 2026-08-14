@@ -1,6 +1,42 @@
 # ZPLKit TODO
 
 ## Now
+### Pre-release review (2026-08-14)
+
+- [x] **CI was running only 36% of the test suite.** On the Xcode 27 beta
+  (27A5218g / Swift 6.4) a bare `swift test` runs only the FIRST test target and
+  exits 0 — 244 of 670 tests. Verified toolchain-specific: identical source runs
+  all 670 on stable Swift 6.3, and all 670 pass on the beta when each target is
+  filtered explicitly. CI now enumerates targets from `swift test list`, runs
+  each, and fails if the total drops below 600. Documented in CONTRIBUTING.
+- [x] **`VisualTests --labelary` had been fetching nothing since PR #11.** The
+  percent-encoding added there made Labelary 404 every fixture ("ZPL generated
+  no labels"); Labelary reads the body verbatim and never form-decodes it. Now
+  posts raw bytes. Also fixed the dimension regex (`2x0.75` parsed as `2x0` →
+  HTTP 400 on 13 fractional-height fixtures) and added a >10% fetch-failure gate
+  so a dead comparison can't report green.
+- [x] **Platform floor lowered 27 → 26 for v1.0.0.** The `.v27` floor was not
+  technically required (Vision's Swift API is iOS 18 / macOS 15;
+  `NetworkConnection` is macOS 26). Now `.v26` + swift-tools 6.3: clean build
+  and 670/670 tests on *stable* Xcode 26.6, and also on the Xcode 27 beta.
+  This makes the package installable on a shipping OS and buildable by Swift
+  Package Index, unblocking the SPI submission and badges below.
+- [x] **CI verifies the advertised 6.3 floor, and fork PRs get CI.** Both solved
+  by one new GitHub-hosted `floor-build-and-test` job on `macos-26` (macOS 26 +
+  Xcode 26.6 = Swift 6.3, exactly the package minimum). It carries no fork gate,
+  since hosted runners are safe for untrusted code.
+  Road not taken: installing stable Xcode 26 on the mini does **not** work.
+  Apple doesn't support Xcode 26.x on macOS 27 — it refuses to launch, and its
+  CLI tools sit behind a license that can't be accepted headlessly. The beta
+  stays the only usable toolchain there, so the self-hosted jobs keep the
+  `DEVELOPER_DIR` beta pin and the per-target test workaround.
+- [ ] **Refresh `reference/` once Labelary fetching is confirmed good.** Only 87
+  of 124 fixtures have reference PNGs, so `--score` covers 70% of the corpus.
+  The 13 fractional-height fixtures could never have had one until today's fix.
+- [ ] Cosmetic: the Xcode 27 beta warns that `Sources/ZPLKit/Documentation.docc`
+  is an "unhandled file". Stable 26.6 handles it correctly. Do NOT declare the
+  catalog as a resource; just re-check on the Xcode 27 GA toolchain.
+
 ### Live-hardware findings (2026-07-15)
 
 - [ ] **Test ZPLKit `calibrate()` against a manual media calibration.** On the
