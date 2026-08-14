@@ -198,7 +198,9 @@ jobs:
         run: swift build -c release
 
       # Fails on render failures or if the reference-image accuracy drops
-      # below the threshold (92.2% at the time the gate was added).
+      # below the threshold. Currently 90.9% across all 124 fixtures; the
+      # earlier 92.2% was measured over only 87, twelve of which had
+      # wrong-sized references that inflated it.
       - name: Run visual tests with Labelary comparison and scoring
         run: swift run -c release VisualTests --labelary --score --min-score 88
 

@@ -30,9 +30,21 @@
   CLI tools sit behind a license that can't be accepted headlessly. The beta
   stays the only usable toolchain there, so the self-hosted jobs keep the
   `DEVELOPER_DIR` beta pin and the per-target test workaround.
-- [ ] **Refresh `reference/` once Labelary fetching is confirmed good.** Only 87
-  of 124 fixtures have reference PNGs, so `--score` covers 70% of the corpus.
-  The 13 fractional-height fixtures could never have had one until today's fix.
+- [x] **`reference/` completed and corrected — now 124/124.** Two problems, both
+  silent: 37 fixtures (every `canonical_*` and `graphic_*`) had no reference, so
+  `--score` covered 70% of the corpus; and 12 references were at 812x1218 (the
+  old `parseDimensions` 4x6 fallback) instead of their true size. Being compared
+  against correctly-sized renders, those 12 scored *high* and inflated the
+  average. The honest full-coverage score is **90.9%** (the old 92.2% was over
+  87 fixtures with 12 bad references). `--score` now validates reference
+  geometry and fails on a mismatch. CI's `--min-score 88` still passes.
+- [ ] **Consider refreshing the remaining references against current Labelary.**
+  35 of the 87 old references are byte-for-byte size-identical to Labelary
+  3.3.0 output, but the rest have drifted (mostly <1%, a few up to 11% on
+  `shapes_*`). A wholesale refresh scores 90.2% vs the current 90.9%, i.e.
+  today's Labelary agrees slightly *less* with our renderer than the older
+  vintage did. Worth understanding whether that is a Labelary antialiasing
+  change or a real ZPLKit regression before adopting it as the baseline.
 - [ ] Cosmetic: the Xcode 27 beta warns that `Sources/ZPLKit/Documentation.docc`
   is an "unhandled file". Stable 26.6 handles it correctly. Do NOT declare the
   catalog as a resource; just re-check on the Xcode 27 GA toolchain.

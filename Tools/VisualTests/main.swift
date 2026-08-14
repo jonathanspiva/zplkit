@@ -290,6 +290,7 @@ struct VisualTests {
 
         // Score against reference images
         var scores: [ScoreResult] = []
+        var referenceSizeFailure = false
 
         if includeScore {
             print("\n=== Scoring against reference images ===\n")
@@ -302,6 +303,7 @@ struct VisualTests {
             }
 
             var skippedNoReference = 0
+            var referenceSizeMismatches: [String] = []
             for file in zplFiles {
                 let pngName = file.replacingOccurrences(of: ".zpl", with: ".png")
                 let swiftPath = "\(outputPath)/\(pngName)"
@@ -312,6 +314,27 @@ struct VisualTests {
                     print("  ⊘ \(file): No reference image")
                     skippedNoReference += 1
                     continue
+                }
+
+                // A reference rendered at the wrong label size makes its score
+                // meaningless, and nothing else in this tool notices. Twelve
+                // references sat at 812x1218 (the 4x6 parseDimensions fallback)
+                // for months because of that silence — and because they were
+                // compared against correctly-sized renders, they scored *high*,
+                // inflating the overall accuracy number. Verify the geometry.
+                if let refSize = pngPixelSize(at: refPath) {
+                    let (wIn, hIn) = parseDimensions(from: file)
+                    let dpi = Double(parseDPI(from: file).rawValue)
+                    let expected = (w: wIn * dpi, h: hIn * dpi)
+                    // Generous tolerance: Labelary sizes from dots/mm, so e.g.
+                    // 4in @ 300dpi comes back 1216px rather than 1200px.
+                    let dw = abs(Double(refSize.width) - expected.w) / expected.w
+                    let dh = abs(Double(refSize.height) - expected.h) / expected.h
+                    if dw > 0.05 || dh > 0.05 {
+                        print("  ✗ \(file): reference is \(refSize.width)x\(refSize.height), expected ~\(Int(expected.w))x\(Int(expected.h)) — regenerate it")
+                        referenceSizeMismatches.append(file)
+                        continue
+                    }
                 }
 
                 // A fixture that failed to render (or compare) scores 0% so a
@@ -335,6 +358,13 @@ struct VisualTests {
             if skippedNoReference > 0 {
                 print("  (\(skippedNoReference) fixture(s) skipped: no reference image)")
             }
+            if !referenceSizeMismatches.isEmpty {
+                print("\n  ✗ \(referenceSizeMismatches.count) reference(s) rendered at the wrong label size:")
+                for file in referenceSizeMismatches { print("      \(file)") }
+                print("  Regenerate them: swift run -c release VisualTests --labelary,")
+                print("  then copy Tests/VisualTestHarness/output-labelary/<name>.png over reference/.")
+                referenceSizeFailure = true
+            }
         }
 
         // Generate HTML
@@ -354,6 +384,7 @@ struct VisualTests {
 
         // Summary
         var exitCode: Int32 = 0
+        if referenceSizeFailure { exitCode = 1 }
         if !renderFailures.isEmpty {
             print("\n  ✗ \(renderFailures.count) fixture(s) failed to render: \(renderFailures.joined(separator: ", "))")
             exitCode = 1
@@ -452,6 +483,22 @@ struct VisualTests {
         if exitCode != 0 {
             exit(exitCode)
         }
+    }
+
+    /// Reads a PNG's pixel dimensions straight from its IHDR chunk.
+    ///
+    /// Deliberately avoids decoding the image: this runs for every fixture on
+    /// every scored run, and only the geometry is needed.
+    static func pngPixelSize(at path: String) -> (width: Int, height: Int)? {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        defer { try? handle.close() }
+        // 8-byte signature + 4 length + 4 "IHDR" + 4 width + 4 height
+        guard let header = try? handle.read(upToCount: 24), header.count == 24 else { return nil }
+        guard header.starts(with: [0x89, 0x50, 0x4E, 0x47]) else { return nil }
+        func beInt(_ range: Range<Int>) -> Int {
+            header[range].reduce(0) { ($0 << 8) | Int($1) }
+        }
+        return (beInt(16..<20), beInt(20..<24))
     }
 
     static func parseDPI(from filename: String) -> DPI {
