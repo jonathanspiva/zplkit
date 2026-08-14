@@ -25,30 +25,67 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Jobs run on the self-hosted mini, targeted by capability label (macos-27)
-# rather than machine name so other projects can share it. DEVELOPER_DIR selects
-# a full Xcode without sudo (the Command Line Tools toolchain can't run the
-# swift-testing suite).
+# Two classes of runner, on purpose:
 #
-# NOTE: the package's floor is Swift 6.3 / OS 26, so it no longer *requires* a
-# beta toolchain — but this runner currently has only Xcode-beta installed, so
-# CI still builds with Swift 6.4. That means CI does not yet prove the package
-# builds at its own advertised 6.3 floor. Installing a stable Xcode 26 on the
-# runner and pointing this at it is tracked in TODO.md; until then the
-# "Run unit tests" step below works around a beta-specific SPM bug.
-env:
-  DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
+#   * GitHub-hosted `macos-26` — macOS 26 + Xcode 26.6 (Swift 6.3). This is the
+#     toolchain that matches the package's advertised floor, so it is what
+#     proves the package actually builds for the users we promise support to.
+#     Being hosted, it is also safe for fork PRs.
+#   * Self-hosted mini (`macos-27`) — runs macOS 27 with only the Xcode 27
+#     beta, and is the only machine that can reach the lab printers. It covers
+#     the visual suite and the live-printer job.
+#
+# Stable Xcode 26 is NOT an option on the mini: Apple does not support Xcode
+# 26.x on macOS 27 (it refuses to launch), so the beta is the only usable
+# toolchain there. That is why the floor check lives on the hosted runner
+# instead of just repointing DEVELOPER_DIR.
+#
+# DEVELOPER_DIR is therefore set per-job rather than workflow-wide — the hosted
+# runner has no /Applications/Xcode-beta.app and must use its image default.
 
 # Fork PRs must NOT run on the self-hosted runner: it lives on a private LAN
 # (with printer access), so a fork PR running there would execute untrusted code
 # on that machine. This condition runs jobs for pushes and same-repo PRs only;
-# fork PRs are skipped entirely. Now that the floor is Swift 6.3 / OS 26, a
-# GitHub-hosted macOS image can build this package, so a hosted build+test job
-# for fork PRs is worth adding before the repo goes public (tracked in TODO.md)
-# — otherwise outside contributors get no CI signal at all. As a second layer,
-# keep Actions -> "Require approval for all outside collaborators" enabled on
-# the repo settings.
+# fork PRs are skipped on the self-hosted jobs. They still get build + full
+# test coverage from the hosted `floor-build-and-test` job above, which carries
+# no fork gate. As a second layer, keep Actions -> "Require approval for all
+# outside collaborators" enabled on the repo settings.
 jobs:
+  # The floor check. Runs on a GitHub-hosted image whose default Xcode (26.6 /
+  # Swift 6.3) is exactly the package's minimum, so a change that only compiles
+  # on a newer toolchain fails here. No fork gate: hosted runners are
+  # untrusted-code-safe, so this is the CI signal outside contributors get.
+  floor-build-and-test:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build -Xswiftc -warnings-as-errors
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          swift test 2>&1 | tee "$log"
+          # A green `swift test` does not prove the suite ran: the Xcode 27 beta
+          # silently executed only the first test target and still exited 0
+          # (244 of 670 tests). Assert the count so a truncated run is loud.
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
+          if [ -z "$total" ]; then
+            echo "::error::Could not determine the test count from 'swift test' output"; exit 1
+          fi
+          echo "Total tests run: $total"
+          if [ "$total" -lt 600 ]; then
+            echo "::error::Only $total tests ran; expected the full suite (~670)"; exit 1
+          fi
+
   build-and-test:
     # push/PR only (a manual dispatch runs just the live-printer job), and never
     # for PRs opened from a fork (see the note above).
@@ -58,6 +95,8 @@ jobs:
        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, macos-27]
     timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -150,6 +189,8 @@ jobs:
     runs-on: [self-hosted, macos-27]
     timeout-minutes: 30
     needs: build-and-test
+    env:
+      DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -186,6 +227,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, macos-27, printers]
     timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 

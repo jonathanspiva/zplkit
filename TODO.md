@@ -21,17 +21,15 @@
   and 670/670 tests on *stable* Xcode 26.6, and also on the Xcode 27 beta.
   This makes the package installable on a shipping OS and buildable by Swift
   Package Index, unblocking the SPI submission and badges below.
-- [ ] **Install a stable Xcode 26 on the `macos-27` runner and repoint
-  `DEVELOPER_DIR`.** The runner currently has *only* `Xcode-beta.app`, so CI
-  builds with Swift 6.4 and therefore never proves the package compiles at the
-  6.3 floor it now advertises to users. Once stable is installed, the
-  per-target test loop in `ci.yml` can also revert to a plain `swift test`
-  (the beta-only bug it works around doesn't affect 6.3).
-- [ ] **Add a GitHub-hosted build+test job for fork PRs before going public.**
-  Fork PRs are currently skipped entirely (the self-hosted runner is on a
-  private LAN with printer access), so outside contributors would get no CI
-  signal at all. The 26 floor means a hosted macOS image can now build the
-  package, which removes the blocker that justified skipping them.
+- [x] **CI verifies the advertised 6.3 floor, and fork PRs get CI.** Both solved
+  by one new GitHub-hosted `floor-build-and-test` job on `macos-26` (macOS 26 +
+  Xcode 26.6 = Swift 6.3, exactly the package minimum). It carries no fork gate,
+  since hosted runners are safe for untrusted code.
+  Road not taken: installing stable Xcode 26 on the mini does **not** work.
+  Apple doesn't support Xcode 26.x on macOS 27 — it refuses to launch, and its
+  CLI tools sit behind a license that can't be accepted headlessly. The beta
+  stays the only usable toolchain there, so the self-hosted jobs keep the
+  `DEVELOPER_DIR` beta pin and the per-target test workaround.
 - [ ] **Refresh `reference/` once Labelary fetching is confirmed good.** Only 87
   of 124 fixtures have reference PNGs, so `--score` covers 70% of the corpus.
   The 13 fractional-height fixtures could never have had one until today's fix.

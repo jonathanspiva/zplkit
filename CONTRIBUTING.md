@@ -82,9 +82,8 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 > tests in 73 suites**. The other three targets are silently skipped. All 670
 > pass when each target is run explicitly, and the stable Swift 6.3 toolchain
 > runs all 670 from a bare `swift test`, so this is a toolchain bug rather than
-> a package problem. It matters because CI currently runs on the beta (the
-> self-hosted runner has no stable Xcode installed). On stable you can just run
-> `swift test`; on the beta, run each target (this is what CI does):
+> a package problem. On stable you can just run `swift test`; on the beta, run
+> each target:
 >
 > ```bash
 > for t in ZPLKitTests ZPLKitRendererTests ZPLKitVerifierTests ZPLKitPrinterTests; do
