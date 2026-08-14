@@ -113,6 +113,36 @@ swift test --filter ZPLKitVerifierTests
 swift run -c release VisualTests --labelary --score
 ```
 
+### Reference images
+
+`--score` compares each rendered fixture against a committed reference PNG in
+`Tests/VisualTestHarness/reference/`. Those references are Labelary output, and
+they are the ground truth the accuracy number is measured against — so a wrong
+reference silently corrupts the score rather than failing.
+
+To regenerate one (or all) after adding a fixture or an intentional renderer
+change:
+
+```bash
+swift run -c release VisualTests --labelary          # writes output-labelary/
+cp Tests/VisualTestHarness/output-labelary/<name>.png \
+   Tests/VisualTestHarness/reference/<name>.png
+swift run -c release VisualTests --score             # confirm the new score
+```
+
+Every reference is checked against the label geometry implied by its filename
+(`<name>_<width>x<height>_<dpi>.zpl`), and a mismatch fails the run. That check
+exists because 12 references sat at 812x1218 — the old `parseDimensions` 4x6
+fallback — instead of their true size for months. Because they were compared
+against correctly-sized renders they scored *high*, inflating the reported
+accuracy. Tolerance is 5%, since Labelary sizes from dots/mm and returns e.g.
+1216px for 4in @ 300dpi.
+
+Small labels score lowest (~70% on a 2x0.5) and that is expected, not a bug:
+sub-pixel glyph-advance differences shift every following glyph, and on a
+406x101 canvas the text is most of the image. Compare the PNGs in
+`output-swift/` and `output-labelary/` before assuming a regression.
+
 ## Code Style
 
 ### General Guidelines
