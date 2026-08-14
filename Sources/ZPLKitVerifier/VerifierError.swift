@@ -8,7 +8,7 @@ public enum VerifierError: Error, LocalizedError, Sendable {
     /// `verify` was called with no expectations.
     ///
     /// An empty expectation list would pass vacuously ("all 0 expectations
-    /// passed"), silently turning a test green while checking nothing — e.g.
+    /// passed"), silently turning a test green while checking nothing, e.g.
     /// a builder block whose only expectation sits behind a false `if`.
     case noExpectations
 

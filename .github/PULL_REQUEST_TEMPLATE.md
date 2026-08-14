@@ -13,7 +13,7 @@
 <!-- How did you verify this change? -->
 
 - [ ] `swift build -Xswiftc -warnings-as-errors` succeeds with no warnings
-- [ ] `swift test` passes (the suite uses the Swift Testing framework: `@Test`, `#expect`, `@Suite` — please add tests in that style, not XCTest)
+- [ ] `swift test` passes (the suite uses the Swift Testing framework: `@Test`, `#expect`, `@Suite`; please add tests in that style, not XCTest)
 
 ## Checklist
 

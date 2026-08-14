@@ -8,7 +8,7 @@ import Darwin
 /// uses), **not** Bonjour/mDNS.
 ///
 /// Zebra network print servers do not advertise themselves over Bonjour by
-/// default — browsing `_pdl-datastream._tcp` finds generic IPP/socket printers
+/// default: browsing `_pdl-datastream._tcp` finds generic IPP/socket printers
 /// (e.g. an office inkjet) but not Zebra units. Instead, a client broadcasts a
 /// small request to UDP port 4201 and each Zebra printer replies (unicast) with
 /// its identity: system name, product number, firmware, and network config.
@@ -34,7 +34,7 @@ import Darwin
 /// `stop()` when done to release the socket and finish the streams.
 ///
 /// - Note: On iOS (and macOS apps under the App Sandbox), UDP broadcast triggers
-///   the local-network privacy permission — the app needs the entitlement and
+///   the local-network privacy permission. The app needs the entitlement and
 ///   the user's approval, or no replies are received.
 public final class ZPLPrinterBrowser: @unchecked Sendable {
     /// Zebra's proprietary discovery UDP port.
@@ -187,8 +187,8 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
                     addPrinter(printer)
                 }
             } else if n < 0 {
-                // EAGAIN/EWOULDBLOCK: the recv timeout expired — loop and
-                // re-broadcast. EBADF: stop() closed the socket — exit.
+                // EAGAIN/EWOULDBLOCK: the recv timeout expired, so loop and
+                // re-broadcast. EBADF: stop() closed the socket, so exit.
                 if errno == EBADF { break }
             }
         }

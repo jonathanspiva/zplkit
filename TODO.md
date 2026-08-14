@@ -5,7 +5,7 @@
 
 - [x] **CI was running only 36% of the test suite.** On the Xcode 27 beta
   (27A5218g / Swift 6.4) a bare `swift test` runs only the FIRST test target and
-  exits 0 — 244 of 670 tests. Verified toolchain-specific: identical source runs
+  exits 0, running 244 of 670 tests. Verified toolchain-specific: identical source runs
   all 670 on stable Swift 6.3, and all 670 pass on the beta when each target is
   filtered explicitly. CI now enumerates targets from `swift test list`, runs
   each, and fails if the total drops below 600. Documented in CONTRIBUTING.
@@ -26,11 +26,11 @@
   Xcode 26.6 = Swift 6.3, exactly the package minimum). It carries no fork gate,
   since hosted runners are safe for untrusted code.
   Road not taken: installing stable Xcode 26 on the mini does **not** work.
-  Apple doesn't support Xcode 26.x on macOS 27 — it refuses to launch, and its
+  Apple doesn't support Xcode 26.x on macOS 27; it refuses to launch, and its
   CLI tools sit behind a license that can't be accepted headlessly. The beta
   stays the only usable toolchain there, so the self-hosted jobs keep the
   `DEVELOPER_DIR` beta pin and the per-target test workaround.
-- [x] **`reference/` completed and corrected — now 124/124.** Two problems, both
+- [x] **`reference/` completed and corrected, now 124/124.** Two problems, both
   silent: 37 fixtures (every `canonical_*` and `graphic_*`) had no reference, so
   `--score` covered 70% of the corpus; and 12 references were at 812x1218 (the
   old `parseDimensions` 4x6 fallback) instead of their true size. Being compared
@@ -53,15 +53,15 @@
 
 - [ ] **Test ZPLKit `calibrate()` against a manual media calibration.** On the
   GX420t, `ZPLPrinter.setup()` / `calibrate()` (which sends `~JC`) did NOT fully
-  re-register the media — labels printed but sat misaligned, borders crossing
+  re-register the media; labels printed but sat misaligned, borders crossing
   the label gaps. The printer's **manual 2-blink media calibration** (hold FEED,
   release on the 2nd green flash) fixed alignment. Verify what `calibrate()` and
   `calibrateFull()` actually emit and whether they should trigger the fuller
   length/gap re-measure rather than just `~JC`.
-- [x] **`send()` reverted to POSIX sockets** (PR #5) — a `NetworkConnection`
+- [x] **`send()` reverted to POSIX sockets** (PR #5): a `NetworkConnection`
   `send()` (PR #4) passed tests but intermittently dropped jobs on real Zebra
   printers. GX420t + ZM400 now print reliably via `send()`; verified on hardware.
-- [x] **`GraphicPrintTest` hardened** (PR #6) — traceable ID/timestamp footers,
+- [x] **`GraphicPrintTest` hardened** (PR #6): traceable ID/timestamp footers,
   sensor-safe margins, `--fiducial` and `--calibrate` modes.
 
 ### Live-hardware findings (2026-07-23)
@@ -73,7 +73,7 @@
   **physically power-cycle**, then re-check via UDP-4201 discovery. If it moves,
   the fix is "power cycle, not `~JR`"; if not, the emitted `^NS` format is wrong
   for this firmware. A Link-OS printer would allow SGD read-back (like `^KN`).
-- [x] **Barcode symbology print pass** (`Tools/BarcodePrintTest`, PR #10) — all 12
+- [x] **Barcode symbology print pass** (`Tools/BarcodePrintTest`, PR #10): all 12
   symbologies printed to the ZM400 + GX420t. Library output correct across the
   board; the ZM400 right-half streaking was a ribbon/printhead artifact (tracked
   position not symbology, cleared in the left column, absent on the GX420t). See
@@ -84,9 +84,13 @@
   scan a printed sample with an IMb-capable reader to confirm end-to-end
   scannability. Separately, the software-renderer *preview* is still an
   approximate placeholder (a pixel-accurate 4-state encoder needs the USPS-B-3200
-  reference tables) — low priority since the printer does the real encoding.
+  reference tables), low priority since the printer does the real encoding.
 
-### Require macOS/iOS/tvOS/watchOS 27 + Swift 6.4 (2026-07-15)
+### Require macOS/iOS/tvOS/watchOS 27 + Swift 6.4 (2026-07-15) [SUPERSEDED]
+
+> **Superseded 2026-08-14:** the floor went back to 26 / Swift 6.3 for the 1.0
+> release, since nothing here actually required 27. Kept for the history of what
+> the bump did and didn't buy. See "Pre-release review" above.
 
 Platform floor raised from 26 to 27 (Xcode 27 beta / Swift 6.4). What the bump
 actually unlocks is Swift 6.4 language ergonomics; the framework modernizations

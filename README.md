@@ -34,7 +34,7 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 ### ZPLKitPrinter (Network Printing)
 
 - **Send ZPL to printers** over TCP (port 9100)
-- **Network discovery** of Zebra printers via Zebra's UDP protocol (port 4201) — not Bonjour, which Zebra units don't advertise
+- **Network discovery** of Zebra printers via Zebra's UDP protocol (port 4201), not Bonjour, which Zebra units don't advertise
 - **Printer configuration** with type-safe enums, presets, and zero-touch setup
 - **Query printer status**, info, memory, and full configuration
 - **Diagnostics** combining status, info, memory, and settings in one call
@@ -217,17 +217,17 @@ if status.isReadyToPrint {
 
 ### `send()` uses POSIX sockets, not Network.framework (deliberate)
 
-`ZPLPrinter.send()` uses POSIX sockets (`socket`/`connect`/`write`/`close`) instead of Apple's Network.framework (`NWConnection` or the newer Swift-native `NetworkConnection`). This is **intentional and load-bearing** — do not "modernize" it without the verification below.
+`ZPLPrinter.send()` uses POSIX sockets (`socket`/`connect`/`write`/`close`) instead of Apple's Network.framework (`NWConnection` or the newer Swift-native `NetworkConnection`). This is **intentional and load-bearing**. Do not "modernize" it without the verification below.
 
 **Why:** Network.framework's connection teardown discards the print job on real Zebra printers. The connection closes before the printer commits the buffered data (the classic RST-on-close behavior), so labels silently fail to print. POSIX `close()` sends a clean TCP FIN the printer commits reliably, across all payload sizes and Apple platforms.
 
-**The trap (recorded so it isn't repeated):** on 2026-07-15 a `NetworkConnection`-based `send()` was written and merged (PR #4). It **passed a loopback flush test and the automated live-printer suite**, then intermittently dropped jobs on a real GX420t and ZM400. It was reverted. The failure is not reproducible against a loopback socket — only against physical hardware. The decisive test: send **identical bytes** to port 9100 two ways — via `printf ... | nc <printer> 9100` (prints reliably) and via the candidate `send()` (dropped the job). **If you ever revisit this, verify on a physical printer with that A/B test, not a socket or a unit test.**
+**The trap (recorded so it isn't repeated):** on 2026-07-15 a `NetworkConnection`-based `send()` was written and merged (PR #4). It **passed a loopback flush test and the automated live-printer suite**, then intermittently dropped jobs on a real GX420t and ZM400. It was reverted. The failure is not reproducible against a loopback socket, only against physical hardware. The decisive test: send **identical bytes** to port 9100 two ways, via `printf ... | nc <printer> 9100` (prints reliably) and via the candidate `send()` (dropped the job). **If you ever revisit this, verify on a physical printer with that A/B test, not a socket or a unit test.**
 
-`query()` does use the Swift-native `NetworkConnection` API — there the connection stays open to receive the printer's response, so the teardown race doesn't apply, and it is verified reliable.
+`query()` does use the Swift-native `NetworkConnection` API. There the connection stays open to receive the printer's response, so the teardown race doesn't apply, and it is verified reliable.
 
 ### `^NS` network reconfiguration is experimental (unverified on hardware)
 
-Setting a printer's IP/subnet/gateway via `PrinterConfiguration.networkConfig(...)` / `dhcp()` (ZPL `^NS`) is **experimental and not verified working.** ZPLKit emits a spec-shaped `^NS` command (unit-tested), but in a 2026-07-23 round-trip on a GX420t (firmware V56.17.17Z) an `^NSP` static-IP change followed by `~JR` (`powerOnReset()`) did **not** change the printer's IP — it stayed put. The cause is undetermined: it may need a full power cycle rather than `~JR`, or the emitted format may differ from what this firmware accepts. A wrong value can also drop the printer off the network. **Verify on a recoverable printer (physical/USB access) before relying on this.**
+Setting a printer's IP/subnet/gateway via `PrinterConfiguration.networkConfig(...)` / `dhcp()` (ZPL `^NS`) is **experimental and not verified working.** ZPLKit emits a spec-shaped `^NS` command (unit-tested), but in a 2026-07-23 round-trip on a GX420t (firmware V56.17.17Z) an `^NSP` static-IP change followed by `~JR` (`powerOnReset()`) did **not** change the printer's IP; it stayed put. The cause is undetermined: it may need a full power cycle rather than `~JR`, or the emitted format may differ from what this firmware accepts. A wrong value can also drop the printer off the network. **Verify on a recoverable printer (physical/USB access) before relying on this.**
 
 ## Known Limitations
 
@@ -245,7 +245,7 @@ The floor tracks the newest generally-available OS release rather than the curre
 ## Resources
 
 - [Zebra ZPL Programming Guide](https://www.zebra.com/content/dam/zebra/manuals/printers/common/programming/zpl-zbi2-pm-en.pdf)
-- [Labelary](http://labelary.com/viewer.html) - Online ZPL viewer
+- [Labelary](https://labelary.com/viewer.html) - Online ZPL viewer
 
 ## Acknowledgements
 

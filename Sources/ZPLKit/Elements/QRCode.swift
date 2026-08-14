@@ -101,7 +101,7 @@ public struct QRCode: ZPLElement, Equatable, Hashable {
         // parameter and again as the leading character of the ^FD data. This is
         // intentional and correct per the ZPL spec. For ^BQ the error-correction
         // and input-mode are supplied via the ^FD field-data prefix
-        // ("<ecc><mode>,") — that prefix is authoritative and is what the printer
+        // ("<ecc><mode>,"). That prefix is authoritative and is what the printer
         // actually uses. The ^BQ parameter slot for error correction is largely
         // redundant/ignored for the QR symbology, but we emit it for completeness
         // and to keep the command explicit. The two values are always kept in

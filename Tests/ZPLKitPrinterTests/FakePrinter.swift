@@ -414,7 +414,7 @@ final class FakePrinter: @unchecked Sendable {
     ///
     /// `^HH` is a multi-line two-column text dump (value on the left, field
     /// name on the right). Real Zebra units (ZM400 V53, GX420t V56 fixtures)
-    /// frame it as STX ... CR LF ETX — the ETX is the FINAL byte, unlike the
+    /// frame it as STX ... CR LF ETX, where the ETX is the FINAL byte, unlike the
     /// per-frame ETX CR LF of ~HI/~HS/~HM. query()'s completion check accepts
     /// a trailing ETX, so this shape completes promptly without the idle timer.
     static func makeHHResponse(

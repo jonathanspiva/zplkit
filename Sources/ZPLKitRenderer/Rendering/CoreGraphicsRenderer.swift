@@ -563,7 +563,7 @@ public enum CoreGraphicsRenderer {
     /// Splits `^BQ` field data into its in-data header and the payload.
     ///
     /// ZPL `^BQ` field data starts with `<errorCorrection><inputMode>,` (e.g.
-    /// `QA,` or `MM,`) — that header selects the EC level and input mode and is
+    /// `QA,` or `MM,`). That header selects the EC level and input mode and is
     /// NOT part of the encoded content.
     static func qrFieldData(_ data: String) -> (errorCorrection: String, payload: String) {
         let chars = Array(data)

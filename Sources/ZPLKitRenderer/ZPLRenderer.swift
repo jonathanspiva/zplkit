@@ -72,8 +72,11 @@ public final class ZPLRenderer: Sendable {
     /// `fontDefault` (Font 0 in the default configuration) and glyph metrics are
     /// approximate for those.
     public struct FontConfiguration: Sendable {
+        /// Font used for ZPL Font `0`, the scalable default.
         public var font0: FontSource
+        /// Font used for ZPL Font `A`.
         public var fontA: FontSource
+        /// Font used for every other ZPL font letter (`B`-`Z`).
         public var fontDefault: FontSource
 
         /// Default configuration using bundled Roboto Condensed Bold for Font 0
@@ -116,7 +119,10 @@ public final class ZPLRenderer: Sendable {
     /// Access to bundled fonts included with ZPLKitRenderer
     public enum BundledFonts {
         /// Roboto Condensed Bold - closest match to Zebra's CG Triumvirate Bold Condensed (Font 0)
-        /// Licensed under SIL Open Font License 1.1
+        ///
+        /// Copyright 2015 Google Inc., designed by Christian Robertson, licensed
+        /// under the Apache License 2.0. See `NOTICE` and the bundled
+        /// `Roboto-LICENSE.txt` for the full text.
         public static let robotoCondensedBold: Data? = {
             #if SWIFT_PACKAGE
             guard let url = Bundle.module.url(forResource: "RobotoCondensed-Bold", withExtension: "ttf") else {
@@ -131,21 +137,33 @@ public final class ZPLRenderer: Sendable {
 
     /// Performance metrics from a render operation
     public struct RenderMetrics: Sendable {
+        /// Seconds spent parsing the ZPL into a ``ParsedLabel``.
         public let parseTimeSeconds: Double
+        /// Seconds spent drawing the parsed label into a bitmap.
         public let renderTimeSeconds: Double
+        /// Total time for the operation: parse plus render.
         public var totalTimeSeconds: Double { parseTimeSeconds + renderTimeSeconds }
+        /// Width of the produced image, in pixels.
         public let imageWidth: Int
+        /// Height of the produced image, in pixels.
         public let imageHeight: Int
     }
 
     /// Result of a render operation
     public struct RenderResult: Sendable {
+        /// The rendered label.
         public let image: CGImage
+        /// Timings and output dimensions for the operation.
         public let metrics: RenderMetrics
     }
 
+    /// The fonts this renderer draws with.
     public let fontConfiguration: FontConfiguration
 
+    /// Creates a renderer.
+    ///
+    /// - Parameter fontConfiguration: Fonts to draw with. Defaults to the
+    ///   bundled Roboto Condensed Bold for Font 0.
     public init(fontConfiguration: FontConfiguration = .default) {
         self.fontConfiguration = fontConfiguration
     }

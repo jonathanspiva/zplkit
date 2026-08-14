@@ -6,7 +6,7 @@
 /// The symbol itself is encoded by the printer's `^BZ` firmware (postal type 3);
 /// ZPLKit emits the `^BZ` command and the digit field. Note that the software
 /// renderer (`ZPLKitRenderer`) draws an approximate placeholder for the preview,
-/// not a pixel-accurate 4-state symbol — validate final output on a printer.
+/// not a pixel-accurate 4-state symbol; validate final output on a printer.
 public struct IntelligentMail: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
@@ -61,7 +61,7 @@ public struct IntelligentMail: ZPLElement, Equatable, Hashable {
         let height = barcodeHeight.resolve(dpi: context.dpi)
 
         var result = "^FO\(pos.x),\(pos.y)"
-        // ^BZo,h,f,g,e — the 5th parameter selects the postal symbology and
+        // ^BZo,h,f,g,e: the 5th parameter selects the postal symbology and
         // defaults to 0 (POSTNET); 3 is USPS Intelligent Mail. Omitting it
         // makes real printers render a POSTNET barcode instead.
         result += "^BZ\(rotation.rawValue),\(height),N,N,3"

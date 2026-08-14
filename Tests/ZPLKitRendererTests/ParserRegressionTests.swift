@@ -12,7 +12,7 @@ struct ParserRegressionTests {
 
     @Test("^BC with omitted middle params keeps later slots aligned")
     func code128EmptyParams() throws {
-        // ^BCo,h,f,g,e — h omitted, f=Y: the interpretation line must be ON.
+        // ^BCo,h,f,g,e with h omitted, f=Y: the interpretation line must be ON.
         let parsed = try ZPLParser.parse("^XA^FO10,10^BCN,,Y,N,N^FDABC^FS^XZ")
         guard case .barcode(let barcode) = parsed.elements.first else {
             Issue.record("expected a barcode element")
@@ -37,7 +37,7 @@ struct ParserRegressionTests {
 
     @Test("^CF with omitted height keeps width slot aligned")
     func cfEmptyParams() throws {
-        // ^CFf,h,w — h omitted, w=20: width must be 20, height keeps default.
+        // ^CFf,h,w with h omitted, w=20: width must be 20, height keeps default.
         let parsed = try ZPLParser.parse("^XA^CF0,,20^FO10,10^FDX^FS^XZ")
         guard case .text(let text) = parsed.elements.first else {
             Issue.record("expected a text element")

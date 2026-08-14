@@ -5,8 +5,9 @@ import Foundation
 /// The parser extracts label dimensions, elements (text, barcodes, shapes, graphics),
 /// and print settings from ZPL command strings.
 ///
-/// - Note: The `Parsed*` types returned by this parser are intended for internal
-///   rendering use. Their structure may change between releases.
+/// - Note: The `Parsed*` types returned by this parser are part of the public,
+///   semver-stable API. ``ParsedElement`` may gain new cases in minor releases
+///   as more ZPL commands are supported, so switch over it with a `default`.
 public enum ZPLParser {
 
     /// Matches a single ZPL command (starting with `^` or `~`) and its parameters.

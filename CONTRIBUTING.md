@@ -12,7 +12,7 @@ Thanks for your interest in contributing to ZPLKit! This document covers the dev
 
 > **Heads up:** ZPLKit builds on the current *stable* toolchain. It also builds
 > and passes its full suite on the Xcode 27 beta, but that toolchain has two
-> bugs worth knowing about before you trust a local run — see the caveat under
+> bugs worth knowing about before you trust a local run. See the caveat under
 > [Running Tests](#running-tests). If you keep both Xcodes installed, select one
 > explicitly with `DEVELOPER_DIR`:
 >
@@ -77,7 +77,7 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 
 > **Xcode 27 beta: `swift test` does not run the whole suite.** On the Xcode 27
 > beta toolchain (confirmed on 27A5218g / Swift 6.4, 2026-08-14), a bare
-> `swift test` executes only the **first** test target and still exits 0 — it
+> `swift test` executes only the **first** test target and still exits 0. It
 > reports "244 tests in 6 suites passed" when the package actually has **670
 > tests in 73 suites**. The other three targets are silently skipped. All 670
 > pass when each target is run explicitly, and the stable Swift 6.3 toolchain
@@ -96,7 +96,7 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 >
 > One other beta artifact: `swift build` warns that
 > `Sources/ZPLKit/Documentation.docc` is an "unhandled file". The stable
-> toolchain handles the catalog correctly. It is only a warning — do not
+> toolchain handles the catalog correctly. It is only a warning, so do not
 > "fix" it by declaring the catalog as a resource.
 
 ```bash
@@ -117,7 +117,7 @@ swift run -c release VisualTests --labelary --score
 
 `--score` compares each rendered fixture against a committed reference PNG in
 `Tests/VisualTestHarness/reference/`. Those references are Labelary output, and
-they are the ground truth the accuracy number is measured against — so a wrong
+they are the ground truth the accuracy number is measured against, so a wrong
 reference silently corrupts the score rather than failing.
 
 To regenerate one (or all) after adding a fixture or an intentional renderer
@@ -132,8 +132,8 @@ swift run -c release VisualTests --score             # confirm the new score
 
 Every reference is checked against the label geometry implied by its filename
 (`<name>_<width>x<height>_<dpi>.zpl`), and a mismatch fails the run. That check
-exists because 12 references sat at 812x1218 — the old `parseDimensions` 4x6
-fallback — instead of their true size for months. Because they were compared
+exists because 12 references sat at 812x1218 (the old `parseDimensions` 4x6
+fallback) instead of their true size for months. Because they were compared
 against correctly-sized renders they scored *high*, inflating the reported
 accuracy. Tolerance is 5%, since Labelary sizes from dots/mm and returns e.g.
 1216px for 4in @ 300dpi.

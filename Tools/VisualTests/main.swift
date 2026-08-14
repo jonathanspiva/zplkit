@@ -319,7 +319,7 @@ struct VisualTests {
                 // A reference rendered at the wrong label size makes its score
                 // meaningless, and nothing else in this tool notices. Twelve
                 // references sat at 812x1218 (the 4x6 parseDimensions fallback)
-                // for months because of that silence — and because they were
+                // for months because of that silence, and because they were
                 // compared against correctly-sized renders, they scored *high*,
                 // inflating the overall accuracy number. Verify the geometry.
                 if let refSize = pngPixelSize(at: refPath) {
@@ -331,7 +331,7 @@ struct VisualTests {
                     let dw = abs(Double(refSize.width) - expected.w) / expected.w
                     let dh = abs(Double(refSize.height) - expected.h) / expected.h
                     if dw > 0.05 || dh > 0.05 {
-                        print("  ✗ \(file): reference is \(refSize.width)x\(refSize.height), expected ~\(Int(expected.w))x\(Int(expected.h)) — regenerate it")
+                        print("  ✗ \(file): reference is \(refSize.width)x\(refSize.height), expected ~\(Int(expected.w))x\(Int(expected.h)); regenerate it")
                         referenceSizeMismatches.append(file)
                         continue
                     }
@@ -402,7 +402,7 @@ struct VisualTests {
             if !labelaryFailures.isEmpty {
                 print("  ⚠️  \(labelaryFailures.count) Labelary fetches failed (comparison will show Swift renders only)")
                 // --score reads the committed reference/ PNGs, so a broken
-                // Labelary fetch does NOT move the accuracy number — it just
+                // Labelary fetch does NOT move the accuracy number; it just
                 // empties the Labelary column of comparison.html and leaves no
                 // way to refresh reference/. That silence is exactly how the
                 // PR #11 encoding regression survived three weeks of green CI,
@@ -410,7 +410,7 @@ struct VisualTests {
                 // errors; 429s are already retried in fetchLabelaryWithRetry.
                 let failureRate = Double(labelaryFailures.count) / Double(zplFiles.count)
                 if failureRate > 0.10 {
-                    print("  ✗ \(String(format: "%.0f", failureRate * 100))% of Labelary fetches failed (>10%) — comparison is not meaningful")
+                    print("  ✗ \(String(format: "%.0f", failureRate * 100))% of Labelary fetches failed (>10%); comparison is not meaningful")
                     let distinct = Set(labelaryFailures.map(\.error)).sorted()
                     for reason in distinct.prefix(5) {
                         print("      reason: \(reason)")
@@ -576,14 +576,14 @@ struct VisualTests {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("image/png", forHTTPHeaderField: "Accept")
         // Send the ZPL as RAW bytes. Despite the form-urlencoded content type
-        // (which Labelary requires — text/plain is rejected with a 415), the
+        // (which Labelary requires, since text/plain is rejected with a 415), the
         // API does not form-decode the body: it reads it verbatim as the ZPL
         // program.
         //
         // The trap (recorded so it isn't repeated): on 2026-07-24 PR #11
         // percent-encoded this body, on the theory that a raw "+" would decode
         // to a space and "%XX"/"&" would be mangled. That premise is wrong, and
-        // the change broke EVERY fetch — Labelary answered "404 ERROR:
+        // the change broke EVERY fetch. Labelary answered "404 ERROR:
         // Requested 1st label but ZPL generated no labels" for all 124
         // fixtures, because a fully percent-encoded body contains no "=" and
         // parses as one empty form field. CI stayed green because --score

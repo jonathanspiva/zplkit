@@ -110,7 +110,7 @@ public struct ZPLPrinter: Sendable {
     ///
     /// Uses POSIX sockets (`socket`/`connect`/`write`/`close`) rather than the
     /// Swift-native `NetworkConnection` API. This is **deliberate and
-    /// load-bearing** — see the "Known issue: `send()` uses POSIX sockets" note
+    /// load-bearing**. See the "Known issue: `send()` uses POSIX sockets" note
     /// in the README. A `NetworkConnection`-based `send()` intermittently fails
     /// to print on real Zebra hardware: the connection tears down before the
     /// printer commits the buffered job, so the label is silently discarded

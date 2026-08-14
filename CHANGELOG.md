@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `NetworkConnection` is macOS 26. Verified with a clean build and all 670
   tests passing on stable Xcode 26.6 / Swift 6.3.
 
-### Fixed (tooling / CI — no library API change)
+### Fixed (tooling / CI, no library API change)
 - `VisualTests --labelary` fetched nothing: the percent-encoding added in the
   previous release made Labelary reject all 124 fixtures with
   "404 ... ZPL generated no labels". Labelary reads the request body verbatim
@@ -75,8 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Visual reference set completed and corrected. 37 of 124 fixtures had no
   reference image at all (every `canonical_*` and `graphic_*` fixture), so the
   accuracy score covered only 70% of the corpus; all 124 are now referenced.
-  A further 12 references were rendered at 812x1218 — the old `parseDimensions`
-  4x6 fallback — rather than their true label size, and because they were
+  A further 12 references were rendered at 812x1218 (the old `parseDimensions`
+  4x6 fallback) rather than their true label size, and because they were
   compared against correctly-sized renders they scored *high* and inflated the
   reported accuracy. With full coverage and correct geometry the honest score
   is 90.9% (previously reported as 92.2% over 87 fixtures).

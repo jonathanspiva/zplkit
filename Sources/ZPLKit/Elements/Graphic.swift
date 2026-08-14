@@ -37,7 +37,7 @@ import Foundation
 // Note: `Graphic` intentionally does NOT conform to `Equatable`/`Hashable`.
 // It stores a `CGImage` (a reference type whose synthesized conformance would
 // compare by object identity `===`), so two `Graphic` values built from
-// pixel-identical but distinct `CGImage` instances would compare unequal — a
+// pixel-identical but distinct `CGImage` instances would compare unequal, a
 // value-type footgun. These conformances aren't required by `ZPLElement` and
 // aren't used by the DSL, so they're omitted.
 public struct Graphic: ZPLElement {
