@@ -2,8 +2,8 @@
 
 <img src="logo.svg" width="128" height="128" alt="ZPLKit logo">
 
-![Swift 6.4+](https://img.shields.io/badge/Swift-6.4+-orange.svg)
-![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS%2027+-blue.svg)
+![Swift 6.3+](https://img.shields.io/badge/Swift-6.3+-orange.svg)
+![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS%2026+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 [![CI](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-cc785c)](https://claude.ai/code)
@@ -237,10 +237,10 @@ Setting a printer's IP/subnet/gateway via `PrinterConfiguration.networkConfig(..
 
 ## Requirements
 
-- Swift 6.4+
-- iOS 27+ / macOS 27+ / tvOS 27+ / watchOS 27+
+- Swift 6.3+
+- iOS 26+ / macOS 26+ / tvOS 26+ / watchOS 26+
 
-The narrow, latest-OS-only floor is intentional. ZPLKit targets the most recent OS releases so it can use the newest Swift concurrency and Vision APIs without back-compatibility shims. If you need wider platform support, pin to a fork rather than expecting older-OS compatibility.
+The floor tracks the newest generally-available OS release rather than the current beta, so ZPLKit installs on a shipping toolchain. It is still deliberately narrow: ZPLKit uses the modern Swift concurrency, Vision, and Network APIs directly rather than carrying back-compatibility shims. If you need wider platform support, pin to a fork rather than expecting older-OS compatibility.
 
 ## Resources
 

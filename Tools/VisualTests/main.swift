@@ -370,6 +370,22 @@ struct VisualTests {
             print("  Labelary: \(labelarySuccesses)/\(zplFiles.count) succeeded")
             if !labelaryFailures.isEmpty {
                 print("  ⚠️  \(labelaryFailures.count) Labelary fetches failed (comparison will show Swift renders only)")
+                // --score reads the committed reference/ PNGs, so a broken
+                // Labelary fetch does NOT move the accuracy number — it just
+                // empties the Labelary column of comparison.html and leaves no
+                // way to refresh reference/. That silence is exactly how the
+                // PR #11 encoding regression survived three weeks of green CI,
+                // so fetch health gets its own gate. Tolerate a few transient
+                // errors; 429s are already retried in fetchLabelaryWithRetry.
+                let failureRate = Double(labelaryFailures.count) / Double(zplFiles.count)
+                if failureRate > 0.10 {
+                    print("  ✗ \(String(format: "%.0f", failureRate * 100))% of Labelary fetches failed (>10%) — comparison is not meaningful")
+                    let distinct = Set(labelaryFailures.map(\.error)).sorted()
+                    for reason in distinct.prefix(5) {
+                        print("      reason: \(reason)")
+                    }
+                    exitCode = 1
+                }
             }
         }
 
@@ -446,8 +462,17 @@ struct VisualTests {
     }
 
     static func parseDimensions(from filename: String) -> (width: Double, height: Double) {
-        // Parse dimensions from filename like "shipping_4x6_203.zpl"
-        let pattern = #"(\d+)x(\d+)"#
+        // Parse dimensions from a filename like "shipping_4x6_203.zpl" or
+        // "simple_mini_1x0.5_203.zpl".
+        //
+        // The fractional part is REQUIRED in this pattern. It used to be
+        // `(\d+)x(\d+)`, which cannot match a decimal: "1x0.5" matched the
+        // "1x0" prefix and yielded a zero-height label, so Labelary rejected
+        // the request with HTTP 400. That silently cost the 13 fixtures with
+        // 0.5/0.75-inch heights their reference renders (verified 2026-08-14).
+        // The surrounding underscores anchor the match to the dimension field
+        // so the trailing DPI segment can't be mistaken for it.
+        let pattern = #"_(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)_"#
         if let regex = try? NSRegularExpression(pattern: pattern),
            let match = regex.firstMatch(in: filename, range: NSRange(filename.startIndex..., in: filename)) {
             if let widthRange = Range(match.range(at: 1), in: filename),
@@ -457,7 +482,11 @@ struct VisualTests {
                 return (width, height)
             }
         }
-        return (4, 6) // Default
+        // Falling back here means the Labelary render is requested at the wrong
+        // size, so the reference silently disagrees with the fixture. Say so
+        // instead of quietly returning 4x6.
+        print("    ⚠️  Could not parse dimensions from '\(filename)'; defaulting to 4x6")
+        return (4, 6)
     }
 
     static func fetchLabelaryWithRetry(zpl: String, dpi: DPI, width: Double, height: Double, maxRetries: Int = 3) async throws -> Data {
@@ -499,16 +528,23 @@ struct VisualTests {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("image/png", forHTTPHeaderField: "Accept")
-        // With form-urlencoded, the server form-decodes the body: a raw "+"
-        // becomes a space, "%XX" sequences get decoded, and "&" splits fields.
-        // Percent-encode everything but unreserved characters so ZPL containing
-        // +, %, or & reaches Labelary intact.
-        var unreserved = CharacterSet.alphanumerics
-        unreserved.insert(charactersIn: "-._~")
-        guard let encoded = zpl.addingPercentEncoding(withAllowedCharacters: unreserved) else {
-            throw LabelaryError.noData
-        }
-        request.httpBody = encoded.data(using: .utf8)
+        // Send the ZPL as RAW bytes. Despite the form-urlencoded content type
+        // (which Labelary requires — text/plain is rejected with a 415), the
+        // API does not form-decode the body: it reads it verbatim as the ZPL
+        // program.
+        //
+        // The trap (recorded so it isn't repeated): on 2026-07-24 PR #11
+        // percent-encoded this body, on the theory that a raw "+" would decode
+        // to a space and "%XX"/"&" would be mangled. That premise is wrong, and
+        // the change broke EVERY fetch — Labelary answered "404 ERROR:
+        // Requested 1st label but ZPL generated no labels" for all 124
+        // fixtures, because a fully percent-encoded body contains no "=" and
+        // parses as one empty form field. CI stayed green because --score
+        // reads the committed reference/ PNGs, not these fetches, so the only
+        // visible symptom was a comparison.html with an empty Labelary column.
+        // Verified 2026-08-14: posting raw bytes round-trips "+", "%25", and
+        // "&" to visibly distinct renders, so no encoding is needed.
+        request.httpBody = Data(zpl.utf8)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 

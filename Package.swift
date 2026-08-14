@@ -1,4 +1,4 @@
-// swift-tools-version: 6.4
+// swift-tools-version: 6.3
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -21,11 +21,16 @@ let sharedSwiftSettings: [SwiftSetting] = [
 
 let package = Package(
     name: "ZPLKit",
+    // Floor is the newest GA release, not the beta. ZPLKit needs nothing above
+    // it: the Swift-native Vision API shipped in iOS 18 / macOS 15, and
+    // `NetworkConnection` (used by `query()`) is macOS 26. Targeting the beta
+    // would make the package uninstallable for anyone on a shipping OS and
+    // unbuildable by Swift Package Index, for no capability gain.
     platforms: [
-        .iOS(.v27),
-        .macOS(.v27),
-        .tvOS(.v27),
-        .watchOS(.v27)
+        .iOS(.v26),
+        .macOS(.v26),
+        .tvOS(.v26),
+        .watchOS(.v26)
     ],
     products: [
         .library(

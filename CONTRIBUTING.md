@@ -6,17 +6,19 @@ Thanks for your interest in contributing to ZPLKit! This document covers the dev
 
 ### Requirements
 
-- macOS 27+ (required for the macOS 27 SDK and the Vision framework used in tests)
-- Swift 6.4 (`swift-tools-version: 6.4`)
-- Xcode 27 beta (or VSCode with the Swift extension pointed at the same toolchain)
+- macOS 26+ (for the Vision framework used in tests)
+- Swift 6.3 (`swift-tools-version: 6.3`)
+- Xcode 26 (or VSCode with the Swift extension pointed at the same toolchain)
 
-> **Heads up:** ZPLKit targets the macOS 27 SDK / Swift 6.4, which no stable
-> Xcode or GitHub-hosted runner carries yet. Until macOS 27 / Xcode 27 ship as
-> GA, you need the Xcode 27 **beta**. Point `swift` at it with `DEVELOPER_DIR`
-> (the CI does the same):
+> **Heads up:** ZPLKit builds on the current *stable* toolchain. It also builds
+> and passes its full suite on the Xcode 27 beta, but that toolchain has two
+> bugs worth knowing about before you trust a local run — see the caveat under
+> [Running Tests](#running-tests). If you keep both Xcodes installed, select one
+> explicitly with `DEVELOPER_DIR`:
 >
 > ```bash
-> export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer
+> export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer       # stable
+> export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer  # beta
 > ```
 
 ### Getting Started
@@ -24,7 +26,6 @@ Thanks for your interest in contributing to ZPLKit! This document covers the dev
 ```bash
 git clone https://github.com/jonathanspiva/zplkit.git
 cd zplkit
-export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer
 swift build
 swift test
 ```
@@ -74,8 +75,33 @@ swift run BarcodePrintTest --help
 
 The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#require`, `@Suite`), not XCTest. New tests must be written in that style. Prefer `@Test(arguments:)` parameterized tables for repetitive cases, and `@Test(.disabled("reason"))` for tracked skips.
 
+> **Xcode 27 beta: `swift test` does not run the whole suite.** On the Xcode 27
+> beta toolchain (confirmed on 27A5218g / Swift 6.4, 2026-08-14), a bare
+> `swift test` executes only the **first** test target and still exits 0 — it
+> reports "244 tests in 6 suites passed" when the package actually has **670
+> tests in 73 suites**. The other three targets are silently skipped. All 670
+> pass when each target is run explicitly, and the stable Swift 6.3 toolchain
+> runs all 670 from a bare `swift test`, so this is a toolchain bug rather than
+> a package problem. It matters because CI currently runs on the beta (the
+> self-hosted runner has no stable Xcode installed). On stable you can just run
+> `swift test`; on the beta, run each target (this is what CI does):
+>
+> ```bash
+> for t in ZPLKitTests ZPLKitRendererTests ZPLKitVerifierTests ZPLKitPrinterTests; do
+>   swift test --filter "$t"
+> done
+> ```
+>
+> Note that `swift test --filter` **also exits 0 when a filter matches nothing**
+> ("No matching test cases were run"), so check the reported test counts.
+>
+> One other beta artifact: `swift build` warns that
+> `Sources/ZPLKit/Documentation.docc` is an "unhandled file". The stable
+> toolchain handles the catalog correctly. It is only a warning — do not
+> "fix" it by declaring the catalog as a resource.
+
 ```bash
-# All tests
+# All tests (see the caveat above on the Xcode 27 beta)
 swift test
 
 # Specific module
