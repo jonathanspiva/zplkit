@@ -6,11 +6,11 @@
     case normal = "N"
 
     /// Rotated 90 degrees clockwise.
-    case rotate90 = "R"
+    case rotated90 = "R"
 
-    /// Rotated 180 degrees.
-    case rotate180 = "I"
+    /// Rotated 180 degrees (inverted).
+    case inverted = "I"
 
     /// Rotated 270 degrees clockwise.
-    case rotate270 = "B"
+    case rotated270 = "B"
 }

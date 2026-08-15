@@ -14,7 +14,7 @@
 ///         .height(.inches(0.7))
 /// }
 ///
-/// let zpl = template.render(with: [
+/// let zpl = template.render(substituting: [
 ///     "sender_name": "ACME",
 ///     "tracking_number": "1Z999"
 /// ])
@@ -49,7 +49,7 @@ public struct ZPLTemplate: Sendable {
     ///   - prettyPrint: If `true`, adds newlines between commands for
     ///     readability. Default is `false` for compact output.
     /// - Returns: The ZPL string with all variables substituted.
-    public func render(with substitutions: [String: String], prettyPrint: Bool = false) -> String {
+    public func render(substituting substitutions: [String: String], prettyPrint: Bool = false) -> String {
         label.render(substituting: substitutions, prettyPrint: prettyPrint)
     }
 }

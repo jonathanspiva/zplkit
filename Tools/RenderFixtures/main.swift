@@ -55,7 +55,9 @@ struct RenderFixtures {
                 let zpl = try String(contentsOfFile: zplPath, encoding: .utf8)
 
                 // Output dimensions come from the ZPL's ^PW/^LL dot values.
-                let (data, metrics) = try renderer.renderToPNG(zpl)
+                let dataResult = try renderer.renderToPNG(zpl)
+                let data = dataResult.data
+                let metrics = dataResult.metrics
                 try data.write(to: URL(fileURLWithPath: pngPath))
 
                 let parseMs = String(format: "%.1f", metrics.parseTimeSeconds * 1000)

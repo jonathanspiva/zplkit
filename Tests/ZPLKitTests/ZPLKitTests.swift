@@ -456,7 +456,7 @@ struct TwoDBarcodeRenderTests {
     func dataMatrixRenders() {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             DataMatrix("SERIAL123", at: .inches(0.5, 0.5))
-                .size(5)
+                .moduleSize(5)
         }
         #expect(label.render().contains("^BXN,5"))
     }
@@ -557,7 +557,7 @@ struct ClampingTests {
     func dataMatrixSizeClamp(input: Int, expected: String) {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             DataMatrix("TEST", at: .inches(0.5, 0.5))
-                .size(input)
+                .moduleSize(input)
         }
         #expect(label.render().contains(expected))
     }
@@ -1247,7 +1247,7 @@ struct ZPLTemplateTests {
             Barcode128("{{tracking_number}}", at: .inches(0.2, 1.7))?
                 .height(.inches(0.7))
         }
-        let zpl = template.render(with: [
+        let zpl = template.render(substituting: [
             "sender_name": "ACME",
             "tracking_number": "1Z999"
         ])
@@ -1263,7 +1263,7 @@ struct ZPLTemplateTests {
         let template = ZPLTemplate(width: 4, height: 2, dpi: .dpi203) {
             Text("ID: {{id}}", at: .inches(0.2, 0.2))
         }
-        let zpl = template.render(with: ["id": "a^XZb"])
+        let zpl = template.render(substituting: ["id": "a^XZb"])
         // Injected ^XZ is hex-escaped, so only the real label-end ^XZ remains.
         #expect(zpl.components(separatedBy: "^XZ").count == 2)
     }
@@ -1935,3 +1935,43 @@ struct GraphicTests {
     }
 }
 #endif
+
+// MARK: - Template substitution: Code 128 invocation-code escaping
+
+@Suite("Template substitution escaping")
+struct TemplateSubstitutionEscapingTests {
+
+    @Test("A substituted value with '>' is invocation-escaped inside a Code 128 field")
+    func substitutedGreaterThanEscapedInBarcode() throws {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("{{sku}}", at: .inches(0.25, 0.25))
+        }
+        let zpl = label.render(substituting: ["sku": "PRICE>5"])
+        // Raw ">" would be read as a subset/function switch and the symbol would
+        // scan as "PRICE"; ">0" is the literal.
+        #expect(zpl.contains("PRICE>05"), "expected invocation-escaped '>0', got: \(zpl)")
+    }
+
+    @Test("A substituted value with '>' is left alone in a plain text field")
+    func substitutedGreaterThanUntouchedInText() throws {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("{{note}}", at: .inches(0.25, 0.25))
+        }
+        let zpl = label.render(substituting: ["note": "A>B"])
+        // Text fields print ">" literally, so escaping it would print "A>0B".
+        #expect(zpl.contains("A>B"))
+        #expect(!zpl.contains("A>0B"))
+    }
+
+    @Test("Field state resets at ^FS, so text after a barcode is not escaped")
+    func code128StateResetsAtFieldSeparator() throws {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Barcode128("{{code}}", at: .inches(0.25, 0.25))
+            Text("{{note}}", at: .inches(0.25, 1.0))
+        }
+        let zpl = label.render(substituting: ["code": "A>B", "note": "C>D"])
+        #expect(zpl.contains("A>0B"), "barcode value should be escaped")
+        #expect(zpl.contains("C>D"), "text value should not be")
+        #expect(!zpl.contains("C>0D"))
+    }
+}

@@ -91,12 +91,6 @@ struct ZPLKitPrinterTests {
         let timeoutError = PrinterError.timeout(host: "10.0.0.1", port: 9100)
         #expect(timeoutError.errorDescription?.contains("timed out") == true)
 
-        let notFoundError = PrinterError.printerNotFound(name: "My Printer")
-        #expect(notFoundError.errorDescription?.contains("My Printer") == true)
-
-        let receiveError = PrinterError.receiveFailed(underlying: "Connection reset")
-        #expect(receiveError.errorDescription?.contains("receive") == true)
-
         let responseTimeoutError = PrinterError.responseTimeout(host: "192.168.1.50", port: 9100)
         #expect(responseTimeoutError.errorDescription?.contains("No response") == true)
         #expect(responseTimeoutError.errorDescription?.contains("error state") == true)

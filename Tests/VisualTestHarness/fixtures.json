@@ -464,6 +464,18 @@
     ],
     "size": "4x2"
   },
+  "features_rotations_4x2_203": {
+    "category": "features",
+    "description": "All four ZPL field orientations (^A0 N/R/I/B) each anchored at a 12-dot origin marker. Pins that a rotated field's bounding box starts AT its ^FO origin rather than being rotated about that point, which previously threw I and B fields up and to the left, often clipping them off the label.",
+    "dpi": 203,
+    "features": [
+      "text",
+      "rotation",
+      "field-orientation"
+    ],
+    "referenceSource": "labelary",
+    "size": "4x2"
+  },
   "features_special_chars_4x2_203": {
     "category": "features",
     "description": "Special character encoding test. Shows hex-encoded characters using _XX format for ZPL reserved characters like ^ and ~.",

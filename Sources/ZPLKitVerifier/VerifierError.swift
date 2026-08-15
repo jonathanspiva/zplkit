@@ -22,9 +22,6 @@ public enum VerifierError: Error, LocalizedError, Sendable {
     /// The associated value carries the underlying error thrown by Vision.
     case textRecognitionFailed(underlying: any Error)
 
-    /// An unexpected error occurred.
-    case unexpected(String)
-
     public var errorDescription: String? {
         switch self {
         case .invalidImage:
@@ -35,8 +32,6 @@ public enum VerifierError: Error, LocalizedError, Sendable {
             return "Barcode detection failed: \(underlying.localizedDescription)"
         case .textRecognitionFailed(let underlying):
             return "Text recognition failed: \(underlying.localizedDescription)"
-        case .unexpected(let message):
-            return "Unexpected error: \(message)"
         }
     }
 
@@ -45,8 +40,6 @@ public enum VerifierError: Error, LocalizedError, Sendable {
         switch self {
         case .barcodeDetectionFailed(let error), .textRecognitionFailed(let error):
             return error.localizedDescription
-        case .unexpected(let msg):
-            return msg
         case .invalidImage, .noExpectations:
             return nil
         }
@@ -57,7 +50,7 @@ public enum VerifierError: Error, LocalizedError, Sendable {
         switch self {
         case .barcodeDetectionFailed(let error), .textRecognitionFailed(let error):
             return error
-        case .unexpected, .invalidImage, .noExpectations:
+        case .invalidImage, .noExpectations:
             return nil
         }
     }

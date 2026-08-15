@@ -13,8 +13,13 @@ import AppKit
 import CoreImage
 #endif
 
-/// Renders parsed ZPL elements to a CGImage using CoreGraphics
-public enum CoreGraphicsRenderer {
+/// Renders parsed ZPL elements to a CGImage using CoreGraphics.
+///
+/// Internal on purpose: `ZPLRenderer.render(_:)` is the supported entry point,
+/// and `ParsedLabel` has no public initializer, so the only label a client can
+/// build already comes from `ZPLParser.parse`. Keeping this public would freeze
+/// the internal parse-to-draw pipeline shape at 1.0.
+enum CoreGraphicsRenderer {
 
     /// Renders a parsed label to a CGImage.
     ///
@@ -153,20 +158,31 @@ public enum CoreGraphicsRenderer {
         let attributedString = NSAttributedString(string: text.text, attributes: attributes)
         let line = CTLineCreateWithAttributedString(attributedString)
 
+        // Get text bounds for proper positioning. Needed before the transform so
+        // a rotated field can be anchored by its bounding box.
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+
+        // ZPL scales glyph width independently of height (`^A0N,h,w`). The
+        // bundled font is drawn at `fontHeight` and stretched horizontally.
+        let widthScale: CGFloat = (text.fontHeight > 0 && text.fontWidth > 0 && text.fontWidth != text.fontHeight)
+            ? CGFloat(text.fontWidth) / CGFloat(text.fontHeight)
+            : 1
+
         context.saveGState()
 
         // Move to text position, then rotate about that origin.
         context.translateBy(x: CGFloat(text.x), y: CGFloat(text.y))
         applyRotation(text.rotation, in: context)
+        applyRotationAnchor(
+            text.rotation,
+            width: bounds.width * widthScale,
+            height: bounds.height,
+            in: context
+        )
 
-        // ZPL scales glyph width independently of height (`^A0N,h,w`). The
-        // bundled font is drawn at `fontHeight` and stretched horizontally.
-        if text.fontHeight > 0, text.fontWidth > 0, text.fontWidth != text.fontHeight {
-            context.scaleBy(x: CGFloat(text.fontWidth) / CGFloat(text.fontHeight), y: 1)
+        if widthScale != 1 {
+            context.scaleBy(x: widthScale, y: 1)
         }
-
-        // Get text bounds for proper positioning
-        let bounds = CTLineGetBoundsWithOptions(line, [])
 
         // Un-flip for text rendering (context is flipped, but CoreText expects unflipped)
         // This makes text render right-side up
@@ -468,6 +484,37 @@ public enum CoreGraphicsRenderer {
         }
     }
 
+    /// Re-anchors a rotated field so its bounding box starts at the `^FO` origin.
+    ///
+    /// `applyRotation` rotates about the origin point, which throws the content
+    /// into the wrong quadrant: for content of size W x H the rotated box lands
+    /// at (x-H, y) for `R`, (x-W, y-H) for `I`, and (x, y-W) for `B`. Printers
+    /// (verified against Labelary) put the rotated box's top-left AT the origin,
+    /// so `I` and `B` fields previously drew up and to the left of where they
+    /// belong — frequently clipped off the top of the label — and `R` sat one
+    /// glyph-height too far left.
+    ///
+    /// Call immediately after `applyRotation`, with the content's pre-rotation
+    /// width and height, and before any width scaling (the translation applies
+    /// in the current, unscaled frame).
+    private static func applyRotationAnchor(
+        _ rotation: String,
+        width: CGFloat,
+        height: CGFloat,
+        in context: CGContext
+    ) {
+        switch rotation {
+        case "R":
+            context.translateBy(x: 0, y: -height)
+        case "I":
+            context.translateBy(x: -width, y: -height)
+        case "B":
+            context.translateBy(x: -width, y: 0)
+        default:
+            break
+        }
+    }
+
     #if canImport(CoreImage)
     private static func renderBarcode(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
         switch barcode.type {
@@ -547,6 +594,12 @@ public enum CoreGraphicsRenderer {
         // Move to the field origin, then rotate about it (same convention as renderText).
         context.translateBy(x: CGFloat(barcode.x), y: CGFloat(barcode.y))
         applyRotation(barcode.rotation, in: context)
+        applyRotationAnchor(
+            barcode.rotation,
+            width: CGFloat(width),
+            height: CGFloat(height),
+            in: context
+        )
         // `^FT` anchors the field's bottom-left rather than its top-left.
         if barcode.useBaseline {
             context.translateBy(x: 0, y: -CGFloat(height))

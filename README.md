@@ -143,7 +143,7 @@ import ZPLKitRenderer
 
 let renderer = ZPLRenderer()
 // renderToPNG derives the pixel size from the label's ^PW/^LL geometry.
-if let (pngData, _) = try? renderer.renderToPNG(zpl) {
+if let pngData = (try? renderer.renderToPNG(zpl))?.data {
     // Display in UIImageView, save to file, etc.
 }
 ```

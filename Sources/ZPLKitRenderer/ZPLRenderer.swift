@@ -197,25 +197,37 @@ public final class ZPLRenderer: Sendable {
         return RenderResult(image: image, metrics: metrics)
     }
 
+    /// The PNG encoding of a rendered label.
+    ///
+    /// A struct rather than a tuple so it can gain members in a future minor
+    /// release; a tuple return type is frozen the moment it ships.
+    public struct PNGRenderResult: Sendable {
+        /// PNG-encoded image data.
+        public let data: Data
+        /// Timings and output dimensions for the render.
+        public let metrics: RenderMetrics
+    }
+
     /// Renders a ZPL string to PNG data.
     /// - Parameter zpl: The ZPL string to render
-    /// - Returns: PNG data and performance metrics
-    public func renderToPNG(_ zpl: String) throws -> (data: Data, metrics: RenderMetrics) {
+    /// - Returns: The PNG data and the render metrics.
+    public func renderToPNG(_ zpl: String) throws -> PNGRenderResult {
         let result = try render(zpl)
 
         guard let data = result.image.pngData() else {
             throw ZPLRendererError.pngEncodingFailed
         }
 
-        return (data, result.metrics)
+        return PNGRenderResult(data: data, metrics: result.metrics)
     }
 }
 
 /// Errors that can occur during rendering
+///
+/// - Note: New cases may be added in future minor releases, so switch over this
+///   enum with a `default` case.
 public enum ZPLRendererError: Error, Sendable {
-    case parseError(String)
     case renderError(String)
     case pngEncodingFailed
-    case unsupportedCommand(String)
 }
 
