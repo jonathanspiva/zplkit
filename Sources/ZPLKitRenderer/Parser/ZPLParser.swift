@@ -53,7 +53,8 @@ public enum ZPLParser {
             height: state.height,
             elements: state.elements,
             printQuantity: state.printQuantity,
-            printDarkness: state.printDarkness
+            printDarkness: state.printDarkness,
+            invertedOrientation: state.invertedOrientation
         )
     }
 
@@ -123,6 +124,23 @@ public enum ZPLParser {
         case "^MD":
             state.printDarkness = Int(params)
 
+        // Label home: a global origin offset added to every subsequent field
+        // (`^LH60,40` puts a `^FO0,0` field at 60,40). Previously ignored, which
+        // put every field of an `^LH` label in the wrong place.
+        case "^LH":
+            let home = splitParams(params)
+            if !home.isEmpty {
+                state.labelHomeX = Int(home[0]) ?? 0
+                state.labelHomeY = home.count >= 2 ? (Int(home[1]) ?? 0) : 0
+            }
+
+        // Print orientation. `^POI` rotates the whole label 180 degrees;
+        // `^PON` is the normal default.
+        case "^PO":
+            if let orientation = splitParams(params).first?.first {
+                state.invertedOrientation = (orientation == "I" || orientation == "i")
+            }
+
         // Field positioning
         // An omitted y defaults to 0 rather than inheriting the previous
         // field's y (verified against Labelary: `^FO150` lands at (150, 0)).
@@ -131,16 +149,16 @@ public enum ZPLParser {
         case "^FO":
             let coords = splitParams(params)
             if !coords.isEmpty {
-                state.currentX = Int(coords[0]) ?? 0
-                state.currentY = coords.count >= 2 ? (Int(coords[1]) ?? 0) : 0
+                state.currentX = (Int(coords[0]) ?? 0) + state.labelHomeX
+                state.currentY = (coords.count >= 2 ? (Int(coords[1]) ?? 0) : 0) + state.labelHomeY
             }
             state.useFieldTypeset = false
 
         case "^FT":
             let coords = splitParams(params)
             if !coords.isEmpty {
-                state.currentX = Int(coords[0]) ?? 0
-                state.currentY = coords.count >= 2 ? (Int(coords[1]) ?? 0) : 0
+                state.currentX = (Int(coords[0]) ?? 0) + state.labelHomeX
+                state.currentY = (coords.count >= 2 ? (Int(coords[1]) ?? 0) : 0) + state.labelHomeY
             }
             state.useFieldTypeset = true
 
@@ -378,6 +396,11 @@ private struct ParserState {
     /// own orientation slot. Kept separate from `currentRotation` (which `^A`
     /// overwrites) so a font rotation cannot leak into a barcode.
     var fieldDefaultRotation = "N"
+    /// `^LH` label-home offset, added to every field origin.
+    var labelHomeX = 0
+    var labelHomeY = 0
+    /// `^POI`: render the whole label rotated 180 degrees.
+    var invertedOrientation = false
     var useFieldTypeset = false
     var isReversed = false
     var fieldHexIndicator: Character? = nil

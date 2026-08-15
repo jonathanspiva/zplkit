@@ -21,6 +21,8 @@ public struct ParsedLabel: Sendable {
     public let printQuantity: Int
     /// Darkness set by `^MD`, or `nil` if the label didn't specify one.
     public let printDarkness: Int?
+    /// True when `^POI` asked for the label to print rotated 180 degrees.
+    public let invertedOrientation: Bool
 }
 
 /// One parsed element within a ``ParsedLabel``.

@@ -64,6 +64,15 @@ enum CoreGraphicsRenderer {
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
 
+        // `^POI` prints the whole label upside down. Rotating the context about
+        // the label centre maps (x, y) to (width - x, height - y), so every
+        // element lands where the printer puts it without touching per-element
+        // geometry.
+        if label.invertedOrientation {
+            context.translateBy(x: CGFloat(width), y: CGFloat(height))
+            context.rotate(by: .pi)
+        }
+
         // Create a single CIContext for the whole render pass (used by 2D barcode
         // generators). Constructing a CIContext is expensive, so we avoid building
         // one per barcode element. `nil` on platforms without CoreImage.
@@ -872,10 +881,44 @@ enum CoreGraphicsRenderer {
         // Draw text below (or above) if needed, in the same rotated local space.
         if barcode.showText {
             let textY = barcode.textAbove ? -20 : height + 5
-            drawBarcodeText(barcode.data, at: CGPoint(x: 0, y: textY), in: context)
+            drawBarcodeText(interpretationLine(for: barcode), at: CGPoint(x: 0, y: textY), in: context)
         }
 
         context.restoreGState()
+    }
+
+
+    /// The human-readable interpretation line for a 1-D symbol.
+    ///
+    /// For the GTIN family the printer appends the check digit it computed, so
+    /// the caption carries one more digit than the field data: `^FD123456789012`
+    /// on an EAN-13 prints `1234567890128` (verified against Labelary). Drawing
+    /// the raw field data left the preview's caption a digit short of the symbol
+    /// it sits under.
+    static func interpretationLine(for barcode: ParsedBarcode) -> String {
+        let data = barcode.data
+        let expected: Int
+        switch barcode.type {
+        case .ean13: expected = 13
+        case .ean8: expected = 8
+        case .upcA: expected = 12
+        default: return data
+        }
+        guard data.count == expected - 1,
+              data.allSatisfy({ $0.isASCII && $0.isNumber }) else { return data }
+        return data + String(gtinCheckDigit(for: data))
+    }
+
+    /// Mod-10 GTIN check digit, weighting 3 and 1 from the rightmost data digit.
+    ///
+    /// Duplicated here because ZPLKit's equivalent is internal to that module.
+    static func gtinCheckDigit(for digits: String) -> Int {
+        var sum = 0
+        for (offset, character) in digits.reversed().enumerated() {
+            let value = character.wholeNumberValue ?? 0
+            sum += offset.isMultiple(of: 2) ? value * 3 : value
+        }
+        return (10 - (sum % 10)) % 10
     }
 
     private static func renderPlaceholderBarcode(_ barcode: ParsedBarcode, in context: CGContext) {

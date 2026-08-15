@@ -286,6 +286,33 @@ struct FieldScopingRegressionTests {
         #expect(found.rotation == "R")
     }
 
+    @Test("^LH offsets every subsequent field origin")
+    func labelHomeOffsetsFields() throws {
+        // Verified against Labelary: with ^LH60,40 a ^FO0,0 field renders at
+        // (60, 40). Previously ^LH was ignored entirely.
+        let parsed = try ZPLParser.parse("^XA^LH60,40^FO0,0^GB120,60,5^FS^FO0,80^FDshifted^FS^XZ")
+        guard case .box(let box) = parsed.elements.first else {
+            Issue.record("expected a box"); return
+        }
+        #expect(box.x == 60)
+        #expect(box.y == 40)
+        guard case .text(let text) = parsed.elements.last else {
+            Issue.record("expected text"); return
+        }
+        #expect(text.x == 60)
+        #expect(text.y == 120)
+    }
+
+    @Test("^POI marks the label for 180-degree rendering, ^PON does not")
+    func printOrientationInvert() throws {
+        let inverted = try ZPLParser.parse("^XA^POI^FO20,20^FDinv^FS^XZ")
+        #expect(inverted.invertedOrientation == true)
+        let normal = try ZPLParser.parse("^XA^PON^FO20,20^FDnorm^FS^XZ")
+        #expect(normal.invertedOrientation == false)
+        let unspecified = try ZPLParser.parse("^XA^FO20,20^FDnorm^FS^XZ")
+        #expect(unspecified.invertedOrientation == false)
+    }
+
     @Test("^GFA run-length repeats may span rows")
     func graphicRepeatSpansRows() throws {
         // V = 16 repeats of nibble F: an 8x8 solid square, not a single row.
@@ -297,5 +324,37 @@ struct FieldScopingRegressionTests {
         let found = try #require(graphic)
         #expect(found.data.count == 8, "expected 8 rows of 1 byte, got \(found.data.count)")
         #expect(found.data.allSatisfy { $0 == 0xFF }, "every row should be solid black")
+    }
+}
+
+@Suite("Interpretation line")
+struct InterpretationLineTests {
+
+    @Test("EAN-13 caption includes the printer-computed check digit")
+    func ean13CaptionCheckDigit() throws {
+        let parsed = try ZPLParser.parse("^XA^FO30,30^BEN,80,Y,N^FD123456789012^FS^XZ")
+        guard case .barcode(let barcode) = parsed.elements.first else {
+            Issue.record("expected a barcode"); return
+        }
+        // Labelary renders this caption as "1 234567 890128".
+        #expect(CoreGraphicsRenderer.interpretationLine(for: barcode) == "1234567890128")
+    }
+
+    @Test("A fully-specified value is left alone")
+    func alreadyCompleteCaption() throws {
+        let parsed = try ZPLParser.parse("^XA^FO30,30^BEN,80,Y,N^FD1234567890128^FS^XZ")
+        guard case .barcode(let barcode) = parsed.elements.first else {
+            Issue.record("expected a barcode"); return
+        }
+        #expect(CoreGraphicsRenderer.interpretationLine(for: barcode) == "1234567890128")
+    }
+
+    @Test("Non-GTIN symbologies are unchanged")
+    func nonGtinCaption() throws {
+        let parsed = try ZPLParser.parse("^XA^FO30,30^BCN,80,Y,N,N^FDABC123^FS^XZ")
+        guard case .barcode(let barcode) = parsed.elements.first else {
+            Issue.record("expected a barcode"); return
+        }
+        #expect(CoreGraphicsRenderer.interpretationLine(for: barcode) == "ABC123")
     }
 }
