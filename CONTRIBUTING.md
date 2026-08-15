@@ -50,7 +50,7 @@ Tests/
 ├── ZPLKitRendererTests/  # Parser and renderer tests
 ├── ZPLKitPrinterTests/   # Printer communication tests
 ├── ZPLKitVerifierTests/  # Verification tests
-└── VisualTestHarness/    # 124 ZPL fixtures + comparison tools
+└── VisualTestHarness/    # 125 ZPL fixtures + comparison tools
 
 Tools/
 ├── RenderFixtures/   # Render all fixtures to PNG
@@ -77,13 +77,13 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 
 > **Xcode 27 beta: `swift test` does not run the whole suite.** On the Xcode 27
 > beta toolchain (confirmed on 27A5218g / Swift 6.4, 2026-08-14), a bare
-> `swift test` executes only the **first** test target and still exits 0. It
-> reports "244 tests in 6 suites passed" when the package actually has **670
-> tests in 73 suites**. The other three targets are silently skipped. All 670
-> pass when each target is run explicitly, and the stable Swift 6.3 toolchain
-> runs all 670 from a bare `swift test`, so this is a toolchain bug rather than
-> a package problem. On stable you can just run `swift test`; on the beta, run
-> each target:
+> `swift test` executes only the **first** test target and still exits 0,
+> reporting that target's count as if it were the whole suite. When this was
+> found it ran 244 of 670 tests, silently skipping three of the four targets.
+> All of them pass when each target is run explicitly, and the stable Swift 6.3
+> toolchain runs the full suite from a bare `swift test`, so this is a toolchain
+> bug rather than a package problem. On stable you can just run `swift test`; on
+> the beta, run each target:
 >
 > ```bash
 > for t in ZPLKitTests ZPLKitRendererTests ZPLKitVerifierTests ZPLKitPrinterTests; do
@@ -151,7 +151,7 @@ sub-pixel glyph-advance differences shift every following glyph, and on a
 - **Prefer guard** for early returns over nested if-else
 - **Use Swift's type system** to prevent invalid states
 - **Mark types as Sendable** for Swift 6 concurrency
-- **Add protocol conformances**: Codable, Equatable, Hashable where appropriate
+- **Add protocol conformances**: `Equatable`, `Hashable`, `Sendable` where appropriate
 
 ### Documentation
 
@@ -167,11 +167,15 @@ sub-pixel glyph-advance differences shift every following glyph, and on a
 
 ### Example Element Structure
 
+Stored properties stay `private` and elements are configured through modifiers.
+Note that no element conforms to `Codable`: doing so would freeze its stored
+properties as a persistence contract.
+
 ```swift
 /// A barcode element that renders as ZPL `^BC` command.
-public struct Barcode128: ZPLElement, Sendable, Equatable, Hashable, Codable {
-    public let data: String
-    public let position: Position
+public struct Barcode128: ZPLElement, Sendable, Equatable, Hashable {
+    private let data: String
+    private let position: Position
     private var height: Dimension = .dots(100)
 
     /// Creates a Code 128 barcode. Returns nil if data contains non-ASCII characters.
@@ -225,7 +229,7 @@ Add EAN-8 barcode element
 ## Adding a New ZPL Element
 
 1. **Create the element** in `Sources/ZPLKit/Elements/`
-2. **Conform to protocols**: `ZPLElement`, `Sendable`, `Equatable`, `Hashable`, `Codable`
+2. **Conform to protocols**: `ZPLElement`, `Sendable`, `Equatable`, `Hashable`
 3. **Add validation** in the initializer (return nil for invalid input)
 4. **Implement `render(context:)`** to generate ZPL commands
 5. **Add tests** in `Tests/ZPLKitTests/` using Swift Testing (`@Test` / `#expect`), not XCTest

@@ -5,88 +5,8 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-08-14
 
-### Breaking changes
-- `ZPLKitVerifier`'s expectation types were renamed `Text` → `TextExpectation` and
-  `Barcode` → `BarcodeExpectation`, so `Text` no longer collides with `ZPLKit.Text`
-  when both modules are imported for the build → render → verify workflow.
-- Removed the inert `dpi:` parameter from `ZPLRenderer.render(_:)` and
-  `renderToPNG(_:)`. Output dimensions are derived from the label's `^PW`/`^LL`
-  dot values, so the parameter never had any effect.
-- `PrinterConfiguration.fieldRotation` is now a typed `FieldRotation` enum
-  (`.normal`/`.rotate90`/`.rotate180`/`.rotate270`) instead of a `String`, matching
-  the other typed configuration fields.
-
-### Changed
-- `ParsedLabel` / `ParsedElement` and the other `Parsed*` types are now documented
-  as part of the public, semver-stable API (the "may change without notice"
-  disclaimer is gone); `ParsedElement` may still gain cases in minor releases.
-- `BarcodeSymbology` is no longer `@frozen`, so future Vision symbologies can be
-  added without a source break (switch over it with a `default` case).
-- `PrinterConfiguration.networkConfig(...)` / `dhcp()` (the `^NS` path) are now
-  documented as **experimental / not hardware-verified**: a static-IP change via
-  `^NSP` + `~JR` was observed not to take effect on a GX420t (V56), so the emitted
-  command shape and reset sequence are still unconfirmed. Use with caution and a
-  recoverable printer.
-
-### Fixed
-- `^BY` module width is now emitted by every 1-D barcode (`Code39`, `EAN13`,
-  `EAN8`, `UPCA`, `UPCE`, joining `Barcode128`/`Interleaved2of5`), and all expose
-  a `moduleWidth(_:)` modifier. Previously a preceding barcode's module width
-  could leak in via `^BY` stickiness.
-- `EAN13`/`EAN8`/`UPCA` now reject a fully-specified value whose trailing check
-  digit doesn't match the computed one, instead of letting the printer silently
-  re-derive a different digit.
-- `HorizontalLine`/`VerticalLine` clamp resolved length/thickness to ≥ 1 dot,
-  matching `Box`/`Circle`/`Ellipse` (a `^GB0` dimension is out-of-range on real
-  firmware).
-- `PrinterInfo.dpi` now reports 152 (not 150) for 6 dots/mm, matching its own
-  docs and `DPI.dpi152`.
-- `IntelligentMail` rejects a data string whose Barcode Identifier is invalid
-  (the 2nd digit must be 0-4 per USPS-B-3200); previously it would emit an
-  out-of-spec symbol.
-- Corrected `Interleaved2of5` documentation, which claimed data "must be even"
-  while the initializer accepts odd-length input (the printer prepends a 0).
-
-### Changed (build)
-- Platform floor lowered from 27 to **26** (iOS/macOS/tvOS/watchOS) and
-  swift-tools from 6.4 to **6.3**, so ZPLKit installs on a shipping toolchain
-  instead of requiring a beta OS. Nothing in the library needed the higher
-  floor: the Swift-native Vision API shipped in iOS 18 / macOS 15 and
-  `NetworkConnection` is macOS 26. Verified with a clean build and all 670
-  tests passing on stable Xcode 26.6 / Swift 6.3.
-
-### Fixed (tooling / CI, no library API change)
-- `VisualTests --labelary` fetched nothing: the percent-encoding added in the
-  previous release made Labelary reject all 124 fixtures with
-  "404 ... ZPL generated no labels". Labelary reads the request body verbatim
-  and never form-decodes it, so the ZPL is now posted as raw bytes.
-- `VisualTests` parsed fixture dimensions with a regex that could not match a
-  decimal, so `2x0.75` became `2x0` and Labelary rejected the zero-height label
-  with HTTP 400. This cost the 13 fixtures with 0.5/0.75-inch heights their
-  reference renders. Unparseable filenames now warn instead of silently
-  defaulting to 4x6.
-- `VisualTests` now exits non-zero when more than 10% of Labelary fetches fail,
-  so a broken comparison can no longer report a green run.
-- CI ran only a third of the test suite. On the Xcode 27 beta toolchain a bare
-  `swift test` executes only the first test target and exits 0 (244 of 670
-  tests). CI now runs every test target explicitly and asserts the total count.
-- Visual reference set completed and corrected. 37 of 124 fixtures had no
-  reference image at all (every `canonical_*` and `graphic_*` fixture), so the
-  accuracy score covered only 70% of the corpus; all 124 are now referenced.
-  A further 12 references were rendered at 812x1218 (the old `parseDimensions`
-  4x6 fallback) rather than their true label size, and because they were
-  compared against correctly-sized renders they scored *high* and inflated the
-  reported accuracy. With full coverage and correct geometry the honest score
-  is 90.9% (previously reported as 92.2% over 87 fixtures).
-- `VisualTests --score` now validates every reference against the label
-  geometry implied by its filename and fails on a mismatch, so a wrong-sized
-  reference can't silently corrupt the score again.
-
-## [1.0.0]
-
-<!-- set release date when tagging -->
 First public release.
 
 ### Breaking changes
@@ -95,8 +15,37 @@ These affect anyone who built against pre-release code:
 
 - The `ZPLVerifier` module (product) was renamed to `ZPLKitVerifier`. Update imports to `import ZPLKitVerifier`. The entry type is still named `ZPLVerifier`.
 - `ZPLVerifier.analyze(_:)` and the `verify(...)` overloads are now `async throws` (migrated to the Swift-native Vision API).
-- Minimum platforms raised to iOS 26 / macOS 26 / tvOS 26 / watchOS 26.
-- Swift 6.3 is required (`swift-tools-version: 6.3`).
+- `ZPLKitVerifier`'s expectation types were renamed `Text` → `TextExpectation` and
+  `Barcode` → `BarcodeExpectation`, so `Text` no longer collides with `ZPLKit.Text`
+  when both modules are imported for the build → render → verify workflow.
+- Minimum platforms are iOS 26 / macOS 26 / tvOS 26 / watchOS 26, and Swift 6.3
+  is required (`swift-tools-version: 6.3`). An earlier pre-release targeted 27 /
+  Swift 6.4; the floor was lowered so the package installs on a shipping
+  toolchain rather than a beta OS. Nothing in the library needed the higher
+  floor: the Swift-native Vision API shipped in iOS 18 / macOS 15, and
+  `NetworkConnection` is macOS 26.
+- Removed the inert `dpi:` parameter from `ZPLRenderer.render(_:)` and
+  `renderToPNG(_:)`. Output dimensions are derived from the label's `^PW`/`^LL`
+  dot values, so the parameter never had any effect.
+- `ZPLRenderer.renderToPNG(_:)` returns a `PNGRenderResult` struct instead of a
+  `(data:metrics:)` tuple. A tuple return type can never gain a member, so it
+  would have been frozen at 1.0.
+- Removed five public error cases that nothing ever threw:
+  `PrinterError.printerNotFound` / `.receiveFailed`, `VerifierError.unexpected`,
+  and `ZPLRendererError.parseError` / `.unsupportedCommand`. They documented
+  conditions that could not occur, and deleting them after 1.0 would be a break.
+  `ZPLParser.parse` keeps `throws` for future use.
+- `CGImage.pngData()` and `CoreGraphicsRenderer` are now internal. The former is
+  a retroactive extension on a system type, which collides with the same
+  extension anywhere else in a consumer's dependency graph; the latter is
+  unreachable in practice (`ParsedLabel` has no public initializer) and kept the
+  internal parse-to-draw pipeline frozen. Use `ZPLRenderer.render(_:)`.
+- `ZPLTemplate.render(with:)` is now `render(substituting:)`, matching
+  `ZPLLabel`; `DataMatrix.size(_:)` is now `moduleSize(_:)`, matching
+  `moduleWidth(_:)` / `magnification(_:)` on its siblings.
+- `PrinterConfiguration.fieldRotation` is a typed `FieldRotation` enum instead of
+  a `String`, and its cases spell the same as `ZPLKit.Rotation`
+  (`.normal` / `.rotated90` / `.inverted` / `.rotated270`).
 - `VerifierError.visionError` was removed (no consumers).
 
 ### Added
@@ -151,7 +100,7 @@ These affect anyone who built against pre-release code:
 - Result types: `AnalysisResult`, `VerificationResult`, `DetectedBarcode`, `DetectedText`
 
 #### Test Fixtures
-- 124 ZPL fixture files covering text, barcodes, shapes, and graphics
+- 125 ZPL fixture files covering text, barcodes, shapes, and graphics
 - `fixtures.json` metadata with descriptions, categories, features, expected barcodes
 - Reference images from Labelary for comparison
 - Visual test harness with HTML comparison output
@@ -169,27 +118,155 @@ These affect anyone who built against pre-release code:
 - MIT license
 
 ### Changed
+- `ParsedLabel` / `ParsedElement` and the other `Parsed*` types are documented as
+  part of the public, semver-stable API, with doc comments on every property.
+  `ParsedElement` may still gain cases in minor releases, so switch over it with
+  a `default`.
+- `BarcodeSymbology` is not `@frozen`, so future Vision symbologies can be added
+  without a source break (switch over it with a `default` case).
+- `Expectation` provides a default `visionHints`, so future protocol
+  requirements will not break external conformers.
+- `PrinterConfiguration.networkConfig(...)` / `dhcp()` (the `^NS` path) are
+  documented as **experimental / not hardware-verified**: a static-IP change via
+  `^NSP` + `~JR` was observed not to take effect on a GX420t (V56), so the
+  emitted command shape and reset sequence are still unconfirmed. Use with
+  caution and a recoverable printer.
 - Adopted Swift 6.2's "approachable concurrency" upcoming-feature flags via a shared `swiftSettings` block applied to every first-party target: `NonisolatedNonsendingByDefault` and `InferIsolatedConformances`. (`InferSendableFromCaptures` is already enabled by default in Swift 6 language mode, so it is intentionally not enabled explicitly.) Default isolation remains `nonisolated`; the package is a library and does not force callers onto the main actor.
 - `ZPLVerifier.analyze`/`verify` timing now uses `ContinuousClock`; the reported `*TimeSeconds` fields are documented as wall-clock (including time suspended at `await`).
 - Set `swiftLanguageModes: [.v6]` explicitly in the manifest.
 - Migrated `ZPLVerifier` to the Swift-native Vision API (`DetectBarcodesRequest`, `RecognizeTextRequest`, `ImageRequestHandler`), replacing the legacy `VN`-prefixed completion-handler API.
 - `ZPLVerifier` now runs barcode and text recognition concurrently (`async let`), roughly halving analysis latency.
 - **Removed the `Awesome` dependency** (and the `GraphicsTest` dev tool that used it); the library now has zero external dependencies.
-- CI runs on a self-hosted `macos-27` runner with the Xcode 27 beta toolchain (pinned via `DEVELOPER_DIR`, since no GitHub-hosted image carries the macOS 27 SDK / Swift 6.4 yet), enforces `-warnings-as-errors`, has per-job timeouts, gates the external Labelary visual comparison behind a minimum accuracy score, and skips PRs opened from forks (which cannot use the self-hosted runner).
+- The README documents which ZPL commands the preview renderer implements, and
+  what the four unimplemented ones (`^LR`, `^CI`, `^CC`/`^CT`, raw-binary
+  `^GFB`) do on a printer versus in the preview.
+- CI builds the package at its advertised floor on a GitHub-hosted `macos-26`
+  runner (Xcode 26.6 / Swift 6.3) with `-warnings-as-errors`, which also gives
+  fork PRs a CI signal. The self-hosted runner additionally covers the visual
+  comparison and the opt-in live-printer job, gated behind a minimum accuracy
+  score and per-job timeouts.
 
 ### Fixed
-- **Fixed a `query()` hang**: a continuation race in `ZPLPrinter` could drop the result on fast connection failure and hang forever; it now always resumes.
-- **Fixed crashes reachable from public API**: zero-port force-unwrap in `query()`/`send()`, empty-`Data` `send()` trap, integer divide-by-zero on malformed `^GF` (`bytesPerRow == 0`), and a slice-offset bug in the `~HS`/`~HI`/`~HM` response parsers when given a non-zero-`startIndex` `Data`.
+
+#### Label generation
+- `^BY` module width is now emitted by every 1-D barcode (`Code39`, `EAN13`,
+  `EAN8`, `UPCA`, `UPCE`, joining `Barcode128`/`Interleaved2of5`), and all expose
+  a `moduleWidth(_:)` modifier. Previously a preceding barcode's module width
+  could leak in via `^BY` stickiness.
+- `EAN13`/`EAN8`/`UPCA` now reject a fully-specified value whose trailing check
+  digit doesn't match the computed one, instead of letting the printer silently
+  re-derive a different digit.
+- Template substitution corrupted Code 128 payloads. Inside a `^BC` field a
+  literal `>` is an invocation code, so `Barcode128`'s constructor rewrites it to
+  `>0` before hex-escaping; substitution applied only the hex escaping, so
+  `Barcode128("{{sku}}")` substituted with `PRICE>5` printed a symbol that
+  scanned as `PRICE`. Substitution now tracks whether a placeholder sits inside a
+  `^BC` field and applies the same escape order there, and only there.
+- `HorizontalLine`/`VerticalLine` clamp resolved length/thickness to ≥ 1 dot,
+  matching `Box`/`Circle`/`Ellipse` (a `^GB0` dimension is out-of-range on real
+  firmware).
+- `IntelligentMail` rejects a data string whose Barcode Identifier is invalid
+  (the 2nd digit must be 0-4 per USPS-B-3200); previously it would emit an
+  out-of-spec symbol.
 - **Fixed ZPL corruption/injection**: free-form barcode payloads (`Barcode128`, `QRCode`, `PDF417`, `DataMatrix`, `Aztec`) and `render(substituting:)` values are now escaped (`^FH`), so `^`/`~`/`_` in data no longer breaks or injects into the command stream.
-- POSIX `send()` now loops on partial writes and retries `EINTR`, validates `fcntl`/`getsockopt` results, honors fractional timeouts and task cancellation.
-- `ZPLVerifier` now preserves the underlying error, rethrows `CancellationError`, and validates image dimensions.
-- Renderer: cache the bundled `CGFont` and reuse one `CIContext` per render pass; reset all `^FB` text-block state between fields; apply rotation to barcode render paths.
-- Resolved Swift 6 temporary-pointer warning in `CoreGraphicsRenderer` paragraph-style creation; silenced unused-result `fcntl` warnings in `ZPLPrinter`.
-- `ZPLPrinter` now formats POSIX errors with the thread-safe `strerror_r` (the shared `strerror` buffer could race across concurrent `send()` calls).
+- Corrected `UPCE`'s documentation, which described a 7th digit as an explicit
+  check digit. It is a *leading number system* digit, so following the old docs
+  shifted every digit and encoded a different product. Verified against
+  Labelary: `^FD0123456` renders pixel-identical to `^FD123456`.
+- Corrected `Interleaved2of5` documentation, which claimed data "must be even"
+  while the initializer accepts odd-length input (the printer prepends a 0).
+
+#### Rendering and parsing
+- 2-D barcodes rendered **mirrored**. `drawBarcodeImage` drew into the y-flipped
+  ZPL context without un-flipping, so a QR's finder patterns landed at
+  TL/BL/BR instead of TL/TR/BL. Affected QR, Aztec and PDF417. The verifier did
+  not catch it because Vision decodes mirrored symbols happily.
+- Rotated fields were placed on the wrong side of their `^FO` origin. Printers
+  anchor the rotated bounding box's top-left *at* the origin; the renderer
+  rotated *about* it, so `I` and `B` fields drew up and to the left (often
+  clipped off the label) and `R` sat one glyph-height too far left.
+- `^LH` (label home) was ignored, so every field of a label that sets a home
+  offset rendered in the wrong place.
+- `^PO` was ignored; `^POI` now renders the label rotated 180 degrees.
+- `^FW` was not implemented, and a `^A` font rotation leaked into any barcode
+  that omitted its orientation slot, so `^A0R` followed by `^BC,...` rendered
+  the barcode rotated. Barcodes now take their default orientation from `^FW`;
+  text still follows `^A`.
+- `^FO`/`^FT` with a single coordinate were dropped entirely, so the field kept
+  the previous field's position and drew on top of it. An omitted y defaults
+  to 0.
+- `^FB` survived `^FS`: a block whose field closed without `^FD` leaked its
+  width and alignment onto the next field.
+- `^CF` with an omitted height fell back to a hardcoded 30. The omitted height
+  follows the supplied width, so `^CF0,,20` renders at 20.
+- `^GFA` run-length runs were clamped to a single row of nibbles. The encoding
+  is a flat nibble stream, so runs legitimately cross rows: `^GFA,8,8,1,VF` is
+  an 8x8 solid square that decoded to an 8x1 sliver.
+- `^GB`'s 5th parameter is a corner-rounding index of 0-8, not a radius in dots;
+  it was used directly, so every rounded box came out nearly square.
+- The interpretation line under a GTIN symbol showed the raw field data, one
+  digit short of the symbol above it. EAN-13, EAN-8 and UPC-A captions now
+  include the printer-computed check digit.
+- Renderer: cache the bundled `CGFont` and reuse one `CIContext` per render pass; reset all `^FB` text-block state between fields.
 - Renderer: single-allocation graphic buffer (removed a redundant copy); forward-compatible font-slot selection with documented Font 0 fallback; human-readable placeholder barcode names.
+- **Fixed crashes reachable from public API**: zero-port force-unwrap in `query()`/`send()`, empty-`Data` `send()` trap, integer divide-by-zero on malformed `^GF` (`bytesPerRow == 0`), and a slice-offset bug in the `~HS`/`~HI`/`~HM` response parsers when given a non-zero-`startIndex` `Data`.
+
+#### Printing and discovery
+- **Fixed a `query()` hang**: a continuation race in `ZPLPrinter` could drop the result on fast connection failure and hang forever; it now always resumes.
+- A cancelled `query()` could return truncated data as a *success*: the idle
+  timer swallowed the cancellation and won the race against the receive task, so
+  a partial `^HH` parsed into a silently incomplete `PrinterSettings`.
+- `ZPLPrinterBrowser` leaked its thread, socket and a broadcast every 3 seconds
+  for the life of the process when dropped without `stop()` — including in the
+  README's own discovery example — because the discovery thread retained the
+  browser, making `deinit` unreachable. The socket is now owned solely by that
+  thread, `stop()` no longer closes a descriptor out from under it (which could
+  hit an unrelated reused fd), and a stop/start cycle no longer closes the new
+  session's socket. A failed socket setup no longer leaves a browser that
+  reports itself running.
+- POSIX `send()` now loops on partial writes and retries `EINTR`, validates `fcntl`/`getsockopt` results, honors fractional timeouts and task cancellation.
+- `PrinterInfo.dpi` now reports 152 (not 150) for 6 dots/mm, matching its own
+  docs and `DPI.dpi152`.
+- `ZPLPrinter` now formats POSIX errors with the thread-safe `strerror_r` (the shared `strerror` buffer could race across concurrent `send()` calls).
+- `ZPLVerifier` now preserves the underlying error, rethrows `CancellationError`, and validates image dimensions.
+- Resolved Swift 6 temporary-pointer warning in `CoreGraphicsRenderer` paragraph-style creation; silenced unused-result `fcntl` warnings in `ZPLPrinter`.
+
+#### Documentation
+- Corrected the bundled font's license, which one doc comment gave as SIL Open
+  Font License 1.1. Roboto Condensed is Apache License 2.0, as `NOTICE`, the
+  README and the bundled `Roboto-LICENSE.txt` all correctly state.
+- `ZPLParser` no longer claims the `Parsed*` types are internal and unstable,
+  which contradicted both the changelog and `ParsedLabel`'s own documentation.
+- Fixed a `DiagonalLine` sample that used a `.leftToRight` case that does not
+  exist (so the snippet never compiled), a README bullet advertising an "idle
+  timeout" feature that was never implemented, and a DocC landing page that
+  described three modules and omitted `ZPLKitPrinter`.
 
 ### Internal
 - Gated flaky live-network printer tests behind an env var so CI is hermetic by default; added hermetic regression tests for the fixes above.
 - The test suite uses the Swift Testing framework throughout (no XCTest). Repetitive barcode-validity, clamping, parser-per-command, and verification matrices are parameterized into `@Test(arguments:)` tables. Coverage was preserved per target; the formerly hidden `SKIP`-prefixed Data Matrix test is now a tracked `@Test(.disabled(...))` skip.
+- CI ran only a third of the test suite. On the Xcode 27 beta toolchain a bare
+  `swift test` executes only the first test target and exits 0 (244 of 670
+  tests). CI now runs every test target explicitly and asserts the total count.
+- `VisualTests --labelary` fetched nothing: a percent-encoded request body made
+  Labelary reject all 124 fixtures with "404 ... ZPL generated no labels". The
+  API reads the body verbatim and never form-decodes it, so the ZPL is posted as
+  raw bytes.
+- `VisualTests` parsed fixture dimensions with a regex that could not match a
+  decimal, so `2x0.75` became `2x0` and Labelary rejected the zero-height label
+  with HTTP 400. This cost the 13 fixtures with 0.5/0.75-inch heights their
+  reference renders. Unparseable filenames now warn instead of silently
+  defaulting to 4x6.
+- `VisualTests` exits non-zero when more than 10% of Labelary fetches fail, so a
+  broken comparison can no longer report a green run.
+- Visual reference set completed and corrected. 37 fixtures had no
+  reference image at all (every `canonical_*` and `graphic_*` fixture), so the
+  accuracy score covered only 70% of the corpus. A further 12 references were
+  rendered at 812x1218 (a 4x6 fallback) rather than their true label size, and
+  because they were compared against correctly-sized renders they scored *high*
+  and inflated the reported accuracy. `--score` now validates every reference
+  against the geometry implied by its filename and fails on a mismatch.
+- Added a rotation fixture; there was no coverage of field orientation at all,
+  which is why the rotated-field anchoring bug went unseen.
 
 [1.0.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.0
