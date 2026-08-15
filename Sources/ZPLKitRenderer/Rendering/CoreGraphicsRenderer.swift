@@ -305,7 +305,13 @@ enum CoreGraphicsRenderer {
         let strokeRect = rect.insetBy(dx: CGFloat(box.thickness) / 2, dy: CGFloat(box.thickness) / 2)
 
         if box.cornerRadius > 0 {
-            let radius = CGFloat(box.cornerRadius)
+            // `^GB`'s 5th parameter is a rounding INDEX of 0-8, not a radius in
+            // dots: the radius is (index / 8) x (shorter side / 2). Using the
+            // index directly made every rounded box almost square (a `,8` on a
+            // 100x80 box drew a 8-dot radius instead of ~20).
+            let roundingIndex = CGFloat(min(max(box.cornerRadius, 0), 8))
+            let shorterSide = CGFloat(min(box.width, box.height))
+            let radius = (roundingIndex / 8) * (shorterSide / 2)
 
             if box.thickness >= min(box.width, box.height) / 2 {
                 let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
