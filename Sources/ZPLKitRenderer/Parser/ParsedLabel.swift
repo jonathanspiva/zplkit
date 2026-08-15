@@ -167,8 +167,9 @@ public struct ParsedDiagonalLine: Sendable {
     public let thickness: Int
     /// Line colour: `"B"` black or `"W"` white.
     public let color: String
-    /// Slope direction: `"R"` for a right-leaning line (top-left to
-    /// bottom-right), `"L"` for a left-leaning one.
+    /// Slope direction: `"R"` draws `"/"` (bottom-left to top-right), `"L"`
+    /// draws `"\"` (top-left to bottom-right). Matches
+    /// ``ZPLKit/DiagonalLine/DiagonalDirection``.
     public let direction: String
 }
 

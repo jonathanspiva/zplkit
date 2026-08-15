@@ -553,7 +553,20 @@ public enum CoreGraphicsRenderer {
         }
         // Draw in the (now possibly rotated) local space. The rect matches the original
         // draw exactly for rotation "N".
+        //
+        // The context is y-flipped so ZPL's top-left origin works, which means a
+        // bare context.draw() renders the CGImage upside down — for a QR that is
+        // a mirror image, with the finder patterns at TL/BL/BR instead of the
+        // correct TL/TR/BL. `renderGraphic` compensates the same way. Undo the
+        // flip around the image box, then restore so the caption below is not
+        // mirrored too. (ZPLKitVerifier did not catch this: Vision happily
+        // decodes a mirrored QR, so the preview looked verified while being a
+        // mirror of what the printer produces.)
+        context.saveGState()
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 1, y: -1)
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        context.restoreGState()
         if let caption {
             drawBarcodeText(caption, at: CGPoint(x: 0, y: CGFloat(height) + 5), in: context)
         }

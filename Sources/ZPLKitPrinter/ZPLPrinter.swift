@@ -531,7 +531,14 @@ public struct ZPLPrinter: Sendable {
                         return .chunk(message.content, endOfStream: message.metadata.endOfStream)
                     }
                     group.addTask {
-                        try? await Task.sleep(nanoseconds: idleThresholdNanos)
+                        // `try`, not `try?`. Swallowing the error here turned a
+                        // cancellation into an immediate `.idle`, which raced
+                        // ahead of the receive task's CancellationError and
+                        // returned the partially-filled buffer as a successful
+                        // result — a truncated `^HH` parsed into a silently
+                        // incomplete PrinterSettings. Propagating lets the group
+                        // rethrow CancellationError as it should.
+                        try await Task.sleep(nanoseconds: idleThresholdNanos)
                         return .idle
                     }
                     let first = try await group.next()!

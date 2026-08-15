@@ -39,7 +39,6 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 - **Query printer status**, info, memory, and full configuration
 - **Diagnostics** combining status, info, memory, and settings in one call
 - **Control commands**: calibrate, feed, cancel jobs, print config labels
-- **Idle timeout** for automatic connection cleanup
 - **Async/await API** with configurable timeout
 
 ### ZPLKitVerifier (Validation)

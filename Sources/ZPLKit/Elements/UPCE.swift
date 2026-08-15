@@ -5,12 +5,23 @@
 /// ## Expected field data
 ///
 /// The string passed to ``init(_:at:)`` is emitted verbatim as the `^B9` field
-/// data (`^FD`). Per the ZPL `^B9` specification the field data must be the
-/// 6-digit zero-suppressed UPC-E code. The printer appends the check digit when
-/// the check-digit flag is `Y` (see ``checkDigit(_:)``), so a 7th digit may be
-/// supplied as an explicit check digit; in that case set `checkDigit(false)` so
-/// the printer does not append a second one. Lengths other than 6 or 7 are
-/// rejected by the initializer because the printer cannot encode them.
+/// data (`^FD`).
+///
+/// - **6 digits** is the zero-suppressed UPC-E item code, with number system 0.
+/// - **7 digits** is a *leading number system digit* followed by that 6-digit
+///   code. UPC-E only defines number systems 0 and 1.
+///
+/// The check digit is **never** part of the field data: the printer always
+/// derives it, and ``checkDigit(_:)`` only controls whether it is printed in the
+/// human-readable line. Lengths other than 6 or 7 are rejected by the
+/// initializer because the printer cannot encode them.
+///
+/// - Warning: Do not pass a check digit as a 7th *trailing* digit. It is read as
+///   a *leading* number system digit and silently shifts every other digit, so
+///   the symbol scans as a different product. Verified against Labelary:
+///   `^FD0123456` renders pixel-identical to `^FD123456`, whereas `^FD1234565`
+///   (intended as "123456" plus check digit 5) encodes number system 1 with item
+///   code 234565.
 public struct UPCE: ZPLElement, Equatable, Hashable {
     private let data: String
     private let position: Position
@@ -24,12 +35,14 @@ public struct UPCE: ZPLElement, Equatable, Hashable {
     /// Creates a UPC-E barcode at the given position.
     ///
     /// The data is emitted verbatim as the `^B9` field data, so its length must
-    /// match what `^B9` can encode: the 6-digit zero-suppressed UPC-E code, or 7
-    /// digits when supplying an explicit check digit (in which case set
-    /// `checkDigit(false)`). Returns `nil` for any other length or non-numeric
-    /// input.
+    /// match what `^B9` can encode: the 6-digit zero-suppressed UPC-E code, or a
+    /// leading number system digit followed by that code (7 digits). Returns
+    /// `nil` for any other length or non-numeric input.
+    ///
+    /// A 7th digit is a *leading* number system digit, never a trailing check
+    /// digit; see the type documentation.
     /// - Parameters:
-    ///   - data: The 6-digit UPC-E code, or 7 digits with an explicit check digit.
+    ///   - data: The 6-digit UPC-E code, or a number system digit plus that code.
     ///   - position: The position on the label.
     public init?(_ data: String, at position: Position) {
         // ^B9 encodes the 6-digit zero-suppressed code. A 7th digit is allowed

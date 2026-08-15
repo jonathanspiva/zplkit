@@ -76,7 +76,7 @@ Ellipse(at: .inches(1.0, 2.0), width: .inches(1.0), height: .inches(0.5))
 HorizontalLine(at: .inches(0.5, 1.0), length: .inches(3.0), thickness: 2)
 VerticalLine(at: .inches(0.5, 1.0), length: .inches(2.0), thickness: 2)
 DiagonalLine(at: .inches(0.5, 1.0), width: .inches(1.0), height: .inches(1.0))
-    .direction(.leftToRight)
+    .direction(.leftLeaning)
 ```
 
 ### Graphics
