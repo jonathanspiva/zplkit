@@ -335,6 +335,47 @@ struct NetworkRoundTripTests {
         _ = threwCancellation
     }
 
+    @Test("query() cancelled mid-response throws instead of returning a truncated reply")
+    func queryCancellationWithPartialData() async throws {
+        // First chunk carries no ETX, so collectResponse buffers it and enters
+        // the idle-race branch; the long gap parks it there. Cancelling in that
+        // window used to swallow the sleep's CancellationError via `try?` and
+        // return `.idle`, handing back the partial buffer as a SUCCESS — a
+        // truncated ^HH that parses into a silently incomplete PrinterSettings.
+        let partial = Data("PARTIAL-NO-ETX".utf8)
+        let rest = Data("REST\u{03}".utf8)
+        let fake = try FakePrinter(defaultBehavior: .respond(chunks: [partial, rest], gap: 30))
+        defer { fake.shutdown() }
+
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: 30)
+
+        let start = DispatchTime.now()
+        let task = Task { () -> Data in
+            try await printer.query("^HH", responseTimeout: 30)
+        }
+
+        // Cancel well inside the 1s idle threshold, so a legitimate idle-return
+        // cannot be what completes the call.
+        try await Task.sleep(nanoseconds: 250_000_000)
+        task.cancel()
+
+        do {
+            let data = try await task.value
+            let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
+            // Only a failure if the idle timer cannot legitimately have fired.
+            // On a heavily loaded machine the 1s threshold may genuinely elapse
+            // first, which is correct behaviour rather than the bug.
+            if elapsed < 1.0 {
+                Issue.record("cancelled query returned \(data.count) truncated bytes after \(elapsed)s instead of throwing")
+            }
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            // A PrinterError from a benign teardown race is acceptable; the
+            // point is that it does not return truncated data as success.
+        }
+    }
+
     // MARK: - ZPLPrinter+Configuration: apply / setup
 
     @Test("apply() sends the expected configuration ZPL in one payload")

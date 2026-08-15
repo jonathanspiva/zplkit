@@ -11,14 +11,8 @@ public enum PrinterError: Error, LocalizedError, Sendable {
     /// Connection timed out.
     case timeout(host: String, port: UInt16)
 
-    /// Printer was discovered but is no longer available.
-    case printerNotFound(name: String)
-
     /// Invalid host or port configuration.
     case invalidConfiguration(String)
-
-    /// Failed to receive response from printer.
-    case receiveFailed(underlying: String)
 
     /// Response timed out waiting for printer reply.
     ///
@@ -38,12 +32,8 @@ public enum PrinterError: Error, LocalizedError, Sendable {
             return "Failed to send data: \(underlying)"
         case .timeout(let host, let port):
             return "Connection to \(host):\(port) timed out"
-        case .printerNotFound(let name):
-            return "Printer '\(name)' is no longer available"
         case .invalidConfiguration(let message):
             return "Invalid configuration: \(message)"
-        case .receiveFailed(let underlying):
-            return "Failed to receive response: \(underlying)"
         case .responseTimeout(let host, let port):
             return "No response from \(host):\(port) (printer may be in error state)"
         case .invalidResponse(let message):

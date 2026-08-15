@@ -189,7 +189,7 @@ extension PrinterConfiguration {
         // command is skipped rather than emitting a malformed/injectable value.
         // EXPERIMENTAL / NOT hardware-verified. On a GX420t (V56.17.17Z), an
         // `^NSP,<ip>,<subnet>,<gw>` static change + `^JUS` + `~JR` did NOT change
-        // the printer's IP (2026-07-23 round-trip test) — it may need a full power
+        // the printer's IP (2026-07-23 round-trip test); it may need a full power
         // cycle or differ by model/firmware. Reference: ZPL II Programming Guide,
         // "^NS Change Wired Networking Settings" (Format ^NSa,b,c,d,e,f,g,h,i).
         // See the warning on PrinterConfiguration.networkConfig(...).

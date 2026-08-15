@@ -233,31 +233,70 @@ public struct ZPLLabel: Sendable {
         // VALUE is never re-scanned: a value containing "{{otherKey}}" stays
         // literal instead of being expanded by a later replacement (which would
         // let one substitution inject another's data).
+        // Two escapings per value. Inside a Code 128 field a literal `>` is an
+        // invocation code (subset/function switch), so `Barcode128`'s
+        // constructor path rewrites it to `>0` BEFORE hex-escaping. Substitution
+        // has to match that, or `Barcode128("{{sku}}")` — the exact pattern this
+        // API's own documentation promotes — silently encodes a symbol that
+        // scans as something else: substituting "PRICE>5" produced a barcode
+        // reading "PRICE". Escape order matters and mirrors Barcode128.render.
         var lookup: [String: String] = [:]
+        var code128Lookup: [String: String] = [:]
         for (key, value) in substitutions {
             let escapedValue = escapeZPLFieldData(value).escaped
+            let code128Value = escapeZPLFieldData(
+                value.replacingOccurrences(of: ">", with: ">0")
+            ).escaped
             lookup["{{\(key)}}"] = escapedValue
+            code128Lookup["{{\(key)}}"] = code128Value
             // The placeholder may have been emitted inside a field that escaped
             // special characters (e.g. an underscore in the key becomes `_5F`),
             // so match both the raw and the rendered/escaped form of the key.
             let escapedKey = escapeZPLFieldData(key).escaped
             if escapedKey != key {
                 lookup["{{\(escapedKey)}}"] = escapedValue
+                code128Lookup["{{\(escapedKey)}}"] = code128Value
             }
         }
 
         var result = ""
         result.reserveCapacity(zpl.count)
         var remainder = Substring(zpl)
+        var inCode128Field = false
         while let start = remainder.range(of: "{{"),
               let end = remainder.range(of: "}}", range: start.upperBound..<remainder.endIndex) {
             let token = String(remainder[start.lowerBound..<end.upperBound])
-            result += remainder[..<start.lowerBound]
-            result += lookup[token] ?? token
+            let chunk = remainder[..<start.lowerBound]
+            // The commands since the last placeholder decide which field this
+            // one landed in.
+            Self.updateCode128FieldState(scanning: chunk, into: &inCode128Field)
+            result += chunk
+            let table = inCode128Field ? code128Lookup : lookup
+            result += table[token] ?? token
             remainder = remainder[end.upperBound...]
         }
         result += remainder
         return result
+    }
+
+    /// Tracks whether rendering is currently inside a `^BC` (Code 128) field.
+    ///
+    /// A field runs from its barcode command to the next `^FS`, so `^BC` opens
+    /// the state and `^FS` closes it. `^XA`/`^XZ` reset it as a backstop for
+    /// malformed input.
+    private static func updateCode128FieldState(scanning chunk: Substring, into state: inout Bool) {
+        var index = chunk.startIndex
+        while let caret = chunk[index...].firstIndex(of: "^") {
+            let rest = chunk[caret...]
+            if rest.hasPrefix("^BC") {
+                state = true
+            } else if rest.hasPrefix("^FS") || rest.hasPrefix("^XA") || rest.hasPrefix("^XZ") {
+                state = false
+            }
+            guard let next = chunk.index(caret, offsetBy: 1, limitedBy: chunk.endIndex),
+                  next < chunk.endIndex else { return }
+            index = next
+        }
     }
 
     /// Renders the label to a ZPL string.

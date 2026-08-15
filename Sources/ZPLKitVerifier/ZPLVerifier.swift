@@ -197,7 +197,7 @@ public final class ZPLVerifier: Sendable {
         // Merge hints from all expectations
         let hints = VisionHints.merge(expectations.map(\.visionHints))
 
-        // Scan with optimized hints, concurrently — the two scans are independent.
+        // Scan with optimized hints, concurrently; the two scans are independent.
         async let barcodesTask = scanBarcodes(image, hints: hints)
         async let textRegionsTask = scanText(image, hints: hints)
         let (barcodes, textRegions) = try await (barcodesTask, textRegionsTask)

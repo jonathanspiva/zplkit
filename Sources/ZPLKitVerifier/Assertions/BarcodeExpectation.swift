@@ -14,7 +14,7 @@ public struct BarcodeExpectation: Expectation {
     /// A barcode payload is exact machine-readable data (tracking numbers, SKUs,
     /// case-sensitive URLs or tokens in a QR code), so `"abc"` and `"ABC"` are
     /// genuinely different payloads. This is deliberately stricter than
-    /// ``Text/TextMatch/containing(_:)``, which is case-insensitive because OCR
+    /// ``TextExpectation/TextMatch/containing(_:)``, which is case-insensitive because OCR
     /// text is fuzzy.
     public enum PayloadMatch: Sendable {
         /// Match any payload.

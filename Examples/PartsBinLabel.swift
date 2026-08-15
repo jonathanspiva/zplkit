@@ -195,7 +195,7 @@ let partsBinTemplate = ZPLTemplate(width: 2, height: 1, dpi: .dpi203) {
 
 // Usage:
 // let labels = parts.map { part in
-//     partsBinTemplate.render(with: [
+//     partsBinTemplate.render(substituting: [
 //         "part_number": part.number,
 //         "description": part.description,
 //         "location": part.binLocation,

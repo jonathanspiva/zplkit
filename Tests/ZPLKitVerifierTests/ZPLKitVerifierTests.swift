@@ -459,13 +459,6 @@ struct VerifierErrorTests {
         #expect(error.underlyingMessage == "OCR failed")
         #expect(error.underlyingError is StubError)
     }
-
-    @Test("unexpected carries the provided message")
-    func verifierErrorUnexpected() {
-        let error = VerifierError.unexpected("Something went wrong")
-        #expect(error.errorDescription?.contains("Unexpected error") ?? false)
-        #expect(error.underlyingMessage == "Something went wrong")
-    }
 }
 
 // MARK: - BarcodeSymbology

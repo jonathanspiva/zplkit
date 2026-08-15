@@ -12,7 +12,7 @@ struct ParserRegressionTests {
 
     @Test("^BC with omitted middle params keeps later slots aligned")
     func code128EmptyParams() throws {
-        // ^BCo,h,f,g,e — h omitted, f=Y: the interpretation line must be ON.
+        // ^BCo,h,f,g,e with h omitted, f=Y: the interpretation line must be ON.
         let parsed = try ZPLParser.parse("^XA^FO10,10^BCN,,Y,N,N^FDABC^FS^XZ")
         guard case .barcode(let barcode) = parsed.elements.first else {
             Issue.record("expected a barcode element")
@@ -35,15 +35,19 @@ struct ParserRegressionTests {
         #expect(box.thickness == 2)   // stayed in its own slot
     }
 
-    @Test("^CF with omitted height keeps width slot aligned")
+    @Test("^CF with omitted height follows the supplied width")
     func cfEmptyParams() throws {
-        // ^CFf,h,w — h omitted, w=20: width must be 20, height keeps default.
-        let parsed = try ZPLParser.parse("^XA^CF0,,20^FO10,10^FDX^FS^XZ")
+        // ^CFf,h,w with h omitted, w=20: both dimensions become 20. Verified
+        // against Labelary — `^CF0,50` then `^CF0,,20` renders at 20, so the
+        // omitted height follows the width rather than keeping the previous
+        // value. This previously asserted 30, pinning a hardcoded fallback that
+        // matched no printer behaviour.
+        let parsed = try ZPLParser.parse("^XA^CF0,50^CF0,,20^FO10,10^FDX^FS^XZ")
         guard case .text(let text) = parsed.elements.first else {
             Issue.record("expected a text element")
             return
         }
-        #expect(text.fontHeight == 30)
+        #expect(text.fontHeight == 20)
         #expect(text.fontWidth == 20)
     }
 
@@ -228,5 +232,129 @@ struct ParserRegressionTests {
         let b64 = Data([UInt8](repeating: 0xFF, count: 8)).base64EncodedString()
         let parsed = try ZPLParser.parse("^XA^FO0,0^GFA,8,8,1,:B64:\(b64):0000^FS^XZ")
         #expect(parsed.elements.isEmpty)
+    }
+}
+
+// MARK: - Field-scoping and default-orientation regressions
+//
+// Every expectation below was verified against Labelary before being pinned.
+
+@Suite("Field scoping and defaults")
+struct FieldScopingRegressionTests {
+
+    @Test("^FO with a single coordinate defaults y to 0 instead of inheriting")
+    func singleCoordinateFieldOrigin() throws {
+        let parsed = try ZPLParser.parse("^XA^FO50,80^FDref^FS^FO150^FDy^FS^XZ")
+        guard parsed.elements.count == 2,
+              case .text(let second) = parsed.elements[1] else {
+            Issue.record("expected two text elements"); return
+        }
+        #expect(second.x == 150)
+        #expect(second.y == 0, "omitted y must reset to 0, not inherit 80")
+    }
+
+    @Test("^FB does not survive ^FS into the next field")
+    func textBlockDiesWithItsField() throws {
+        // The ^FB field closes with no ^FD, so the following plain field must
+        // render as ordinary text rather than inheriting the centered block.
+        let parsed = try ZPLParser.parse("^XA^FO0,100^FB300,3,0,C^FS^FO0,100^FDplain^FS^XZ")
+        guard case .text = parsed.elements.first else {
+            Issue.record("expected plain text, got \(String(describing: parsed.elements.first))")
+            return
+        }
+    }
+
+    @Test("A font rotation does not leak into a barcode that omits its orientation")
+    func fontRotationDoesNotLeakIntoBarcode() throws {
+        let parsed = try ZPLParser.parse("^XA^A0R,30,30^FO10,10^FDt^FS^FO100,50^BC,80,Y,N,N^FDX^FS^XZ")
+        let barcode = parsed.elements.compactMap { element -> ParsedBarcode? in
+            if case .barcode(let b) = element { return b }
+            return nil
+        }.first
+        let found = try #require(barcode)
+        #expect(found.rotation == "N", "a barcode's default orientation comes from ^FW, not the last ^A")
+    }
+
+    @Test("^FW sets the default orientation for a barcode that omits its own")
+    func fieldDefaultOrientationAppliesToBarcode() throws {
+        let parsed = try ZPLParser.parse("^XA^FWR^FO100,50^BC,80,Y,N,N^FDX^FS^XZ")
+        let barcode = parsed.elements.compactMap { element -> ParsedBarcode? in
+            if case .barcode(let b) = element { return b }
+            return nil
+        }.first
+        let found = try #require(barcode)
+        #expect(found.rotation == "R")
+    }
+
+    @Test("^LH offsets every subsequent field origin")
+    func labelHomeOffsetsFields() throws {
+        // Verified against Labelary: with ^LH60,40 a ^FO0,0 field renders at
+        // (60, 40). Previously ^LH was ignored entirely.
+        let parsed = try ZPLParser.parse("^XA^LH60,40^FO0,0^GB120,60,5^FS^FO0,80^FDshifted^FS^XZ")
+        guard case .box(let box) = parsed.elements.first else {
+            Issue.record("expected a box"); return
+        }
+        #expect(box.x == 60)
+        #expect(box.y == 40)
+        guard case .text(let text) = parsed.elements.last else {
+            Issue.record("expected text"); return
+        }
+        #expect(text.x == 60)
+        #expect(text.y == 120)
+    }
+
+    @Test("^POI marks the label for 180-degree rendering, ^PON does not")
+    func printOrientationInvert() throws {
+        let inverted = try ZPLParser.parse("^XA^POI^FO20,20^FDinv^FS^XZ")
+        #expect(inverted.invertedOrientation == true)
+        let normal = try ZPLParser.parse("^XA^PON^FO20,20^FDnorm^FS^XZ")
+        #expect(normal.invertedOrientation == false)
+        let unspecified = try ZPLParser.parse("^XA^FO20,20^FDnorm^FS^XZ")
+        #expect(unspecified.invertedOrientation == false)
+    }
+
+    @Test("^GFA run-length repeats may span rows")
+    func graphicRepeatSpansRows() throws {
+        // V = 16 repeats of nibble F: an 8x8 solid square, not a single row.
+        let parsed = try ZPLParser.parse("^XA^FO0,0^GFA,8,8,1,VF^FS^XZ")
+        let graphic = parsed.elements.compactMap { element -> ParsedGraphic? in
+            if case .graphic(let g) = element { return g }
+            return nil
+        }.first
+        let found = try #require(graphic)
+        #expect(found.data.count == 8, "expected 8 rows of 1 byte, got \(found.data.count)")
+        #expect(found.data.allSatisfy { $0 == 0xFF }, "every row should be solid black")
+    }
+}
+
+@Suite("Interpretation line")
+struct InterpretationLineTests {
+
+    @Test("EAN-13 caption includes the printer-computed check digit")
+    func ean13CaptionCheckDigit() throws {
+        let parsed = try ZPLParser.parse("^XA^FO30,30^BEN,80,Y,N^FD123456789012^FS^XZ")
+        guard case .barcode(let barcode) = parsed.elements.first else {
+            Issue.record("expected a barcode"); return
+        }
+        // Labelary renders this caption as "1 234567 890128".
+        #expect(CoreGraphicsRenderer.interpretationLine(for: barcode) == "1234567890128")
+    }
+
+    @Test("A fully-specified value is left alone")
+    func alreadyCompleteCaption() throws {
+        let parsed = try ZPLParser.parse("^XA^FO30,30^BEN,80,Y,N^FD1234567890128^FS^XZ")
+        guard case .barcode(let barcode) = parsed.elements.first else {
+            Issue.record("expected a barcode"); return
+        }
+        #expect(CoreGraphicsRenderer.interpretationLine(for: barcode) == "1234567890128")
+    }
+
+    @Test("Non-GTIN symbologies are unchanged")
+    func nonGtinCaption() throws {
+        let parsed = try ZPLParser.parse("^XA^FO30,30^BCN,80,Y,N,N^FDABC123^FS^XZ")
+        guard case .barcode(let barcode) = parsed.elements.first else {
+            Issue.record("expected a barcode"); return
+        }
+        #expect(CoreGraphicsRenderer.interpretationLine(for: barcode) == "ABC123")
     }
 }

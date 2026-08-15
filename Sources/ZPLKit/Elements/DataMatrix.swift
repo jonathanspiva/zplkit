@@ -21,7 +21,7 @@ public struct DataMatrix: ZPLElement, Equatable, Hashable {
     }
 
     /// Sets the module size (1-10, default 3).
-    public func size(_ size: Int) -> DataMatrix {
+    public func moduleSize(_ size: Int) -> DataMatrix {
         var copy = self
         copy.moduleSize = min(10, max(1, size))
         return copy

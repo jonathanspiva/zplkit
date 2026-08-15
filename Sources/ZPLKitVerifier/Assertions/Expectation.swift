@@ -14,3 +14,9 @@ public protocol Expectation: Sendable {
     /// Hints for Vision framework to optimize detection.
     var visionHints: VisionHints { get }
 }
+
+extension Expectation {
+    /// No hints. Establishes the default-implementation pattern so future
+    /// requirements can be added without breaking external conformers.
+    public var visionHints: VisionHints { .empty }
+}

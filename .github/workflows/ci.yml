@@ -27,11 +27,11 @@ concurrency:
 
 # Two classes of runner, on purpose:
 #
-#   * GitHub-hosted `macos-26` — macOS 26 + Xcode 26.6 (Swift 6.3). This is the
+#   * GitHub-hosted `macos-26`: macOS 26 + Xcode 26.6 (Swift 6.3). This is the
 #     toolchain that matches the package's advertised floor, so it is what
 #     proves the package actually builds for the users we promise support to.
 #     Being hosted, it is also safe for fork PRs.
-#   * Self-hosted mini (`macos-27`) — runs macOS 27 with only the Xcode 27
+#   * Self-hosted mini (`macos-27`) runs macOS 27 with only the Xcode 27
 #     beta, and is the only machine that can reach the lab printers. It covers
 #     the visual suite and the live-printer job.
 #
@@ -40,7 +40,7 @@ concurrency:
 # toolchain there. That is why the floor check lives on the hosted runner
 # instead of just repointing DEVELOPER_DIR.
 #
-# DEVELOPER_DIR is therefore set per-job rather than workflow-wide — the hosted
+# DEVELOPER_DIR is therefore set per-job rather than workflow-wide, because the hosted
 # runner has no /Applications/Xcode-beta.app and must use its image default.
 
 # Fork PRs must NOT run on the self-hosted runner: it lives on a private LAN
@@ -139,7 +139,7 @@ jobs:
       # ZPLKitVerifierTests) were silently never run, so a regression in any
       # of them could not fail CI. All 670 pass when each target is invoked
       # explicitly, and the stable Swift 6.3 toolchain runs all 670 from a
-      # bare `swift test` — this is a beta SPM bug, not a package problem.
+      # bare `swift test`. This is a beta SPM bug, not a package problem.
       #
       # Targets are derived from `swift test list` rather than hardcoded, so a
       # newly added test target is picked up automatically. Revisit once the

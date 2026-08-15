@@ -240,7 +240,7 @@ struct PrinterConfigurationTests {
 
     @Test("Field rotation generates ^FW format command")
     func fieldRotationGeneratesFormat() {
-        let config = PrinterConfiguration().fieldRotation(.rotate90)
+        let config = PrinterConfiguration().fieldRotation(.rotated90)
         let commands = config.zplCommands()
         #expect(commands[0] == "^XA^FWR^XZ")
     }
@@ -592,9 +592,9 @@ struct PrinterConfigurationTests {
 
     @Test("Field rotation enum maps to the correct ^FW letter", arguments: [
         (FieldRotation.normal, "N"),
-        (.rotate90, "R"),
-        (.rotate180, "I"),
-        (.rotate270, "B"),
+        (.rotated90, "R"),
+        (.inverted, "I"),
+        (.rotated270, "B"),
     ])
     func fieldRotationEnumMapsToLetter(rotation: FieldRotation, letter: String) {
         var config = PrinterConfiguration()

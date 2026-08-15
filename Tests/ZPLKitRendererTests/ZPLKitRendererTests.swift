@@ -411,7 +411,7 @@ struct RoundTripTests {
     func roundTripDataMatrix() throws {
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
             DataMatrix("SERIAL123", at: .dots(50, 50))
-                .size(4)
+                .moduleSize(4)
         }
         let parsed = try ZPLParser.parse(label.render())
         let barcode = try #require(parsed.elements.first?.asBarcode)
@@ -639,7 +639,8 @@ struct SnapshotTests {
         ^XZ
         """
         let renderer = ZPLRenderer()
-        let (pngData, _) = try renderer.renderToPNG(zpl)
+        let pngDataResult = try renderer.renderToPNG(zpl)
+        let pngData = pngDataResult.data
         #expect(pngData.count > 0)
         let dataBytes = [UInt8](pngData.prefix(4))
         #expect(dataBytes == [0x89, 0x50, 0x4E, 0x47])
@@ -727,8 +728,10 @@ struct SnapshotTests {
     func snapshotConsistentOutput() throws {
         let zpl = "^XA\n^PW200\n^LL100\n^FO10,10^FDConsistent^FS\n^XZ"
         let renderer = ZPLRenderer()
-        let (png1, _) = try renderer.renderToPNG(zpl)
-        let (png2, _) = try renderer.renderToPNG(zpl)
+        let png1Result = try renderer.renderToPNG(zpl)
+        let png1 = png1Result.data
+        let png2Result = try renderer.renderToPNG(zpl)
+        let png2 = png2Result.data
         #expect(png1 == png2)
     }
 
@@ -802,7 +805,9 @@ struct CoreTests {
     @Test("PNG export produces valid PNG data")
     func pngExport() throws {
         let zpl = "^XA\n^PW200\n^LL100\n^FO10,10^GB50,50,2^FS\n^XZ"
-        let (data, metrics) = try ZPLRenderer().renderToPNG(zpl)
+        let dataResult = try ZPLRenderer().renderToPNG(zpl)
+        let data = dataResult.data
+        let metrics = dataResult.metrics
         #expect(data.count > 0)
         #expect(metrics.imageWidth == 200)
         let dataBytes = [UInt8](data.prefix(4))
@@ -909,7 +914,7 @@ struct BarcodeVerificationTests {
     func barcodeVerificationDataMatrix() async throws {
         let testData = "DM123"
         let label = ZPLLabel(width: 4, height: 4, dpi: .dpi203) {
-            DataMatrix(testData, at: .dots(50, 50)).size(10)
+            DataMatrix(testData, at: .dots(50, 50)).moduleSize(10)
         }
         let renderResult = try ZPLRenderer().render(label.render())
         let verifier = ZPLVerifier()
@@ -1113,8 +1118,10 @@ struct BarcodeRotationTests {
         let renderer = ZPLRenderer()
         let upright = "^XA^PW400^LL400^FO50,50^BCN,80,N,N,N^FD12345^FS^XZ"
         let rotated = "^XA^PW400^LL400^FO50,50^BCR,80,N,N,N^FD12345^FS^XZ"
-        let (uprightPNG, _) = try renderer.renderToPNG(upright)
-        let (rotatedPNG, _) = try renderer.renderToPNG(rotated)
+        let uprightPNGResult = try renderer.renderToPNG(upright)
+        let uprightPNG = uprightPNGResult.data
+        let rotatedPNGResult = try renderer.renderToPNG(rotated)
+        let rotatedPNG = rotatedPNGResult.data
         #expect(uprightPNG.count > 0)
         #expect(rotatedPNG.count > 0)
         #expect(uprightPNG != rotatedPNG)

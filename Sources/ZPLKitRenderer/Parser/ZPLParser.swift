@@ -5,8 +5,9 @@ import Foundation
 /// The parser extracts label dimensions, elements (text, barcodes, shapes, graphics),
 /// and print settings from ZPL command strings.
 ///
-/// - Note: The `Parsed*` types returned by this parser are intended for internal
-///   rendering use. Their structure may change between releases.
+/// - Note: The `Parsed*` types returned by this parser are part of the public,
+///   semver-stable API. ``ParsedElement`` may gain new cases in minor releases
+///   as more ZPL commands are supported, so switch over it with a `default`.
 public enum ZPLParser {
 
     /// Matches a single ZPL command (starting with `^` or `~`) and its parameters.
@@ -52,7 +53,8 @@ public enum ZPLParser {
             height: state.height,
             elements: state.elements,
             printQuantity: state.printQuantity,
-            printDarkness: state.printDarkness
+            printDarkness: state.printDarkness,
+            invertedOrientation: state.invertedOrientation
         )
     }
 
@@ -122,20 +124,41 @@ public enum ZPLParser {
         case "^MD":
             state.printDarkness = Int(params)
 
+        // Label home: a global origin offset added to every subsequent field
+        // (`^LH60,40` puts a `^FO0,0` field at 60,40). Previously ignored, which
+        // put every field of an `^LH` label in the wrong place.
+        case "^LH":
+            let home = splitParams(params)
+            if !home.isEmpty {
+                state.labelHomeX = Int(home[0]) ?? 0
+                state.labelHomeY = home.count >= 2 ? (Int(home[1]) ?? 0) : 0
+            }
+
+        // Print orientation. `^POI` rotates the whole label 180 degrees;
+        // `^PON` is the normal default.
+        case "^PO":
+            if let orientation = splitParams(params).first?.first {
+                state.invertedOrientation = (orientation == "I" || orientation == "i")
+            }
+
         // Field positioning
+        // An omitted y defaults to 0 rather than inheriting the previous
+        // field's y (verified against Labelary: `^FO150` lands at (150, 0)).
+        // Requiring both coordinates silently dropped the whole command, so the
+        // field stacked on top of whatever was positioned before it.
         case "^FO":
             let coords = splitParams(params)
-            if coords.count >= 2 {
-                state.currentX = Int(coords[0]) ?? 0
-                state.currentY = Int(coords[1]) ?? 0
+            if !coords.isEmpty {
+                state.currentX = (Int(coords[0]) ?? 0) + state.labelHomeX
+                state.currentY = (coords.count >= 2 ? (Int(coords[1]) ?? 0) : 0) + state.labelHomeY
             }
             state.useFieldTypeset = false
 
         case "^FT":
             let coords = splitParams(params)
-            if coords.count >= 2 {
-                state.currentX = Int(coords[0]) ?? 0
-                state.currentY = Int(coords[1]) ?? 0
+            if !coords.isEmpty {
+                state.currentX = (Int(coords[0]) ?? 0) + state.labelHomeX
+                state.currentY = (coords.count >= 2 ? (Int(coords[1]) ?? 0) : 0) + state.labelHomeY
             }
             state.useFieldTypeset = true
 
@@ -152,8 +175,26 @@ public enum ZPLParser {
                 state.currentFont = String(designator)
             }
             if parts.count >= 2 {
-                state.currentFontHeight = min(Int(parts[1]) ?? 30, RenderLimits.maxFontHeight)
-                state.currentFontWidth = parts.count > 2 ? min(Int(parts[2]) ?? state.currentFontHeight, RenderLimits.maxFontHeight) : state.currentFontHeight
+                // An omitted height follows the supplied width for the scalable
+                // font (`^CF0,,20` renders at 20, verified against Labelary).
+                // This previously fell back to a hardcoded 30, so any `^CF` with
+                // an omitted height rendered at the wrong size.
+                let parsedHeight = Int(parts[1])
+                let parsedWidth = parts.count > 2 ? Int(parts[2]) : nil
+                let height = parsedHeight ?? parsedWidth ?? state.currentFontHeight
+                state.currentFontHeight = min(height, RenderLimits.maxFontHeight)
+                state.currentFontWidth = min(parsedWidth ?? height, RenderLimits.maxFontHeight)
+            }
+
+        // Default field orientation. Applies to any field that omits its own
+        // orientation slot. A barcode must take its default from here, NOT from
+        // the last `^A` font command: `^A0R` followed by `^BC,...` renders the
+        // barcode UNrotated on a printer.
+        case "^FW":
+            if let orientation = splitParams(params).first?.first,
+               "NRIB".contains(orientation) {
+                state.fieldDefaultRotation = String(orientation)
+                state.currentRotation = String(orientation)
             }
 
         // Field hex mode: `^FHa` enables `_XX`-style escapes (indicator defaults
@@ -168,6 +209,10 @@ public enum ZPLParser {
             state.pendingBarcode = nil
             state.isReversed = false
             state.fieldHexIndicator = nil
+            // `^FB` is field-scoped too. Without this, a `^FB` whose field
+            // closed with no `^FD` leaked its block width/alignment onto the
+            // next field, centering text that should have been left-anchored.
+            state.resetTextBlock()
 
         // Field block (text block)
         case "^FB":
@@ -222,42 +267,42 @@ public enum ZPLParser {
 
         // Barcodes
         case "^BC":
-            state.pendingBarcode = BarcodeParser.parseBarcode(.code128, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation, defaultHeight: state.defaultBarcodeHeight)
+            state.pendingBarcode = BarcodeParser.parseBarcode(.code128, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.fieldDefaultRotation, defaultHeight: state.defaultBarcodeHeight)
 
         case "^B3":
             // ^B3o,e,h,f,g puts the mod-43 check-digit flag BEFORE height,
             // unlike the shared o,h,f,g layout; drop that slot before parsing.
-            state.pendingBarcode = BarcodeParser.parseBarcode(.code39, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation, defaultHeight: state.defaultBarcodeHeight, dropsLeadingFlag: true)
+            state.pendingBarcode = BarcodeParser.parseBarcode(.code39, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.fieldDefaultRotation, defaultHeight: state.defaultBarcodeHeight, dropsLeadingFlag: true)
 
         case "^BQ":
-            state.pendingBarcode = BarcodeParser.parseQRCode(params, x: state.currentX, y: state.currentY, rotation: state.currentRotation)
+            state.pendingBarcode = BarcodeParser.parseQRCode(params, x: state.currentX, y: state.currentY, rotation: state.fieldDefaultRotation)
 
         case "^BX":
-            state.pendingBarcode = BarcodeParser.parseDataMatrix(params, x: state.currentX, y: state.currentY, rotation: state.currentRotation)
+            state.pendingBarcode = BarcodeParser.parseDataMatrix(params, x: state.currentX, y: state.currentY, rotation: state.fieldDefaultRotation)
 
         case "^B7":
-            state.pendingBarcode = BarcodeParser.parsePDF417(params, x: state.currentX, y: state.currentY, rotation: state.currentRotation)
+            state.pendingBarcode = BarcodeParser.parsePDF417(params, x: state.currentX, y: state.currentY, rotation: state.fieldDefaultRotation)
 
         case "^B2":
-            state.pendingBarcode = BarcodeParser.parseBarcode(.interleaved2of5, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation, defaultHeight: state.defaultBarcodeHeight)
+            state.pendingBarcode = BarcodeParser.parseBarcode(.interleaved2of5, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.fieldDefaultRotation, defaultHeight: state.defaultBarcodeHeight)
 
         case "^BE":
-            state.pendingBarcode = BarcodeParser.parseBarcode(.ean13, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation, defaultHeight: state.defaultBarcodeHeight)
+            state.pendingBarcode = BarcodeParser.parseBarcode(.ean13, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.fieldDefaultRotation, defaultHeight: state.defaultBarcodeHeight)
 
         case "^B8":
-            state.pendingBarcode = BarcodeParser.parseBarcode(.ean8, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation, defaultHeight: state.defaultBarcodeHeight)
+            state.pendingBarcode = BarcodeParser.parseBarcode(.ean8, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.fieldDefaultRotation, defaultHeight: state.defaultBarcodeHeight)
 
         case "^BU":
-            state.pendingBarcode = BarcodeParser.parseBarcode(.upcA, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation, defaultHeight: state.defaultBarcodeHeight)
+            state.pendingBarcode = BarcodeParser.parseBarcode(.upcA, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.fieldDefaultRotation, defaultHeight: state.defaultBarcodeHeight)
 
         case "^B9":
-            state.pendingBarcode = BarcodeParser.parseBarcode(.upcE, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation, defaultHeight: state.defaultBarcodeHeight)
+            state.pendingBarcode = BarcodeParser.parseBarcode(.upcE, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.fieldDefaultRotation, defaultHeight: state.defaultBarcodeHeight)
 
         case "^B0":
-            state.pendingBarcode = BarcodeParser.parseAztec(params, x: state.currentX, y: state.currentY, rotation: state.currentRotation)
+            state.pendingBarcode = BarcodeParser.parseAztec(params, x: state.currentX, y: state.currentY, rotation: state.fieldDefaultRotation)
 
         case "^BZ":
-            state.pendingBarcode = BarcodeParser.parseBarcode(.intelligentMail, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.currentRotation, defaultHeight: state.defaultBarcodeHeight)
+            state.pendingBarcode = BarcodeParser.parseBarcode(.intelligentMail, params: params, x: state.currentX, y: state.currentY, moduleWidth: state.moduleWidth, rotation: state.fieldDefaultRotation, defaultHeight: state.defaultBarcodeHeight)
 
         // Graphics
         case "^GF":
@@ -320,6 +365,8 @@ public enum ZPLParser {
                 font: state.currentFont,
                 fontHeight: state.currentFontHeight,
                 fontWidth: state.currentFontWidth,
+                // Text takes the `^A` rotation. Only barcodes fall back to the
+                // `^FW` default, since `^A` must not steer them.
                 rotation: state.currentRotation,
                 isReversed: state.isReversed,
                 useBaseline: state.useFieldTypeset
@@ -345,6 +392,15 @@ private struct ParserState {
     var currentFontHeight = 30
     var currentFontWidth = 30
     var currentRotation = "N"
+    /// Default field orientation from `^FW`, used by any field that omits its
+    /// own orientation slot. Kept separate from `currentRotation` (which `^A`
+    /// overwrites) so a font rotation cannot leak into a barcode.
+    var fieldDefaultRotation = "N"
+    /// `^LH` label-home offset, added to every field origin.
+    var labelHomeX = 0
+    var labelHomeY = 0
+    /// `^POI`: render the whole label rotated 180 degrees.
+    var invertedOrientation = false
     var useFieldTypeset = false
     var isReversed = false
     var fieldHexIndicator: Character? = nil

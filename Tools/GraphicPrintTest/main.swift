@@ -23,7 +23,7 @@ import ZPLKitPrinter
 //
 // Sensor-track safety: all content stays inset from the label edges (>= 20
 // dots). Heavy black flush to the die-cut edge can blind a transmissive gap
-// sensor and knock the printer out of registration — keep the margins.
+// sensor and knock the printer out of registration, so keep the margins.
 //
 // Alignment: with --fiducial, the frame is inset a known 20 dots on every side.
 // If registered, the white margin between the frame and the die-cut edge is
@@ -92,7 +92,7 @@ if doCalibrate {
 if doFiducial {
     let (id, ts) = idStamp()
     let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
-        // Frame inset a known 20 dots — white margin to the die-cut edge should
+        // Frame inset a known 20 dots; white margin to the die-cut edge should
         // be equal on opposite sides when registered. Nothing touches the edge.
         Box(at: .dots(inset, inset), width: .dots(W - 2 * inset), height: .dots(H - 2 * inset)).thickness(2)
         Box(at: .dots(inset, H / 2 - 1), width: .dots(W - 2 * inset), height: .dots(2))   // crosshair H

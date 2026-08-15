@@ -59,7 +59,7 @@ let shippingLabel = ZPLLabel(width: 4, height: 6, dpi: .dpi203) {
 
     // MaxiCode for carrier sorting (approximate position)
     DataMatrix("[)>01 94102 456 OAK ST", at: .inches(2.8, 3.9))
-        .size(6)
+        .moduleSize(6)
 
     // Border
     Box(at: .inches(0.05, 0.05), width: .inches(3.9), height: .inches(5.9))
@@ -134,7 +134,7 @@ func printShippingExamples() {
     print()
 
     // Template usage
-    let customLabel = shippingTemplate.render(with: [
+    let customLabel = shippingTemplate.render(substituting: [
         "sender_name": "My Company",
         "sender_address": "100 Main St, Anytown USA",
         "recipient_name": "John Doe",

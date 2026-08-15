@@ -13,8 +13,13 @@ import AppKit
 import CoreImage
 #endif
 
-/// Renders parsed ZPL elements to a CGImage using CoreGraphics
-public enum CoreGraphicsRenderer {
+/// Renders parsed ZPL elements to a CGImage using CoreGraphics.
+///
+/// Internal on purpose: `ZPLRenderer.render(_:)` is the supported entry point,
+/// and `ParsedLabel` has no public initializer, so the only label a client can
+/// build already comes from `ZPLParser.parse`. Keeping this public would freeze
+/// the internal parse-to-draw pipeline shape at 1.0.
+enum CoreGraphicsRenderer {
 
     /// Renders a parsed label to a CGImage.
     ///
@@ -58,6 +63,15 @@ public enum CoreGraphicsRenderer {
         // Flip the coordinate system
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
+
+        // `^POI` prints the whole label upside down. Rotating the context about
+        // the label centre maps (x, y) to (width - x, height - y), so every
+        // element lands where the printer puts it without touching per-element
+        // geometry.
+        if label.invertedOrientation {
+            context.translateBy(x: CGFloat(width), y: CGFloat(height))
+            context.rotate(by: .pi)
+        }
 
         // Create a single CIContext for the whole render pass (used by 2D barcode
         // generators). Constructing a CIContext is expensive, so we avoid building
@@ -153,20 +167,31 @@ public enum CoreGraphicsRenderer {
         let attributedString = NSAttributedString(string: text.text, attributes: attributes)
         let line = CTLineCreateWithAttributedString(attributedString)
 
+        // Get text bounds for proper positioning. Needed before the transform so
+        // a rotated field can be anchored by its bounding box.
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+
+        // ZPL scales glyph width independently of height (`^A0N,h,w`). The
+        // bundled font is drawn at `fontHeight` and stretched horizontally.
+        let widthScale: CGFloat = (text.fontHeight > 0 && text.fontWidth > 0 && text.fontWidth != text.fontHeight)
+            ? CGFloat(text.fontWidth) / CGFloat(text.fontHeight)
+            : 1
+
         context.saveGState()
 
         // Move to text position, then rotate about that origin.
         context.translateBy(x: CGFloat(text.x), y: CGFloat(text.y))
         applyRotation(text.rotation, in: context)
+        applyRotationAnchor(
+            text.rotation,
+            width: bounds.width * widthScale,
+            height: bounds.height,
+            in: context
+        )
 
-        // ZPL scales glyph width independently of height (`^A0N,h,w`). The
-        // bundled font is drawn at `fontHeight` and stretched horizontally.
-        if text.fontHeight > 0, text.fontWidth > 0, text.fontWidth != text.fontHeight {
-            context.scaleBy(x: CGFloat(text.fontWidth) / CGFloat(text.fontHeight), y: 1)
+        if widthScale != 1 {
+            context.scaleBy(x: widthScale, y: 1)
         }
-
-        // Get text bounds for proper positioning
-        let bounds = CTLineGetBoundsWithOptions(line, [])
 
         // Un-flip for text rendering (context is flipped, but CoreText expects unflipped)
         // This makes text render right-side up
@@ -289,7 +314,13 @@ public enum CoreGraphicsRenderer {
         let strokeRect = rect.insetBy(dx: CGFloat(box.thickness) / 2, dy: CGFloat(box.thickness) / 2)
 
         if box.cornerRadius > 0 {
-            let radius = CGFloat(box.cornerRadius)
+            // `^GB`'s 5th parameter is a rounding INDEX of 0-8, not a radius in
+            // dots: the radius is (index / 8) x (shorter side / 2). Using the
+            // index directly made every rounded box almost square (a `,8` on a
+            // 100x80 box drew a 8-dot radius instead of ~20).
+            let roundingIndex = CGFloat(min(max(box.cornerRadius, 0), 8))
+            let shorterSide = CGFloat(min(box.width, box.height))
+            let radius = (roundingIndex / 8) * (shorterSide / 2)
 
             if box.thickness >= min(box.width, box.height) / 2 {
                 let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
@@ -468,6 +499,37 @@ public enum CoreGraphicsRenderer {
         }
     }
 
+    /// Re-anchors a rotated field so its bounding box starts at the `^FO` origin.
+    ///
+    /// `applyRotation` rotates about the origin point, which throws the content
+    /// into the wrong quadrant: for content of size W x H the rotated box lands
+    /// at (x-H, y) for `R`, (x-W, y-H) for `I`, and (x, y-W) for `B`. Printers
+    /// (verified against Labelary) put the rotated box's top-left AT the origin,
+    /// so `I` and `B` fields previously drew up and to the left of where they
+    /// belong — frequently clipped off the top of the label — and `R` sat one
+    /// glyph-height too far left.
+    ///
+    /// Call immediately after `applyRotation`, with the content's pre-rotation
+    /// width and height, and before any width scaling (the translation applies
+    /// in the current, unscaled frame).
+    private static func applyRotationAnchor(
+        _ rotation: String,
+        width: CGFloat,
+        height: CGFloat,
+        in context: CGContext
+    ) {
+        switch rotation {
+        case "R":
+            context.translateBy(x: 0, y: -height)
+        case "I":
+            context.translateBy(x: -width, y: -height)
+        case "B":
+            context.translateBy(x: -width, y: 0)
+        default:
+            break
+        }
+    }
+
     #if canImport(CoreImage)
     private static func renderBarcode(_ barcode: ParsedBarcode, in context: CGContext, ciContext: CIContext) throws {
         switch barcode.type {
@@ -547,13 +609,32 @@ public enum CoreGraphicsRenderer {
         // Move to the field origin, then rotate about it (same convention as renderText).
         context.translateBy(x: CGFloat(barcode.x), y: CGFloat(barcode.y))
         applyRotation(barcode.rotation, in: context)
+        applyRotationAnchor(
+            barcode.rotation,
+            width: CGFloat(width),
+            height: CGFloat(height),
+            in: context
+        )
         // `^FT` anchors the field's bottom-left rather than its top-left.
         if barcode.useBaseline {
             context.translateBy(x: 0, y: -CGFloat(height))
         }
         // Draw in the (now possibly rotated) local space. The rect matches the original
         // draw exactly for rotation "N".
+        //
+        // The context is y-flipped so ZPL's top-left origin works, which means a
+        // bare context.draw() renders the CGImage upside down — for a QR that is
+        // a mirror image, with the finder patterns at TL/BL/BR instead of the
+        // correct TL/TR/BL. `renderGraphic` compensates the same way. Undo the
+        // flip around the image box, then restore so the caption below is not
+        // mirrored too. (ZPLKitVerifier did not catch this: Vision happily
+        // decodes a mirrored QR, so the preview looked verified while being a
+        // mirror of what the printer produces.)
+        context.saveGState()
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 1, y: -1)
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        context.restoreGState()
         if let caption {
             drawBarcodeText(caption, at: CGPoint(x: 0, y: CGFloat(height) + 5), in: context)
         }
@@ -563,7 +644,7 @@ public enum CoreGraphicsRenderer {
     /// Splits `^BQ` field data into its in-data header and the payload.
     ///
     /// ZPL `^BQ` field data starts with `<errorCorrection><inputMode>,` (e.g.
-    /// `QA,` or `MM,`) — that header selects the EC level and input mode and is
+    /// `QA,` or `MM,`). That header selects the EC level and input mode and is
     /// NOT part of the encoded content.
     static func qrFieldData(_ data: String) -> (errorCorrection: String, payload: String) {
         let chars = Array(data)
@@ -800,10 +881,44 @@ public enum CoreGraphicsRenderer {
         // Draw text below (or above) if needed, in the same rotated local space.
         if barcode.showText {
             let textY = barcode.textAbove ? -20 : height + 5
-            drawBarcodeText(barcode.data, at: CGPoint(x: 0, y: textY), in: context)
+            drawBarcodeText(interpretationLine(for: barcode), at: CGPoint(x: 0, y: textY), in: context)
         }
 
         context.restoreGState()
+    }
+
+
+    /// The human-readable interpretation line for a 1-D symbol.
+    ///
+    /// For the GTIN family the printer appends the check digit it computed, so
+    /// the caption carries one more digit than the field data: `^FD123456789012`
+    /// on an EAN-13 prints `1234567890128` (verified against Labelary). Drawing
+    /// the raw field data left the preview's caption a digit short of the symbol
+    /// it sits under.
+    static func interpretationLine(for barcode: ParsedBarcode) -> String {
+        let data = barcode.data
+        let expected: Int
+        switch barcode.type {
+        case .ean13: expected = 13
+        case .ean8: expected = 8
+        case .upcA: expected = 12
+        default: return data
+        }
+        guard data.count == expected - 1,
+              data.allSatisfy({ $0.isASCII && $0.isNumber }) else { return data }
+        return data + String(gtinCheckDigit(for: data))
+    }
+
+    /// Mod-10 GTIN check digit, weighting 3 and 1 from the rightmost data digit.
+    ///
+    /// Duplicated here because ZPLKit's equivalent is internal to that module.
+    static func gtinCheckDigit(for digits: String) -> Int {
+        var sum = 0
+        for (offset, character) in digits.reversed().enumerated() {
+            let value = character.wholeNumberValue ?? 0
+            sum += offset.isMultiple(of: 2) ? value * 3 : value
+        }
+        return (10 - (sum % 10)) % 10
     }
 
     private static func renderPlaceholderBarcode(_ barcode: ParsedBarcode, in context: CGContext) {

@@ -8,7 +8,7 @@ import Darwin
 /// uses), **not** Bonjour/mDNS.
 ///
 /// Zebra network print servers do not advertise themselves over Bonjour by
-/// default — browsing `_pdl-datastream._tcp` finds generic IPP/socket printers
+/// default: browsing `_pdl-datastream._tcp` finds generic IPP/socket printers
 /// (e.g. an office inkjet) but not Zebra units. Instead, a client broadcasts a
 /// small request to UDP port 4201 and each Zebra printer replies (unicast) with
 /// its identity: system name, product number, firmware, and network config.
@@ -34,7 +34,7 @@ import Darwin
 /// `stop()` when done to release the socket and finish the streams.
 ///
 /// - Note: On iOS (and macOS apps under the App Sandbox), UDP broadcast triggers
-///   the local-network privacy permission — the app needs the entitlement and
+///   the local-network privacy permission. The app needs the entitlement and
 ///   the user's approval, or no replies are received.
 public final class ZPLPrinterBrowser: @unchecked Sendable {
     /// Zebra's proprietary discovery UDP port.
@@ -50,7 +50,6 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
     private var continuations: [UUID: AsyncStream<DiscoveredPrinter>.Continuation] = [:]
     private var isRunning = false
     private var thread: Thread?
-    private var sock: Int32 = -1
 
     /// Creates a new printer browser.
     public init() {}
@@ -100,7 +99,14 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
         isRunning = true
         lock.unlock()
 
-        let t = Thread { [weak self] in self?.discoveryLoop() }
+        // The thread must NOT hold a strong `self` for the life of the loop.
+        // `Thread { self?.discoveryLoop() }` does exactly that: optional-chaining
+        // retains the receiver for the duration of the call, and the call runs
+        // until the loop exits, so `deinit` could never fire and a browser that
+        // was started but never stopped leaked its thread, its socket, and a
+        // broadcast every 3 seconds for the life of the process. Re-acquiring a
+        // strong reference per iteration keeps `deinit` reachable.
+        let t = Thread { [weak self] in ZPLPrinterBrowser.discoveryLoop(owner: { self }) }
         t.name = "ZPLPrinterBrowser.udp4201"
         t.stackSize = 512 * 1024
         lock.lock(); thread = t; lock.unlock()
@@ -112,16 +118,18 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
         lock.lock()
         guard isRunning else { lock.unlock(); return }
         isRunning = false
-        let s = sock
-        sock = -1
         let toFinish = Array(continuations.values)
         continuations.removeAll()
         discovered.removeAll()
         lock.unlock()
 
-        // Closing the socket unblocks the discovery thread's recvfrom.
-        if s >= 0 { Darwin.close(s) }
-
+        // Deliberately does NOT close the socket. Closing another thread's file
+        // descriptor races that thread's `recvfrom`/`sendto`: if anything else
+        // in the process opens a descriptor in the gap, the number is reused and
+        // the discovery loop reads from, and broadcasts onto, an unrelated
+        // socket. The loop's 1s receive timeout means it observes `isRunning ==
+        // false` and closes its own descriptor within a second instead.
+        //
         // finish() synchronously invokes each stream's onTermination handler,
         // which re-acquires `lock`; call it *outside* the lock to avoid a
         // re-entrant deadlock.
@@ -130,9 +138,27 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
 
     // MARK: - Discovery thread
 
-    private func discoveryLoop() {
+    /// The discovery thread body.
+    ///
+    /// Static, and reaching the browser only through `owner()`, so that no strong
+    /// reference is held across iterations (see the note in `start()`). Returning
+    /// nil from `owner()` means the browser was deallocated, and the loop exits
+    /// and closes its socket.
+    ///
+    /// The socket is owned exclusively by this function: it is created here,
+    /// closed here on every exit path, and never closed by `stop()`. An earlier
+    /// version stored it in `sock` and closed *that* on exit, which after a
+    /// stop/start cycle closed the **next** session's socket, leaving a browser
+    /// that reported `isRunning == true` while discovering nothing.
+    private static func discoveryLoop(owner: () -> ZPLPrinterBrowser?) {
         let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-        guard fd >= 0 else { return }
+        guard fd >= 0 else {
+            // Don't leave the browser claiming to run when setup failed, or
+            // `printers` would hand out streams that never yield and never
+            // finish, and `start()` would refuse to retry.
+            owner()?.markStopped()
+            return
+        }
 
         var on: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, socklen_t(MemoryLayout<Int32>.size))
@@ -151,24 +177,34 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
                 bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
-        guard bindResult == 0 else { Darwin.close(fd); return }
+        guard bindResult == 0 else {
+            Darwin.close(fd)
+            owner()?.markStopped()
+            return
+        }
 
-        lock.lock()
-        guard isRunning else { lock.unlock(); Darwin.close(fd); return }
-        sock = fd
-        lock.unlock()
+        defer { Darwin.close(fd) }
 
         var buffer = [UInt8](repeating: 0, count: 4096)
         var lastBroadcast = Date.distantPast
 
         while true {
-            lock.lock(); let running = isRunning; lock.unlock()
-            if !running { break }
-
-            if Date().timeIntervalSince(lastBroadcast) > 3 {
-                broadcastProbe(fd)
-                lastBroadcast = Date()
-            }
+            // Scoped so the strong reference is released before the blocking
+            // recvfrom below. Holding it across the 1s receive would delay a
+            // waiting deinit by up to that long for no reason.
+            let keepGoing: Bool = {
+                guard let browser = owner() else { return false }
+                browser.lock.lock(); let running = browser.isRunning; browser.lock.unlock()
+                guard running else { return false }
+                if Date().timeIntervalSince(lastBroadcast) > 3 {
+                    ZPLPrinterBrowser.broadcastProbe(fd)
+                    lastBroadcast = Date()
+                }
+                return true
+            }()
+            // nil owner means the browser was deallocated without stop() being
+            // called; either way, exit and let `defer` close the socket.
+            if !keepGoing { break }
 
             var from = sockaddr_in()
             var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
@@ -182,22 +218,33 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
 
             if n > 0 {
                 let data = Array(buffer[0..<n])
-                let host = Self.ipString(from.sin_addr)
-                if let printer = Self.parseReply(data, host: host) {
-                    addPrinter(printer)
+                let host = ZPLPrinterBrowser.ipString(from.sin_addr)
+                if let printer = ZPLPrinterBrowser.parseReply(data, host: host) {
+                    // Re-acquire only to record the result; may be nil if the
+                    // browser went away while we were blocked.
+                    owner()?.addPrinter(printer)
                 }
             } else if n < 0 {
-                // EAGAIN/EWOULDBLOCK: the recv timeout expired — loop and
-                // re-broadcast. EBADF: stop() closed the socket — exit.
-                if errno == EBADF { break }
+                // EAGAIN/EWOULDBLOCK: the recv timeout expired, so loop, check
+                // isRunning, and re-broadcast. Nothing else closes this socket,
+                // so any other error is unexpected; bail rather than spin.
+                if errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR { break }
             }
         }
-
-        lock.lock(); let s = sock; sock = -1; lock.unlock()
-        if s >= 0 { Darwin.close(s) }
     }
 
-    private func broadcastProbe(_ fd: Int32) {
+    /// Clears `isRunning` after the discovery thread fails to start, so the
+    /// browser doesn't advertise a session that isn't there.
+    private func markStopped() {
+        lock.lock()
+        isRunning = false
+        let toFinish = Array(continuations.values)
+        continuations.removeAll()
+        lock.unlock()
+        for continuation in toFinish { continuation.finish() }
+    }
+
+    private static func broadcastProbe(_ fd: Int32) {
         var dest = sockaddr_in()
         dest.sin_family = sa_family_t(AF_INET)
         dest.sin_port = UInt16(Self.discoveryPort).bigEndian

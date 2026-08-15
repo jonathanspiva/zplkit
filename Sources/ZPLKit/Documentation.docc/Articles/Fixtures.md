@@ -4,7 +4,7 @@ A collection of real-world ZPL files for testing parsers and renderers.
 
 ## Overview
 
-ZPLKit includes 124 ZPL test fixtures covering shipping labels, retail tags, warehouse bins, barcodes, shapes, and more. Use these to validate your own ZPL parser or renderer implementation.
+ZPLKit includes 125 ZPL test fixtures covering shipping labels, retail tags, warehouse bins, barcodes, shapes, and more. Use these to validate your own ZPL parser or renderer implementation.
 
 ## Location
 
@@ -14,17 +14,22 @@ Fixtures are in `Tests/VisualTestHarness/fixtures/` with metadata in `Tests/Visu
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| `barcode` | 10 | Barcode-focused tests (Code128, QR, EAN, etc.) |
-| `shipping` | 6 | Shipping labels (FedEx, UPS, USPS styles) |
-| `inventory` | 5 | Inventory and warehouse tags |
-| `shop` | 11 | Parts bin and shop labels |
+| `asset` | 4 | Asset tags |
+| `barcode` | 14 | Barcode-focused tests (Code128, QR, EAN, etc.) |
+| `canonical` | 10 | Baseline barcode verification, one per symbology |
+| `features` | 9 | Specific feature tests (rotation, text blocks, serial numbers) |
 | `food` | 6 | Food storage and meal prep labels |
 | `graphic` | 36 | Labels with embedded graphics |
-| `sku` | 4 | Product SKU labels |
-| `simple` | 8 | Minimal single-purpose labels |
+| `inventory` | 5 | Inventory tags |
+| `medical` | 1 | Medical/specimen labels |
+| `retail` | 8 | Retail and product SKU labels |
 | `shapes` | 4 | Shape rendering tests |
-| `features` | 5 | Specific feature tests |
-| `canonical` | 10 | Baseline barcode verification |
+| `shipping` | 7 | Shipping labels (FedEx, UPS, USPS styles) |
+| `shop` | 8 | Parts bin and shop labels |
+| `simple` | 8 | Minimal single-purpose labels |
+| `warehouse` | 5 | Warehouse bin and location labels |
+
+**Total: 125**
 
 ## File Format
 
@@ -76,17 +81,32 @@ Each ZPL file includes a description comment:
 
 ## Using Fixtures
 
-### Load all fixtures
+### Load the fixtures
+
+The fixtures are test resources in this repository, not resources of any shipped
+library target, so `Bundle.module` cannot reach them. Check the repo out (or vendor
+the directory) and read them from disk:
 
 ```swift
-let fixturesURL = Bundle.module.url(
-    forResource: "fixtures",
-    withExtension: "json",
-    subdirectory: "VisualTestHarness"
-)!
+// Point at your checkout of zplkit.
+let root = URL(filePath: "/path/to/zplkit/Tests/VisualTestHarness")
+
+struct Fixture: Decodable {
+    let category: String
+    let description: String
+    let dpi: Int
+    let size: String
+}
+
 let metadata = try JSONDecoder().decode(
-    [String: FixtureMetadata].self,
-    from: Data(contentsOf: fixturesURL)
+    [String: Fixture].self,
+    from: Data(contentsOf: root.appending(path: "fixtures.json"))
+)
+
+// Each key is a fixture name; the ZPL lives alongside it.
+let zpl = try String(
+    contentsOf: root.appending(path: "fixtures/\(metadata.keys.first!).zpl"),
+    encoding: .utf8
 )
 ```
 

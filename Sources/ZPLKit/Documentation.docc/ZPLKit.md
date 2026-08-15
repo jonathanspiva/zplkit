@@ -4,10 +4,11 @@ Generate and render ZPL (Zebra Programming Language) labels with a declarative, 
 
 ## Overview
 
-ZPLKit provides three modules:
+ZPLKit provides four modules:
 
 - **ZPLKit**: Core label generation with result builders
 - **ZPLKitRenderer**: Parse ZPL and render to PNG images
+- **ZPLKitPrinter**: Send ZPL over TCP, discover printers, query and configure them
 - **ZPLKitVerifier**: Verify rendered labels using Vision framework
 
 ## Topics

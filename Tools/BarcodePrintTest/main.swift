@@ -142,7 +142,7 @@ let specs: [Spec] = [
         [title("QR", x), QRCode("https://github.com/jonathanspiva/zplkit", at: .dots(x, barcodeY)).magnification(4)]
     },
     Spec(name: "datamatrix") { x in
-        [title("DataMatrix", x), DataMatrix("DATAMATRIX-TEST", at: .dots(x, barcodeY)).size(6)]
+        [title("DataMatrix", x), DataMatrix("DATAMATRIX-TEST", at: .dots(x, barcodeY)).moduleSize(6)]
     },
     Spec(name: "pdf417") { x in
         [title("PDF417", x), PDF417("PDF417 TEST 12345", at: .dots(x, barcodeY))]

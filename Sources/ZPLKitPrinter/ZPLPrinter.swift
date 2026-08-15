@@ -110,7 +110,7 @@ public struct ZPLPrinter: Sendable {
     ///
     /// Uses POSIX sockets (`socket`/`connect`/`write`/`close`) rather than the
     /// Swift-native `NetworkConnection` API. This is **deliberate and
-    /// load-bearing** — see the "Known issue: `send()` uses POSIX sockets" note
+    /// load-bearing**. See the "Known issue: `send()` uses POSIX sockets" note
     /// in the README. A `NetworkConnection`-based `send()` intermittently fails
     /// to print on real Zebra hardware: the connection tears down before the
     /// printer commits the buffered job, so the label is silently discarded
@@ -531,7 +531,14 @@ public struct ZPLPrinter: Sendable {
                         return .chunk(message.content, endOfStream: message.metadata.endOfStream)
                     }
                     group.addTask {
-                        try? await Task.sleep(nanoseconds: idleThresholdNanos)
+                        // `try`, not `try?`. Swallowing the error here turned a
+                        // cancellation into an immediate `.idle`, which raced
+                        // ahead of the receive task's CancellationError and
+                        // returned the partially-filled buffer as a successful
+                        // result — a truncated `^HH` parsed into a silently
+                        // incomplete PrinterSettings. Propagating lets the group
+                        // rethrow CancellationError as it should.
+                        try await Task.sleep(nanoseconds: idleThresholdNanos)
                         return .idle
                     }
                     let first = try await group.next()!

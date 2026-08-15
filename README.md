@@ -34,12 +34,11 @@ A Swift library for generating and rendering ZPL (Zebra Programming Language) la
 ### ZPLKitPrinter (Network Printing)
 
 - **Send ZPL to printers** over TCP (port 9100)
-- **Network discovery** of Zebra printers via Zebra's UDP protocol (port 4201) — not Bonjour, which Zebra units don't advertise
+- **Network discovery** of Zebra printers via Zebra's UDP protocol (port 4201), not Bonjour, which Zebra units don't advertise
 - **Printer configuration** with type-safe enums, presets, and zero-touch setup
 - **Query printer status**, info, memory, and full configuration
 - **Diagnostics** combining status, info, memory, and settings in one call
 - **Control commands**: calibrate, feed, cancel jobs, print config labels
-- **Idle timeout** for automatic connection cleanup
 - **Async/await API** with configurable timeout
 
 ### ZPLKitVerifier (Validation)
@@ -70,7 +69,7 @@ if !check.passed {
 
 ### Test Fixtures
 
-- **124 ZPL files** covering text, barcodes, shapes, and graphics
+- **125 ZPL files** covering text, barcodes, shapes, and graphics
 - **Reusable test suite** for validating any ZPL parser or renderer
 - **Reference images** from Labelary for comparison
 
@@ -144,7 +143,7 @@ import ZPLKitRenderer
 
 let renderer = ZPLRenderer()
 // renderToPNG derives the pixel size from the label's ^PW/^LL geometry.
-if let (pngData, _) = try? renderer.renderToPNG(zpl) {
+if let pngData = (try? renderer.renderToPNG(zpl))?.data {
     // Display in UIImageView, save to file, etc.
 }
 ```
@@ -210,24 +209,49 @@ if status.isReadyToPrint {
 ## Documentation
 
 - **[Getting Started](Sources/ZPLKit/Documentation.docc/Articles/GettingStarted.md)** - Full API reference with examples for all elements
-- **[Test Fixtures](Sources/ZPLKit/Documentation.docc/Articles/Fixtures.md)** - 124 ZPL files for testing parsers and renderers
+- **[Test Fixtures](Sources/ZPLKit/Documentation.docc/Articles/Fixtures.md)** - 125 ZPL files for testing parsers and renderers
 - **[Hardware Validation](HARDWARE-VALIDATION.md)** - Printers and firmware ZPLKit is tested against, with real-device response fixtures
 
 ## Known Issues
 
 ### `send()` uses POSIX sockets, not Network.framework (deliberate)
 
-`ZPLPrinter.send()` uses POSIX sockets (`socket`/`connect`/`write`/`close`) instead of Apple's Network.framework (`NWConnection` or the newer Swift-native `NetworkConnection`). This is **intentional and load-bearing** — do not "modernize" it without the verification below.
+`ZPLPrinter.send()` uses POSIX sockets (`socket`/`connect`/`write`/`close`) instead of Apple's Network.framework (`NWConnection` or the newer Swift-native `NetworkConnection`). This is **intentional and load-bearing**. Do not "modernize" it without the verification below.
 
 **Why:** Network.framework's connection teardown discards the print job on real Zebra printers. The connection closes before the printer commits the buffered data (the classic RST-on-close behavior), so labels silently fail to print. POSIX `close()` sends a clean TCP FIN the printer commits reliably, across all payload sizes and Apple platforms.
 
-**The trap (recorded so it isn't repeated):** on 2026-07-15 a `NetworkConnection`-based `send()` was written and merged (PR #4). It **passed a loopback flush test and the automated live-printer suite**, then intermittently dropped jobs on a real GX420t and ZM400. It was reverted. The failure is not reproducible against a loopback socket — only against physical hardware. The decisive test: send **identical bytes** to port 9100 two ways — via `printf ... | nc <printer> 9100` (prints reliably) and via the candidate `send()` (dropped the job). **If you ever revisit this, verify on a physical printer with that A/B test, not a socket or a unit test.**
+**The trap (recorded so it isn't repeated):** on 2026-07-15 a `NetworkConnection`-based `send()` was written and merged (PR #4). It **passed a loopback flush test and the automated live-printer suite**, then intermittently dropped jobs on a real GX420t and ZM400. It was reverted. The failure is not reproducible against a loopback socket, only against physical hardware. The decisive test: send **identical bytes** to port 9100 two ways, via `printf ... | nc <printer> 9100` (prints reliably) and via the candidate `send()` (dropped the job). **If you ever revisit this, verify on a physical printer with that A/B test, not a socket or a unit test.**
 
-`query()` does use the Swift-native `NetworkConnection` API — there the connection stays open to receive the printer's response, so the teardown race doesn't apply, and it is verified reliable.
+`query()` does use the Swift-native `NetworkConnection` API. There the connection stays open to receive the printer's response, so the teardown race doesn't apply, and it is verified reliable.
 
 ### `^NS` network reconfiguration is experimental (unverified on hardware)
 
-Setting a printer's IP/subnet/gateway via `PrinterConfiguration.networkConfig(...)` / `dhcp()` (ZPL `^NS`) is **experimental and not verified working.** ZPLKit emits a spec-shaped `^NS` command (unit-tested), but in a 2026-07-23 round-trip on a GX420t (firmware V56.17.17Z) an `^NSP` static-IP change followed by `~JR` (`powerOnReset()`) did **not** change the printer's IP — it stayed put. The cause is undetermined: it may need a full power cycle rather than `~JR`, or the emitted format may differ from what this firmware accepts. A wrong value can also drop the printer off the network. **Verify on a recoverable printer (physical/USB access) before relying on this.**
+Setting a printer's IP/subnet/gateway via `PrinterConfiguration.networkConfig(...)` / `dhcp()` (ZPL `^NS`) is **experimental and not verified working.** ZPLKit emits a spec-shaped `^NS` command (unit-tested), but in a 2026-07-23 round-trip on a GX420t (firmware V56.17.17Z) an `^NSP` static-IP change followed by `~JR` (`powerOnReset()`) did **not** change the printer's IP; it stayed put. The cause is undetermined: it may need a full power cycle rather than `~JR`, or the emitted format may differ from what this firmware accepts. A wrong value can also drop the printer off the network. **Verify on a recoverable printer (physical/USB access) before relying on this.**
+
+## Renderer command support
+
+`ZPLKitRenderer` is a *preview* renderer. It implements the commands ZPLKit
+generates plus the common ones you meet in hand-written ZPL. Anything not listed
+is ignored rather than rejected, so a label using it still renders, just without
+that effect.
+
+**Supported:** `^XA` `^XZ` `^PW` `^LL` `^LH` `^PO` `^PQ` `^MD` `^FO` `^FT` `^FS`
+`^FD` `^FH` `^FR` `^FB` `^FW` `^A` `^CF` `^BY` `^GB` `^GC` `^GD` `^GE` `^GF`,
+and the barcode commands `^BC` `^B3` `^BQ` `^BX` `^B7` `^B2` `^BE` `^B8` `^BU`
+`^B9` `^B0` `^BZ`.
+
+**Not implemented** (parsed and skipped):
+
+| Command | Effect on a printer | Consequence in the preview |
+|---|---|---|
+| `^LR` | Reverses print for every field | Fields render normally. Labelary ignores this too, so there is no reference to validate against |
+| `^CI` | Selects the character encoding | Field data is always treated as UTF-8, which is what ZPLKit emits (with `^CI28`) |
+| `^CC` / `^CT` | Changes the `^` / `~` command prefix characters | A label that remaps its prefixes will not parse at all |
+| `^GFB` with raw binary | Embeds an uncompressed bitmap | Payload bytes equal to `^` (0x5E) or `~` (0x7E) terminate the command early and corrupt the image. Inherent to string-based parsing; use `^GFA` or `^GFC` instead |
+
+The interpretation line under a barcode is drawn in a generic font rather than
+the printer's OCR-B-style face, so its glyphs and spacing differ from a printed
+label even when the encoded data matches.
 
 ## Known Limitations
 
@@ -245,7 +269,7 @@ The floor tracks the newest generally-available OS release rather than the curre
 ## Resources
 
 - [Zebra ZPL Programming Guide](https://www.zebra.com/content/dam/zebra/manuals/printers/common/programming/zpl-zbi2-pm-en.pdf)
-- [Labelary](http://labelary.com/viewer.html) - Online ZPL viewer
+- [Labelary](https://labelary.com/viewer.html) - Online ZPL viewer
 
 ## Acknowledgements
 

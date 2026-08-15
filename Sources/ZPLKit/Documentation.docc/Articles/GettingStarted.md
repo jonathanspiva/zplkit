@@ -47,7 +47,7 @@ QRCode("https://example.com", at: .inches(0.5, 3.5))
     .errorCorrection(.high)
 
 DataMatrix("SERIAL123", at: .inches(2.0, 3.5))
-    .size(5)
+    .moduleSize(5)
 
 PDF417("Encoded data here", at: .inches(0.5, 4.5))
 Aztec("More data", at: .inches(2.0, 4.5))
@@ -76,7 +76,7 @@ Ellipse(at: .inches(1.0, 2.0), width: .inches(1.0), height: .inches(0.5))
 HorizontalLine(at: .inches(0.5, 1.0), length: .inches(3.0), thickness: 2)
 VerticalLine(at: .inches(0.5, 1.0), length: .inches(2.0), thickness: 2)
 DiagonalLine(at: .inches(0.5, 1.0), width: .inches(1.0), height: .inches(1.0))
-    .direction(.leftToRight)
+    .direction(.leftLeaning)
 ```
 
 ### Graphics
@@ -122,7 +122,7 @@ let template = ZPLTemplate(width: 4, height: 2, dpi: .dpi203) {
     Text("${{price}}", at: .inches(0.25, 1.1))
 }
 
-let zpl = template.render(with: [
+let zpl = template.render(substituting: [
     "product_name": "Widget Pro",
     "sku": "WGT-PRO-001",
     "price": "29.99"
@@ -169,7 +169,7 @@ import ZPLKitRenderer
 let renderer = ZPLRenderer()
 let zpl = label.render()
 
-if let (pngData, _) = try? renderer.renderToPNG(zpl) {
+if let pngData = (try? renderer.renderToPNG(zpl))?.data {
     // Display in UIImageView, save to file, etc.
 }
 

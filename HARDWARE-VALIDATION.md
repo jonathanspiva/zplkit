@@ -12,7 +12,7 @@ which hardware and firmware, and how to reproduce it.
 | Zebra **GX420t-200dpi** | **V56.17.17Z** | 203 | direct-thermal | TCP / port 9100 |
 
 Last validated: **2026-07-23** (full `LivePrinterTests` sweep re-run on current
-`main` — 18/18 pass on both printers).
+`main`: 18/18 pass on both printers).
 
 ## How it's validated
 
@@ -26,7 +26,7 @@ printers above are committed under
 and parsed by `RealDeviceFixtureTests`. (Device serial numbers in these captures
 have been replaced with placeholder values; every other byte is as-emitted.) These assert that
 `PrinterInfo` / `PrinterStatus` / `MemoryStatus` / `PrinterSettings` extract the
-correct values from the exact bytes these firmwares emit — e.g. ZM400 reports
+correct values from the exact bytes these firmwares emit (e.g. ZM400 reports
 `darkness 30, 2 IPS, 812-dot width, thermal-transfer`, GX420t reports
 `darkness 15, 4 IPS, 816-dot width, direct-thermal, serial 50J000000001`. This
 layer runs on every CI build with no printer attached, so parser regressions
@@ -63,8 +63,8 @@ being left paused, not a code defect).
 - **Code 128 `>` invocation-code escaping** (2026-07-23, ZM400 V53.17.24Z +
   GX420t V56.17.17Z): `Barcode128("PRICE>5")` emits field data `PRICE>05`, and
   both printers decode the human-readable interpretation line as `PRICE>5`. The
-  raw form (`^FD...PRICE>5`) decodes as `PRICE` on both — the `>5` is consumed as
-  a function/subset invocation code — confirming the `>` -> `>0` escaping is
+  raw form (`^FD...PRICE>5`) decodes as `PRICE` on both (the `>5` is consumed as
+  a function/subset invocation code), confirming the `>` -> `>0` escaping is
   required and correct.
 - **UDP-4201 discovery** (2026-07-23, same two printers): the rewritten
   `ZPLPrinterBrowser` (off Bonjour/mDNS, PR #7) discovers both units end-to-end
@@ -83,7 +83,7 @@ being left paused, not a code defect).
   defect: it tracked label position (not symbology), cleared when the affected
   codes were reprinted in the left column, and was absent entirely on the GX420t.
   Caveat: **USPS IMb** prints its 4-state bar structure but its codeword
-  *encoding* is unverified — a scanner decode is still outstanding, and the
+  *encoding* is unverified: a scanner decode is still outstanding, and the
   renderer's IMb encoder is a known placeholder (see TODO "Someday").
 
 ### 3. Synthetic + malicious-input fixtures (run in CI)
@@ -108,7 +108,7 @@ untrusted network input rather than trapping.
 - **`^NS` network reconfiguration** is **experimental / not verified working.**
   The `^NS` ZPL emission is covered by unit tests, but a hardware round-trip on
   2026-07-23 (GX420t V56.17.17Z: `^NSP,192.168.7.50,…` + `^JUS` save + `~JR`) did
-  **not** change the printer's IP — it stayed put. Root cause is undetermined:
+  **not** change the printer's IP; it stayed put. Root cause is undetermined:
   likely `~JR` doesn't re-init the wired print server (a full power cycle may be
   required), or this firmware doesn't accept the emitted `^NS` format. Left for a
   follow-up disambiguation (send `^NSP`, physically power-cycle, re-check via

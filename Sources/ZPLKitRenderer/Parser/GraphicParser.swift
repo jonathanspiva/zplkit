@@ -142,9 +142,14 @@ enum GraphicParser {
             if totalBytes > 0 { return min(totalBytes, RenderLimits.maxGraphicBytes) }
             return RenderLimits.maxGraphicBytes
         }()
-        // A single repeat run can be at most one full row of nibbles; anything larger
-        // is meaningless and only serves to amplify memory.
-        let maxRepeat = max(bytesPerRow * 2, 1)
+        // `^GFA` run-length encoding operates on the flat nibble stream, not on
+        // rows, so a legitimate run may span several rows: `^GFA,8,8,1,VF` is
+        // 16 repeats of nibble F, an 8x8 solid square. Capping a run at one row
+        // of nibbles silently truncated any such graphic to a single row.
+        // Memory is already bounded by `sizeCeiling`, which is enforced inside
+        // the decode loop, so this only needs to bound a single run to the
+        // nibbles that could still fit.
+        let maxRepeat = max(sizeCeiling * 2, 1)
 
         func flushNibblesToBytes() {
             // Combine accumulated nibbles into bytes (high nibble first).
