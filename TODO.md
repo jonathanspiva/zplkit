@@ -7,11 +7,25 @@ git history; hardware findings that are still relevant are written up in
 ## Now
 
 ### Open source release
-- [ ] Fold `[Unreleased]` into `[1.0.0]` in the CHANGELOG and set the release date
-- [ ] Tag v1.0.0 release
-- [ ] Make repo public
-- [ ] Add package to Swift Package Index (PR to SwiftPackageIndex/PackageList)
-- [ ] Update README badges to use Swift Package Index badges
+- [x] Fold `[Unreleased]` into `[1.0.0]` in the CHANGELOG and set the release date
+- [x] Tag v1.0.0 release (2026-08-14)
+- [x] Make repo public
+- [x] Submit to Swift Package Index
+  ([PackageList#14832](https://github.com/SwiftPackageIndex/PackageList/issues/14832))
+- [ ] **Swap the README badges to Swift Package Index once indexing completes.**
+  Held deliberately: until SPI builds the package its badge API returns
+  `"message": "pending"` with `isError: true`, so the badges would render grey
+  and broken-looking on a freshly public repo. Check
+  <https://swiftpackageindex.com/jonathanspiva/zplkit> (403 until indexed), then
+  replace the static Swift/Platforms badges with:
+
+  ```markdown
+  [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjonathanspiva%2Fzplkit%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/jonathanspiva/zplkit)
+  [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjonathanspiva%2Fzplkit%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/jonathanspiva/zplkit)
+  ```
+
+  These track the manifest automatically, so they stop going stale when the
+  floor moves.
 
 ### Hardware verification
 These need a physical printer, and they are the last unverified claims in the docs.
