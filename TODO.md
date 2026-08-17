@@ -16,12 +16,12 @@ git history; hardware findings that are still relevant are written up in
   is green.** Indexing is done (checked 2026-08-17): the package is live and the
   badge API now answers with real values (`isError: false`, Swift `6.3`). Two
   things still argue for waiting:
-  - The platforms badge currently reads **`macOS` only**. watchOS genuinely
-    failed to build at 1.0.0 (fixed on `fix-watchos-vision-guard`); iOS and tvOS
-    build clean locally under both Xcode 26.6 and 27, so their greyed state
-    looks like SPI builds that have not run rather than a real defect. Recheck
-    after the fix ships and SPI rebuilds; swapping now would advertise
-    macOS-only.
+  - The platforms badge read **`macOS` only** at 1.0.0. Both causes are fixed
+    and released as **1.0.1** (#17): watchOS could not compile at all, and
+    `xcodebuild -scheme ZPLKit-Package` failed at the Swift 6.3 floor on every
+    platform including macOS because two tools put `@main` in `main.swift`.
+    Recheck the matrix once SPI has rebuilt 1.0.1, then swap. Note the badge is
+    per-version, so the v1.0.0 row stays red permanently.
   - SPI's package page shows "This package's README file couldn't be loaded"
     even though the raw file serves fine from GitHub. Probably transient at
     index time, possibly the relative `<img src="logo.svg">` on line 3.
