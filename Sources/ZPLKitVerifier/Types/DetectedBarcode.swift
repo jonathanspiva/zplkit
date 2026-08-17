@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// A barcode detected in a rendered label image.
@@ -42,3 +43,4 @@ public struct DetectedBarcode: Sendable, Hashable, Codable, CustomStringConverti
         "\(symbology): \(payload)"
     }
 }
+#endif

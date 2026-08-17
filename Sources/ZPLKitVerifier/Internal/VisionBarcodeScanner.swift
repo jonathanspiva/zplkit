@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Vision
 import CoreGraphics
 
@@ -58,3 +59,4 @@ struct VisionBarcodeScanner {
         return detectedBarcodes
     }
 }
+#endif

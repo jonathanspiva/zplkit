@@ -1,3 +1,8 @@
+// ZPLKitVerifier is built on Vision. Vision's Swift API (DetectBarcodesRequest,
+// RecognizeTextRequest) is unavailable on watchOS below 27, and the Vision
+// module is absent entirely on non-Apple platforms, so this module compiles
+// to an empty module there rather than failing the package build.
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 import CoreGraphics
 import Vision
@@ -267,3 +272,4 @@ private extension Duration {
         return Double(seconds) + Double(attoseconds) / 1_000_000_000_000_000_000
     }
 }
+#endif

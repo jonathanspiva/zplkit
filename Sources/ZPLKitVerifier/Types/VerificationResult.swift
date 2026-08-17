@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// Results from verifying a rendered label against expectations.
@@ -89,3 +90,4 @@ public struct ExpectationResult: Sendable, Equatable {
         case text(DetectedText)
     }
 }
+#endif

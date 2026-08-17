@@ -12,12 +12,25 @@ git history; hardware findings that are still relevant are written up in
 - [x] Make repo public
 - [x] Submit to Swift Package Index
   ([PackageList#14832](https://github.com/SwiftPackageIndex/PackageList/issues/14832))
-- [ ] **Swap the README badges to Swift Package Index once indexing completes.**
-  Held deliberately: until SPI builds the package its badge API returns
-  `"message": "pending"` with `isError: true`, so the badges would render grey
-  and broken-looking on a freshly public repo. Check
-  <https://swiftpackageindex.com/jonathanspiva/zplkit> (403 until indexed), then
-  replace the static Swift/Platforms badges with:
+- [ ] **Swap the README badges to Swift Package Index once the platform matrix
+  is green.** Indexing is done (checked 2026-08-17): the package is live and the
+  badge API now answers with real values (`isError: false`, Swift `6.3`). Two
+  things still argue for waiting:
+  - The platforms badge currently reads **`macOS` only**. watchOS genuinely
+    failed to build at 1.0.0 (fixed on `fix-watchos-vision-guard`); iOS and tvOS
+    build clean locally under both Xcode 26.6 and 27, so their greyed state
+    looks like SPI builds that have not run rather than a real defect. Recheck
+    after the fix ships and SPI rebuilds; swapping now would advertise
+    macOS-only.
+  - SPI's package page shows "This package's README file couldn't be loaded"
+    even though the raw file serves fine from GitHub. Probably transient at
+    index time, possibly the relative `<img src="logo.svg">` on line 3.
+
+  Note the old assumption here was wrong: swiftpackageindex.com returns **403 to
+  any scripted fetch** (Cloudflare bot protection), indexed or not. Only the
+  `/api/.../badge` endpoints answer curl. Use a browser to read the page.
+
+  When ready, replace the static Swift/Platforms badges with:
 
   ```markdown
   [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjonathanspiva%2Fzplkit%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/jonathanspiva/zplkit)

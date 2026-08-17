@@ -1,3 +1,6 @@
+// Deliberately NOT named main.swift: that filename is compiled in
+// top-level-code mode, where `@main` is rejected. SwiftPM tolerated it, but
+// `xcodebuild` (what Xcode users and Swift Package Index run) did not.
 import Foundation
 import ZPLKit
 import ZPLKitRenderer

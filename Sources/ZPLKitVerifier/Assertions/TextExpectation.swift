@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// Expectation that specific text exists in the image.
@@ -102,3 +103,4 @@ public struct TextExpectation: Expectation {
         }
     }
 }
+#endif

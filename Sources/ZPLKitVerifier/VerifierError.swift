@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// Errors that can occur during label verification.
@@ -55,3 +56,4 @@ public enum VerifierError: Error, LocalizedError, Sendable {
         }
     }
 }
+#endif

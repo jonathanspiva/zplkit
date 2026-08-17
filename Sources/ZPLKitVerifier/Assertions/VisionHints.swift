@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// Hints to optimize Vision framework detection based on expectations.
@@ -40,3 +41,4 @@ public struct VisionHints: Sendable {
         )
     }
 }
+#endif

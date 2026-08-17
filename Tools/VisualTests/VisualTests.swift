@@ -1,3 +1,12 @@
+// VisualTests depends on ZPLKitVerifier, which is unavailable on watchOS (see
+// Sources/ZPLKitVerifier/ZPLVerifier.swift). It is also a macOS development
+// tool: it writes fixture renders to disk and fetches Labelary comparisons.
+//
+// This file is deliberately NOT named main.swift. A file with that name is
+// compiled in top-level-code mode, where `@main` is rejected, and SwiftPM and
+// xcodebuild disagree about which mode an executable target's main.swift gets.
+// Any other filename is always parse-as-library, so `@main` works in both.
+#if os(macOS)
 import Foundation
 import ZPLKit
 import ZPLKitRenderer
@@ -1370,3 +1379,11 @@ struct VisualTests {
         """
     }
 }
+#else
+@main
+struct VisualTests {
+    static func main() {
+        print("VisualTests is a development tool and only runs on macOS.")
+    }
+}
+#endif
