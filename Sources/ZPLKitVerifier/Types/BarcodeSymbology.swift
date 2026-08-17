@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Vision
 
 /// Barcode symbology types supported by ZPLVerifier.
@@ -119,3 +120,4 @@ public enum BarcodeSymbology: String, Sendable, Codable, Hashable, CaseIterable,
         }
     }
 }
+#endif

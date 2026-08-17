@@ -263,6 +263,11 @@ label even when the encoded data matches.
 
 - Swift 6.3+
 - iOS 26+ / macOS 26+ / tvOS 26+ / watchOS 26+
+- **`ZPLKitVerifier` is unavailable on watchOS.** It is built on Vision, whose
+  Swift API (`DetectBarcodesRequest`, `RecognizeTextRequest`) requires watchOS 27
+  while ZPLKit's floor is 26. The module compiles to an empty module there, so
+  `ZPLKit`, `ZPLKitRenderer`, and `ZPLKitPrinter` all work on watchOS but
+  verification does not.
 
 The floor tracks the newest generally-available OS release rather than the current beta, so ZPLKit installs on a shipping toolchain. It is still deliberately narrow: ZPLKit uses the modern Swift concurrency, Vision, and Network APIs directly rather than carrying back-compatibility shims. If you need wider platform support, pin to a fork rather than expecting older-OS compatibility.
 

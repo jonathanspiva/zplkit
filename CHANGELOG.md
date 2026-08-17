@@ -5,6 +5,35 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-08-17
+
+### Fixed
+
+- **watchOS builds.** `ZPLKitVerifier` used Vision unconditionally, so the
+  package failed to compile for watchOS despite declaring `.watchOS(.v26)`. The
+  Vision module is absent on watchOS under Xcode 26, and under Xcode 27 it
+  imports but its Swift API (`DetectBarcodesRequest`, `RecognizeTextRequest`) is
+  watchOS 27+. Its sources are now behind
+  `#if canImport(Vision) && !os(watchOS)`; the module is empty on watchOS and
+  `ZPLKit`, `ZPLKitRenderer`, and `ZPLKitPrinter` build normally.
+- **`xcodebuild` builds of the package.** `Tools/RenderFixtures` and
+  `Tools/VisualTests` used `@main` inside a file named `main.swift`. That
+  filename is compiled in top-level-code mode, where `@main` is an error, so
+  `xcodebuild -scheme ZPLKit-Package` failed at the Swift 6.3 floor even for
+  macOS. SwiftPM tolerated it, which is why `swift build` never caught it. Both
+  files are renamed after their target, so they compile as parse-as-library.
+  This affects anyone building ZPLKit through Xcode rather than SwiftPM.
+- `Tools/VisualTests` is now `#if os(macOS)`, since it depends on
+  `ZPLKitVerifier` and so could not compile for watchOS.
+
+### Changed
+
+- CI now builds for iOS, tvOS, and watchOS via `xcodebuild -scheme
+  ZPLKit-Package`, matching what Swift Package Index does. Previously only macOS
+  was ever compiled, which is why the watchOS break shipped in 1.0.0. The
+  whole-package scheme matters: the per-product `ZPLKit` scheme builds green on
+  watchOS even when `ZPLKitVerifier` does not compile.
+
 ## [1.0.0] - 2026-08-14
 
 First public release.
@@ -269,4 +298,5 @@ These affect anyone who built against pre-release code:
 - Added a rotation fixture; there was no coverage of field orientation at all,
   which is why the rotated-field anchoring bug went unseen.
 
+[1.0.1]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.1
 [1.0.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.0

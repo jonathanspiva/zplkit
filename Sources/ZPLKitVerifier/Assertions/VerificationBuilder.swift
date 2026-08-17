@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// Result builder for creating verification expectations.
@@ -58,3 +59,4 @@ public struct VerificationBuilder {
         component
     }
 }
+#endif

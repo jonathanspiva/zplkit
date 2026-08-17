@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// Information about content near label edges, indicating potential clipping.
@@ -72,3 +73,4 @@ public struct BoundsInfo: Sendable, Hashable, Codable {
         )
     }
 }
+#endif

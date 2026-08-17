@@ -86,6 +86,39 @@ jobs:
             echo "::error::Only $total tests ran; expected the full suite (~670)"; exit 1
           fi
 
+  # Every platform in Package.swift, actually built. Without this the package
+  # advertised iOS/tvOS/watchOS while only macOS was ever compiled, and watchOS
+  # was in fact broken at 1.0.0 (ZPLKitVerifier imports Vision, which watchOS
+  # does not have). Uses xcodebuild rather than `swift build` because that is
+  # what Swift Package Index runs, so a green job here means a green build
+  # matrix there. No fork gate: hosted runner.
+  cross-platform-build:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iOS, tvOS, watchOS]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      # `ZPLKit-Package` (every target), NOT `ZPLKit`. The per-product `ZPLKit`
+      # scheme builds only that one library, so it passes on watchOS even when
+      # ZPLKitVerifier is broken there. Swift Package Index builds the whole
+      # package, so this job has to as well or it proves nothing.
+      - name: Build for ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -scheme ZPLKit-Package \
+            -destination 'generic/platform=${{ matrix.platform }}' \
+            -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO
+
   build-and-test:
     # push/PR only (a manual dispatch runs just the live-printer job), and never
     # for PRs opened from a fork (see the note above).

@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// A text region detected in a rendered label image.
@@ -37,3 +38,4 @@ public struct DetectedText: Sendable, Hashable, Codable, CustomStringConvertible
         "\"\(text)\""
     }
 }
+#endif

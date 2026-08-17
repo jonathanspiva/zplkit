@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// Expectation that a barcode of a specific type exists in the image.
@@ -116,3 +117,4 @@ public struct BarcodeExpectation: Expectation {
         }
     }
 }
+#endif

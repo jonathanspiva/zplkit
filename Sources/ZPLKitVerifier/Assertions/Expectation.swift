@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// A verification expectation for label content.
@@ -20,3 +21,4 @@ extension Expectation {
     /// requirements can be added without breaking external conformers.
     public var visionHints: VisionHints { .empty }
 }
+#endif

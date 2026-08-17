@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Vision
 import CoreGraphics
 import Foundation
@@ -61,3 +62,4 @@ struct VisionTextScanner {
         return detectedTexts
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if canImport(Vision) && !os(watchOS)
 import Foundation
 
 /// Results from analyzing a rendered label image in discovery mode.
@@ -53,3 +54,4 @@ public struct AnalysisResult: Sendable, Codable, Equatable {
         textRegions.filter { $0.text.localizedCaseInsensitiveContains(substring) }
     }
 }
+#endif
