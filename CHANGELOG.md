@@ -5,6 +5,18 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Linux support for `ZPLKit`.** ZPL generation already worked on Linux (the
+  only platform dependency, the CoreGraphics-backed `Graphic` element, was
+  already behind `#if canImport`), but nothing tested or documented it, so it
+  worked by accident and could have regressed silently. CI now builds the
+  target on `swift:6.3` and asserts that a consumer package renders a label
+  byte-identically to macOS. `ZPLKitRenderer`, `ZPLKitVerifier`, and
+  `ZPLKitPrinter` remain Apple-only.
+
 ## [1.0.1] - 2026-08-17
 
 ### Fixed
