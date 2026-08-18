@@ -12,33 +12,21 @@ git history; hardware findings that are still relevant are written up in
 - [x] Make repo public
 - [x] Submit to Swift Package Index
   ([PackageList#14832](https://github.com/SwiftPackageIndex/PackageList/issues/14832))
-- [ ] **Swap the README badges to Swift Package Index once the platform matrix
-  is green.** Indexing is done (checked 2026-08-17): the package is live and the
-  badge API now answers with real values (`isError: false`, Swift `6.3`). Two
-  things still argue for waiting:
-  - The platforms badge read **`macOS` only** at 1.0.0. Both causes are fixed
-    and released as **1.0.1** (#17): watchOS could not compile at all, and
-    `xcodebuild -scheme ZPLKit-Package` failed at the Swift 6.3 floor on every
-    platform including macOS because two tools put `@main` in `main.swift`.
-    Recheck the matrix once SPI has rebuilt 1.0.1, then swap. Note the badge is
-    per-version, so the v1.0.0 row stays red permanently.
-  - SPI's package page shows "This package's README file couldn't be loaded"
-    even though the raw file serves fine from GitHub. Probably transient at
-    index time, possibly the relative `<img src="logo.svg">` on line 3.
+- [x] **Swap the README badges to Swift Package Index.** Done 2026-08-18 in
+  1.0.3. The Swift and Platforms badges now come from SPI's endpoint API, so
+  they track the manifest instead of going stale.
 
-  Note the old assumption here was wrong: swiftpackageindex.com returns **403 to
-  any scripted fetch** (Cloudflare bot protection), indexed or not. Only the
-  `/api/.../badge` endpoints answer curl. Use a browser to read the page.
+  Two things worth remembering about that matrix:
+  - It is **per version**, so a fix only shows up once it is tagged. The v1.0.0
+    row stays red permanently (watchOS could not compile, and `xcodebuild`
+    failed everywhere; both fixed in 1.0.1).
+  - It now reads `iOS | macOS | visionOS | tvOS | watchOS | Linux | Wasm |
+    Android`. Wasm and Android come free from the host-conditional manifest
+    (a non-Darwin host sees only `ZPLKit`, which builds). They are untested
+    here; the README says so.
 
-  When ready, replace the static Swift/Platforms badges with:
-
-  ```markdown
-  [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjonathanspiva%2Fzplkit%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/jonathanspiva/zplkit)
-  [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjonathanspiva%2Fzplkit%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/jonathanspiva/zplkit)
-  ```
-
-  These track the manifest automatically, so they stop going stale when the
-  floor moves.
+  Also: swiftpackageindex.com returns **403 to any scripted fetch** (Cloudflare),
+  indexed or not. Only the `/api/.../badge` endpoints answer curl.
 
 ### Hardware verification
 These need a physical printer, and they are the last unverified claims in the docs.
