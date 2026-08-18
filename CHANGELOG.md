@@ -12,10 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Linux support for `ZPLKit`.** ZPL generation already worked on Linux (the
   only platform dependency, the CoreGraphics-backed `Graphic` element, was
   already behind `#if canImport`), but nothing tested or documented it, so it
-  worked by accident and could have regressed silently. CI now builds the
-  target on `swift:6.3` and asserts that a consumer package renders a label
-  byte-identically to macOS. `ZPLKitRenderer`, `ZPLKitVerifier`, and
-  `ZPLKitPrinter` remain Apple-only.
+  worked by accident and could have regressed silently.
+
+  `Package.swift` now declares only `ZPLKit` and its tests when the host is not
+  Darwin, so `swift build` and `swift test` both work on Linux instead of
+  failing on the first Apple-only import. This runs the 155-test core suite
+  there; previously no test could run on Linux at all. The Apple package graph
+  is byte-identical to before. `ZPLKitRenderer` (CoreGraphics),
+  `ZPLKitVerifier` (Vision), and `ZPLKitPrinter` (Network) remain Apple-only.
+
+  CI builds and tests on `swift:6.3` and asserts that a consumer package
+  renders a label byte-identically to macOS.
 
 ## [1.0.1] - 2026-08-17
 

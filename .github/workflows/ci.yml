@@ -120,13 +120,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
   # ZPLKit (ZPL generation) is portable: its only platform dependency is the
-  # CoreGraphics-backed Graphic element, already behind `#if canImport`. Nothing
-  # tested that, so it worked by accident and could regress silently. This job
-  # pins it.
+  # CoreGraphics-backed Graphic element, already behind `#if canImport`.
   #
-  # Only the ZPLKit target: ZPLKitRenderer (CoreGraphics), ZPLKitVerifier
-  # (Vision), and ZPLKitPrinter (Network) are Apple-only by design, so neither a
-  # whole-package `swift build` nor `swift test` can run here.
+  # Package.swift declares only ZPLKit and its tests when the host is not
+  # Darwin, so a plain `swift build` / `swift test` works here and actually
+  # exercises the core suite. ZPLKitRenderer (CoreGraphics), ZPLKitVerifier
+  # (Vision), and ZPLKitPrinter (Network) are Apple-only by design and are not
+  # part of the package graph on this runner.
   linux-build:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -138,8 +138,25 @@ jobs:
       - name: Show Swift version
         run: swift --version
 
-      - name: Build ZPLKit for Linux
-        run: swift build --target ZPLKit
+      - name: Build
+        run: swift build
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          swift test 2>&1 | tee "$log"
+          # Same reasoning as the macOS jobs: a green `swift test` does not
+          # prove the suite ran. Assert the count so a truncated run is loud.
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
+          if [ -z "$total" ]; then
+            echo "::error::Could not determine the test count from 'swift test' output"; exit 1
+          fi
+          echo "Total tests run: $total"
+          if [ "$total" -lt 150 ]; then
+            echo "::error::Only $total tests ran; expected the full ZPLKit suite (~155)"; exit 1
+          fi
 
       # Building the target proves it compiles; this proves a Linux consumer can
       # actually depend on the product and get correct ZPL out. The expected

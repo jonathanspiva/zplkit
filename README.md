@@ -263,11 +263,13 @@ label even when the encoded data matches.
 
 - Swift 6.3+
 - iOS 26+ / macOS 26+ / tvOS 26+ / watchOS 26+
-- **Linux**: `ZPLKit` (ZPL generation) builds and runs on Linux with Swift 6.3.
-  Generated ZPL is byte-identical to macOS, and CI verifies this on every push.
-  The other three products are Apple-only by design: `ZPLKitRenderer` needs
-  CoreGraphics, `ZPLKitVerifier` needs Vision, `ZPLKitPrinter` needs Network. So
-  you can build labels on a Linux server, but not preview, verify, or send them.
+- **Linux**: `ZPLKit` (ZPL generation) builds and runs on Linux with Swift 6.3,
+  and its test suite runs there too. Generated ZPL is byte-identical to macOS,
+  and CI verifies both on every push. On a non-Darwin host the package declares
+  only `ZPLKit`, because the other three products are Apple-only by design:
+  `ZPLKitRenderer` needs CoreGraphics, `ZPLKitVerifier` needs Vision, and
+  `ZPLKitPrinter` needs Network. So you can build labels on a Linux server, but
+  not preview, verify, or send them.
 - **`ZPLKitVerifier` is unavailable on watchOS.** It is built on Vision, whose
   Swift API (`DetectBarcodesRequest`, `RecognizeTextRequest`) requires watchOS 27
   while ZPLKit's floor is 26. The module compiles to an empty module there, so
