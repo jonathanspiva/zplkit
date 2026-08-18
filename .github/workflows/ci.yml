@@ -119,6 +119,70 @@ jobs:
             -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO
 
+  # ZPLKit (ZPL generation) is portable: its only platform dependency is the
+  # CoreGraphics-backed Graphic element, already behind `#if canImport`. Nothing
+  # tested that, so it worked by accident and could regress silently. This job
+  # pins it.
+  #
+  # Only the ZPLKit target: ZPLKitRenderer (CoreGraphics), ZPLKitVerifier
+  # (Vision), and ZPLKitPrinter (Network) are Apple-only by design, so neither a
+  # whole-package `swift build` nor `swift test` can run here.
+  linux-build:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container: swift:6.3
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Build ZPLKit for Linux
+        run: swift build --target ZPLKit
+
+      # Building the target proves it compiles; this proves a Linux consumer can
+      # actually depend on the product and get correct ZPL out. The expected
+      # string is byte-identical to what the same program prints on macOS.
+      - name: Generate a label from a consumer package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/consumer/Sources/consumer
+          cd /tmp/consumer
+          # Unquoted heredoc so $GITHUB_WORKSPACE expands to the checkout path.
+          cat > Package.swift <<EOF
+          // swift-tools-version: 6.3
+          import PackageDescription
+          let package = Package(
+              name: "consumer",
+              dependencies: [.package(path: "$GITHUB_WORKSPACE")],
+              targets: [.executableTarget(name: "consumer", dependencies: [.product(name: "ZPLKit", package: "zplkit")])]
+          )
+          EOF
+          cat > Sources/consumer/main.swift <<'EOF'
+          import ZPLKit
+
+          let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+              Text("HELLO LINUX", at: .inches(0.25, 0.2))
+                  .font(.default, height: .inches(0.15))
+              Barcode128("ZPLKIT-1234", at: .inches(0.25, 0.6))?
+                  .height(.inches(0.5))
+                  .showText(true)
+              Box(at: .inches(0.1, 0.1), width: .inches(3.8), height: .inches(1.8))
+                  .thickness(3)
+          }
+          print(label.render())
+          EOF
+          actual="$(swift run 2>/dev/null)"
+          expected='^XA^PW812^LL406^FO51,41^A0N,30,30^FDHELLO LINUX^FS^FO51,122^BY2^BCN,102,Y,N,N^FDZPLKIT-1234^FS^FO20,20^GB771,365,3,B,0^FS^XZ'
+          echo "actual:   $actual"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Linux output does not match the macOS reference"
+            echo "expected: $expected"
+            exit 1
+          fi
+
   build-and-test:
     # push/PR only (a manual dispatch runs just the live-printer job), and never
     # for PRs opened from a fork (see the note above).
