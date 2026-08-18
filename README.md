@@ -2,8 +2,8 @@
 
 <img src="logo.svg" width="128" height="128" alt="ZPLKit logo">
 
-![Swift 6.3+](https://img.shields.io/badge/Swift-6.3+-orange.svg)
-![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS%2026+-blue.svg)
+[![Swift](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjonathanspiva%2Fzplkit%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/jonathanspiva/zplkit)
+[![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjonathanspiva%2Fzplkit%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/jonathanspiva/zplkit)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 [![CI](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathanspiva/zplkit/actions/workflows/ci.yml)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-cc785c)](https://claude.ai/code)
@@ -263,13 +263,17 @@ label even when the encoded data matches.
 
 - Swift 6.3+
 - iOS 26+ / macOS 26+ / tvOS 26+ / watchOS 26+
-- **Linux**: `ZPLKit` (ZPL generation) builds and runs on Linux with Swift 6.3,
-  and its test suite runs there too. Generated ZPL is byte-identical to macOS,
-  and CI verifies both on every push. On a non-Darwin host the package declares
-  only `ZPLKit`, because the other three products are Apple-only by design:
-  `ZPLKitRenderer` needs CoreGraphics, `ZPLKitVerifier` needs Vision, and
-  `ZPLKitPrinter` needs Network. So you can build labels on a Linux server, but
-  not preview, verify, or send them.
+- **Non-Apple platforms get `ZPLKit` only.** On a non-Darwin host the package
+  declares just that one library, because the other three products are
+  Apple-only by design: `ZPLKitRenderer` needs CoreGraphics, `ZPLKitVerifier`
+  needs Vision, and `ZPLKitPrinter` needs Network. You can build labels on a
+  Linux server, but not preview, verify, or send them.
+
+  **Linux** is supported and tested: `ZPLKit` builds and its 155-test suite runs
+  on Swift 6.3, CI checks both on every push, and generated ZPL is
+  byte-identical to macOS. The platforms badge above also lists **Wasm and
+  Android**, which follows from the same reduced package graph. Those build but
+  are not tested here, so treat them as plausible rather than supported.
 - **`ZPLKitVerifier` is unavailable on watchOS.** It is built on Vision, whose
   Swift API (`DetectBarcodesRequest`, `RecognizeTextRequest`) requires watchOS 27
   while ZPLKit's floor is 26. The module compiles to an empty module there, so
