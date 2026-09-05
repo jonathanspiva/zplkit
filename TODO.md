@@ -6,28 +6,6 @@ git history; hardware findings that are still relevant are written up in
 
 ## Now
 
-### Open source release
-- [x] Fold `[Unreleased]` into `[1.0.0]` in the CHANGELOG and set the release date
-- [x] Tag v1.0.0 release (2026-08-14)
-- [x] Make repo public
-- [x] Submit to Swift Package Index
-  ([PackageList#14832](https://github.com/SwiftPackageIndex/PackageList/issues/14832))
-- [x] **Swap the README badges to Swift Package Index.** Done 2026-08-18 in
-  1.0.3. The Swift and Platforms badges now come from SPI's endpoint API, so
-  they track the manifest instead of going stale.
-
-  Two things worth remembering about that matrix:
-  - It is **per version**, so a fix only shows up once it is tagged. The v1.0.0
-    row stays red permanently (watchOS could not compile, and `xcodebuild`
-    failed everywhere; both fixed in 1.0.1).
-  - It now reads `iOS | macOS | visionOS | tvOS | watchOS | Linux | Wasm |
-    Android`. Wasm and Android come free from the host-conditional manifest
-    (a non-Darwin host sees only `ZPLKit`, which builds). They are untested
-    here; the README says so.
-
-  Also: swiftpackageindex.com returns **403 to any scripted fetch** (Cloudflare),
-  indexed or not. Only the `/api/.../badge` endpoints answer curl.
-
 ### Hardware verification
 These need a physical printer, and they are the last unverified claims in the docs.
 
@@ -53,6 +31,27 @@ These need a physical printer, and they are the last unverified claims in the do
   placeholder (a pixel-accurate 4-state encoder needs the USPS-B-3200 reference
   tables), low priority since the printer does the real encoding.
 
+### Toolchain
+
+- [ ] **Re-check both Xcode 27 workarounds once the GA toolchain ships.** Still
+  beta as of 2026-09-04 (Swift 6.4 / swiftlang-6.4.0.33.1, macOS 27 26A5425a),
+  and both workarounds are still load-bearing:
+  - **A bare `swift test` still does not run the whole suite.** Re-measured
+    2026-09-04: it ran **2 of the 4 test targets** and exited 0. Only
+    ZPLKitRendererTests (163) and ZPLKitPrinterTests (245) ran, 408 of the 683
+    tests the package actually has; ZPLKitTests (161) and ZPLKitVerifierTests
+    (114) were silently skipped, and all 683 pass when each target is filtered
+    explicitly. Note this is a **different** subset than the 2026-08-14
+    measurement on 27A5218g, which ran only the first target (244 tests). So
+    the bug is not the stable "first target only" rule the CI comments describe;
+    which targets get dropped varies by build. The per-target loop in
+    `build-and-test` and the total-count assertion both stay until GA runs all
+    683 unfiltered.
+  - **The DocC "unhandled file" warning.** The beta warns that
+    `Sources/ZPLKit/Documentation.docc` is an unhandled file; stable 26.6 handles
+    it correctly. Do NOT declare the catalog as a resource to silence it; just
+    re-check on GA.
+
 ### Tooling and CI
 - [ ] **Consider refreshing the remaining references against current Labelary.**
   35 of the 87 old references are size-identical to Labelary 3.3.0 output, but
@@ -63,24 +62,37 @@ These need a physical printer, and they are the last unverified claims in the do
   regression before adopting it as the baseline.
 - [ ] **Wire the live-printer sweep into the runner's `workflow_dispatch` job.**
   UDP-4201 discovery is hardware-validated, but the sweep isn't automated.
-- [ ] Cosmetic: the Xcode 27 beta warns that `Sources/ZPLKit/Documentation.docc`
-  is an "unhandled file". Stable 26.6 handles it correctly. Do NOT declare the
-  catalog as a resource; just re-check on the Xcode 27 GA toolchain.
+
+### Notes for the next release
+Not tasks, but the two facts that cost time last release and are not recorded
+anywhere else:
+
+- **The Swift Package Index build matrix is per version.** A fix only shows up
+  once it is tagged, so the v1.0.0 row stays red permanently (watchOS could not
+  compile and `xcodebuild` failed everywhere; both fixed in 1.0.1).
+- **swiftpackageindex.com returns 403 to any scripted fetch** (Cloudflare),
+  indexed or not. Only the `/api/.../badge` endpoints answer `curl`, which is
+  what the README badges use. Verified still working 2026-09-04: platforms reads
+  `iOS | macOS | visionOS | tvOS | watchOS | Linux | Wasm | Android`, Swift
+  reads `6.3`.
 
 ## Later
 
-- [ ] **Phase 1a: `query()` -> NetworkConnection.** Replace the NWConnection +
-  `QueryState`-actor machinery in `query()` with the Swift-native
-  `NetworkConnection` async API (`receive`/`send`, `TCP().connectionTimeout`).
-  Verifiable via NetworkRoundTripTests (loopback FakePrinter). Must preserve:
-  single-ETX completion, 3-frame `~HS`, trailing-ETX `^HH` in <0.9s, idle
-  fallback, graceful-close, responseTimeout, prompt cancellation.
-  Note: this applies to `query()` only. Do **not** do the same to `send()`;
-  see the README's "Known Issues" for why that was tried and reverted.
-- [ ] `send()`/`query()` share the global concurrent queue; mass fan-out (60+
-  concurrent sends to unreachable printers) can saturate GCD threads and stall
-  `query()` callbacks (ZPLPrinter.swift). Deferred: needs a bounded-concurrency
-  design (dedicated queue or semaphore), not a spot fix.
+- [ ] **Bound the concurrency of `send()`.** `send()` is now the only thing in
+  `ZPLKitPrinter` still on GCD: it runs its blocking socket work on
+  `DispatchQueue.global()` (ZPLPrinter.swift:146). Mass fan-out (60+ concurrent
+  sends to unreachable printers) can saturate GCD's thread pool, and each one
+  blocks for the full connect timeout. Deferred because it needs a
+  bounded-concurrency design (a dedicated queue or a semaphore), not a spot fix.
+  Note the old framing of this item is out of date: `query()` no longer shares
+  that queue, so the failure mode is starvation of other `send()` calls and of
+  any unrelated global-queue work, not stalled `query()` callbacks.
+- [ ] **`send()` does not observe cancellation once it starts.** It calls
+  `Task.checkCancellation()` before dispatching, then blocks inside a
+  `withCheckedThrowingContinuation` with no cancellation handler, so cancelling
+  the task does not interrupt the connect or the write; the caller waits out the
+  timeout. Bounded (10s by default) rather than unbounded, hence Later. The fix
+  pairs naturally with the bounded-concurrency work above.
 - [ ] **ZPLKit MCP server** - MCP tool server wrapping ZPLKit for use with LLM agents
   - Discover printers, query status, configure, and print labels via natural language
   - Tools: `discover_printers`, `printer_status`, `configure_printer`, `print_label`, `preview_label`

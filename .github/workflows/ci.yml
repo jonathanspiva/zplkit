@@ -68,22 +68,64 @@ jobs:
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 
+      # Lives on the hosted runner rather than the self-hosted one, so that a
+      # fork PR which breaks a documented example actually fails CI. The
+      # self-hosted job is fork-gated, so outside contributors never reached
+      # this check while it lived there.
+      - name: Typecheck examples
+        run: |
+          set -euo pipefail
+          # Products dir holds every built .swiftmodule; layout is stable across
+          # toolchains (unlike the old .build/*/debug/Modules glob, which the
+          # Swift 6.4 / Xcode 27 SPM layout no longer matches).
+          MODDIR="$(swift build --show-bin-path)"
+          # ZPLKit.swiftmodule is a directory bundle (per-arch) under the new
+          # SPM layout, so test for existence (-e), not a regular file (-f).
+          if [ ! -e "$MODDIR/ZPLKit.swiftmodule" ]; then
+            echo "::error::Built ZPLKit module not found in $MODDIR"; exit 1
+          fi
+          fail=0
+          for f in Examples/*.swift; do
+            if swiftc -typecheck -I "$MODDIR" "$f"; then
+              echo "ok: $f"
+            else
+              echo "::error file=$f::Example failed to typecheck against the built module"
+              fail=1
+            fi
+          done
+          exit $fail
+
       - name: Run unit tests
         shell: bash
         run: |
           set -euo pipefail
           log="$(mktemp)"
           swift test 2>&1 | tee "$log"
-          # A green `swift test` does not prove the suite ran: the Xcode 27 beta
-          # silently executed only the first test target and still exited 0
-          # (244 of 670 tests). Assert the count so a truncated run is loud.
+          # A green `swift test` does not prove the suite ran. Two distinct
+          # failure shapes, both observed on this package:
+          #
+          #   * It runs an unstable SUBSET of the test targets and still exits
+          #     0. On the Xcode 27 beta that was 244 of 683 tests (2026-08-14,
+          #     27A5218g) and later 408 of 683 (2026-09-04, 6.4.0.33.1) with a
+          #     different pair of targets dropped each time. It is not a stable
+          #     "first target only" rule.
+          #   * It exits 0 when NO test bundle loads at all. With only the
+          #     Command Line Tools selected, every bundle failed to dlopen
+          #     Testing.framework, all four targets reported failures, and the
+          #     exit code was still 0.
+          #
+          # So assert on the output rather than the exit code: no target
+          # reported failures, and the total is plausible.
+          if grep -q 'Some test targets reported failures' "$log"; then
+            echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
+          fi
           total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
           if [ -z "$total" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
           if [ "$total" -lt 600 ]; then
-            echo "::error::Only $total tests ran; expected the full suite (~670)"; exit 1
+            echo "::error::Only $total tests ran; expected the full suite (683)"; exit 1
           fi
 
   # Every platform in Package.swift, actually built. Without this the package
@@ -119,6 +161,49 @@ jobs:
             -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO
 
+  # `.spi.yml` declares four documentation_targets, but nothing ever built
+  # them, so a DocC break would have surfaced only as missing documentation on
+  # Swift Package Index, after a release. `xcodebuild docbuild` covers it
+  # without taking on the swift-docc-plugin dependency. Hosted runner, no fork
+  # gate.
+  docs-build:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Build documentation
+        run: |
+          set -euo pipefail
+          xcodebuild docbuild \
+            -scheme ZPLKit-Package \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/docs" \
+            -skipMacroValidation
+
+      # A green docbuild is not sufficient on its own: a target that quietly
+      # drops out of the docs build still exits 0. Assert that every target
+      # named in .spi.yml produced an archive, so that is loud here rather than
+      # a blank page on Swift Package Index.
+      - name: Check every .spi.yml documentation target produced an archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail=0
+          for target in ZPLKit ZPLKitRenderer ZPLKitPrinter ZPLKitVerifier; do
+            if find "$RUNNER_TEMP/docs" -type d -name "$target.doccarchive" | grep -q .; then
+              echo "ok: $target.doccarchive"
+            else
+              echo "::error::docbuild produced no $target.doccarchive, but .spi.yml lists it as a documentation target"
+              fail=1
+            fi
+          done
+          exit $fail
+
   # ZPLKit (ZPL generation) is portable: its only platform dependency is the
   # CoreGraphics-backed Graphic element, already behind `#if canImport`.
   #
@@ -138,8 +223,11 @@ jobs:
       - name: Show Swift version
         run: swift --version
 
+      # `-warnings-as-errors` to match the macOS jobs. Without it a Linux-only
+      # warning could not fail CI, which is exactly the gap that let the
+      # watchOS break ship in 1.0.0 on a platform nothing compiled.
       - name: Build
-        run: swift build
+        run: swift build -Xswiftc -warnings-as-errors
 
       - name: Run unit tests
         shell: bash
@@ -148,14 +236,18 @@ jobs:
           log="$(mktemp)"
           swift test 2>&1 | tee "$log"
           # Same reasoning as the macOS jobs: a green `swift test` does not
-          # prove the suite ran. Assert the count so a truncated run is loud.
+          # prove the suite ran, and it exits 0 even when a target fails to
+          # load. Assert on the output, not the exit code.
+          if grep -q 'Some test targets reported failures' "$log"; then
+            echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
+          fi
           total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
           if [ -z "$total" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
           if [ "$total" -lt 150 ]; then
-            echo "::error::Only $total tests ran; expected the full ZPLKit suite (~155)"; exit 1
+            echo "::error::Only $total tests ran; expected the full ZPLKit suite (155)"; exit 1
           fi
 
       # Building the target proves it compiles; this proves a Linux consumer can
@@ -220,40 +312,23 @@ jobs:
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 
-      - name: Typecheck examples
-        run: |
-          set -euo pipefail
-          # Products dir holds every built .swiftmodule; layout is stable across
-          # toolchains (unlike the old .build/*/debug/Modules glob, which the
-          # Swift 6.4 / Xcode 27 SPM layout no longer matches).
-          MODDIR="$(swift build --show-bin-path)"
-          # ZPLKit.swiftmodule is a directory bundle (per-arch) under the new
-          # SPM layout, so test for existence (-e), not a regular file (-f).
-          if [ ! -e "$MODDIR/ZPLKit.swiftmodule" ]; then
-            echo "::error::Built ZPLKit module not found in $MODDIR"; exit 1
-          fi
-          fail=0
-          for f in Examples/*.swift; do
-            if swiftc -typecheck -I "$MODDIR" "$f"; then
-              echo "ok: $f"
-            else
-              echo "::error file=$f::Example failed to typecheck against the built module"
-              fail=1
-            fi
-          done
-          exit $fail
-
       # Do NOT collapse this back to a bare `swift test`.
       #
-      # On the Xcode 27 beta toolchain (verified 2026-08-14 against
-      # 27A5218g / Swift 6.4), an unfiltered `swift test` executes only the
-      # FIRST test target and still exits 0: it reported "244 tests in 6
-      # suites passed" while the package actually has 670 tests in 73 suites.
-      # The other three targets (ZPLKitTests, ZPLKitRendererTests,
-      # ZPLKitVerifierTests) were silently never run, so a regression in any
-      # of them could not fail CI. All 670 pass when each target is invoked
-      # explicitly, and the stable Swift 6.3 toolchain runs all 670 from a
-      # bare `swift test`. This is a beta SPM bug, not a package problem.
+      # On the Xcode 27 beta toolchain an unfiltered `swift test` runs only
+      # SOME of the test targets and still exits 0. Measured twice on this
+      # package, with a different subset each time:
+      #
+      #   * 2026-08-14 (27A5218g / Swift 6.4): only the first target ran,
+      #     "244 tests in 6 suites passed".
+      #   * 2026-09-04 (swiftlang-6.4.0.33.1): two of four ran, 408 tests
+      #     (ZPLKitRendererTests 163 + ZPLKitPrinterTests 245); ZPLKitTests
+      #     (161) and ZPLKitVerifierTests (114) were silently skipped.
+      #
+      # So it is not a stable "first target only" rule and cannot be worked
+      # around by reordering. The package has 683 tests in 76 suites; all 683
+      # pass when each target is invoked explicitly, and the stable Swift 6.3
+      # toolchain runs all 683 from a bare `swift test`. Beta SPM bug, not a
+      # package problem.
       #
       # Targets are derived from `swift test list` rather than hardcoded, so a
       # newly added test target is picked up automatically. Revisit once the
@@ -282,6 +357,12 @@ jobs:
             if grep -q 'No matching test cases were run' "$log"; then
               echo "::error::Filter '$target' matched no tests"; exit 1
             fi
+            # Likewise, a bundle that fails to load reports failures and still
+            # exits 0 (seen when the selected toolchain has no
+            # Testing.framework), so the exit code alone proves nothing.
+            if grep -q 'Some test targets reported failures' "$log"; then
+              echo "::error::Target '$target' reported failures ('swift test' still exited 0)"; exit 1
+            fi
             n="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
             if [ -z "$n" ]; then
               echo "::error::Could not determine test count for '$target'"; exit 1
@@ -289,9 +370,9 @@ jobs:
             total=$(( total + n ))
           done
           echo "Total tests run: $total"
-          # Backstop against the beta's silent single-target run (244 of 670).
+          # Backstop against the beta's silent partial run (244, then 408, of 683).
           if [ "$total" -lt 600 ]; then
-            echo "::error::Only $total tests ran; expected the full suite (~670)"; exit 1
+            echo "::error::Only $total tests ran; expected the full suite (683)"; exit 1
           fi
 
   visual-tests:
@@ -312,7 +393,7 @@ jobs:
         run: swift build -c release
 
       # Fails on render failures or if the reference-image accuracy drops
-      # below the threshold. Currently 90.9% across all 124 fixtures; the
+      # below the threshold. Currently 90.9% across all 125 fixtures; the
       # earlier 92.2% was measured over only 87, twelve of which had
       # wrong-sized references that inflated it.
       - name: Run visual tests with Labelary comparison and scoring

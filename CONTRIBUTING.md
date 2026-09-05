@@ -75,15 +75,21 @@ swift run BarcodePrintTest --help
 
 The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#require`, `@Suite`), not XCTest. New tests must be written in that style. Prefer `@Test(arguments:)` parameterized tables for repetitive cases, and `@Test(.disabled("reason"))` for tracked skips.
 
-> **Xcode 27 beta: `swift test` does not run the whole suite.** On the Xcode 27
-> beta toolchain (confirmed on 27A5218g / Swift 6.4, 2026-08-14), a bare
-> `swift test` executes only the **first** test target and still exits 0,
-> reporting that target's count as if it were the whole suite. When this was
-> found it ran 244 of 670 tests, silently skipping three of the four targets.
-> All of them pass when each target is run explicitly, and the stable Swift 6.3
-> toolchain runs the full suite from a bare `swift test`, so this is a toolchain
-> bug rather than a package problem. On stable you can just run `swift test`; on
-> the beta, run each target:
+> **A green `swift test` does not mean the suite ran.** Check the reported test
+> counts, not the exit code. The package has **683 tests** in 76 suites:
+> ZPLKitTests 161, ZPLKitRendererTests 163, ZPLKitPrinterTests 245,
+> ZPLKitVerifierTests 114. Two ways a run can come back green having tested
+> much less, or nothing:
+>
+> **1. Xcode 27 beta runs only some of the test targets.** Measured twice, with
+> a different subset each time: 244 of 683 on 27A5218g (2026-08-14, first
+> target only) and 408 of 683 on swiftlang-6.4.0.33.1 (2026-09-04,
+> ZPLKitRendererTests and ZPLKitPrinterTests only). It is not a stable "first
+> target only" rule, so you cannot work around it by reordering. All 683 pass
+> when each target is run explicitly, and the stable Swift 6.3 toolchain runs
+> the full suite from a bare `swift test`, so this is a toolchain bug rather
+> than a package problem. On stable, `swift test` is fine; on the beta, run
+> each target:
 >
 > ```bash
 > for t in ZPLKitTests ZPLKitRendererTests ZPLKitVerifierTests ZPLKitPrinterTests; do
@@ -92,7 +98,20 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 > ```
 >
 > Note that `swift test --filter` **also exits 0 when a filter matches nothing**
-> ("No matching test cases were run"), so check the reported test counts.
+> ("No matching test cases were run").
+>
+> **2. No toolchain selected means no tests run, silently.** With only the
+> Command Line Tools active (no Xcode selected), every test bundle fails to
+> load `Testing.framework`, all four targets report failures, and `swift test`
+> **still exits 0**. If you keep both Xcodes installed, select one explicitly:
+>
+> ```bash
+> export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer       # stable
+> export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer  # beta
+> ```
+>
+> CI guards both cases by asserting on the output rather than the exit code: it
+> fails on `Some test targets reported failures` and on an implausible total.
 >
 > One other beta artifact: `swift build` warns that
 > `Sources/ZPLKit/Documentation.docc` is an "unhandled file". The stable
