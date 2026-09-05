@@ -5,6 +5,73 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-09-05
+
+No library code changed in this release. It corrects documentation that had
+drifted from the code and closes the CI gaps that let that drift, and two build
+breaks before it, go unnoticed.
+
+### Fixed
+
+- **`^SN` is documented as unrendered.** `ZPLKitRenderer` has no `^SN` case, so
+  a `SerialNumber` element contributes *nothing* to a rendered preview: the
+  field silently disappears. It appeared in neither the renderer's "Supported"
+  nor its "Not implemented" list, so nothing warned you. Printed labels are
+  unaffected, since the printer performs the substitution. `^FX` and `^PR` are
+  also unhandled, correctly so, and are now listed too.
+- **`^GFB` is not unimplemented.** It sat in the "Not implemented" table, but
+  `GraphicParser` does decode binary `^GF`. The row described a real
+  limitation (payload bytes equal to `^` or `~` truncate the command), so it is
+  now a caveat rather than a missing feature.
+- **Font `A` does not fall back to Font 0.** It maps to its own slot, which
+  defaults to the system face Menlo. Only `B`-`Z` fall back to Font 0.
+- `^XA` and `^XZ` were listed as supported commands. They have no parser case
+  either; they are label delimiters with nothing to draw.
+- The README's printer-discovery example broke out of `for await` without
+  calling `stop()`, the pattern `ZPLPrinterBrowser`'s own documentation warns
+  against.
+- Three 1.0.0 changelog entries described API that never shipped:
+  `printNetworkConfigLabel()`, an "idle timeout for automatic connection
+  cleanup", and the pre-rename `Barcode`/`Text` expectation types. (The same
+  release notes removing the idle-timeout claim from the README; it survived
+  here.)
+- `Fixtures.md` had the fixture metadata shape wrong three ways, and
+  contradicted itself on two of them: keys carry no `.zpl` extension, the DPI
+  field is `dpi` rather than `dpiValue`, and `features` holds ZPL command
+  tokens (`"^BC"`) rather than prose names. Its `Fixture` struct also omitted
+  `expectedBarcodes`, which a later snippet in the same article used.
+- `GettingStarted.md` omitted the public `DPI.dpi200` case and `^CI`, which
+  `ZPLLabel.render()` always emits.
+- `BarcodeSymbology`'s documentation attributed macOS 26 to the Vision API. The
+  Swift-native Vision API shipped in iOS 18 / macOS 15; 26 is ZPLKit's own
+  platform floor.
+- Linux is now offered in the bug-report template, and the pull-request
+  template no longer points at a `[Unreleased]` changelog section that does not
+  exist.
+
+### Changed
+
+- **CI no longer trusts `swift test`'s exit code.** It exits 0 in two
+  situations where nothing meaningful ran: when it executes an unstable subset
+  of the test targets (244 of 683 on one Xcode 27 beta, 408 of 683 on a later
+  one, with a different subset dropped each time), and when *no* test bundle
+  loads at all (with only the Command Line Tools selected, every bundle fails
+  to load Testing.framework, every target reports failure, and the exit code is
+  still 0). Every test step now fails on `Some test targets reported failures`
+  alongside the existing count assertion.
+- **The examples typecheck moved to the hosted runner.** It ran only in the
+  fork-gated self-hosted job, so a fork PR that broke a documented example got
+  a green CI. Moving it surfaced that the step had been broken all along: it
+  hardcoded the Swift 6.4 module location, while Swift 6.3 writes
+  `.swiftmodule` files to `<bin-path>/Modules`. It now probes both.
+- **The Linux job builds with `-Xswiftc -warnings-as-errors`**, matching the
+  macOS jobs. A Linux-only warning previously could not fail CI.
+- **New `docs-build` job.** `.spi.yml` declares four `documentation_targets`
+  that nothing ever built, so a DocC break would have surfaced only as missing
+  documentation on Swift Package Index, after a release. The job runs
+  `xcodebuild docbuild` and asserts all four archives are produced, without
+  taking on the swift-docc-plugin dependency.
+
 ## [1.0.3] - 2026-08-18
 
 ### Added
