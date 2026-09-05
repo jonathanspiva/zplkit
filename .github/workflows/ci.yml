@@ -75,18 +75,31 @@ jobs:
       - name: Typecheck examples
         run: |
           set -euo pipefail
-          # Products dir holds every built .swiftmodule; layout is stable across
-          # toolchains (unlike the old .build/*/debug/Modules glob, which the
-          # Swift 6.4 / Xcode 27 SPM layout no longer matches).
-          MODDIR="$(swift build --show-bin-path)"
-          # ZPLKit.swiftmodule is a directory bundle (per-arch) under the new
-          # SPM layout, so test for existence (-e), not a regular file (-f).
-          if [ ! -e "$MODDIR/ZPLKit.swiftmodule" ]; then
-            echo "::error::Built ZPLKit module not found in $MODDIR"; exit 1
+          # Where SwiftPM puts .swiftmodule files depends on the toolchain, so
+          # probe rather than assume. Swift 6.3 / Xcode 26 writes them to
+          # <bin-path>/Modules; the Swift 6.4 / Xcode 27 layout writes them to
+          # <bin-path> itself. This step used to hardcode the latter, which is
+          # why it only ever passed on the self-hosted beta runner.
+          BIN="$(swift build --show-bin-path)"
+          MODDIR=""
+          for candidate in "$BIN/Modules" "$BIN"; do
+            # ZPLKit.swiftmodule is a directory bundle (per-arch) under the
+            # newer layout, so test for existence (-e), not a file (-f).
+            if [ -e "$candidate/ZPLKit.swiftmodule" ]; then
+              MODDIR="$candidate"; break
+            fi
+          done
+          if [ -z "$MODDIR" ]; then
+            found="$(find .build -maxdepth 6 -name 'ZPLKit.swiftmodule' -print -quit 2>/dev/null || true)"
+            if [ -n "$found" ]; then MODDIR="$(dirname "$found")"; fi
           fi
+          if [ -z "$MODDIR" ]; then
+            echo "::error::Built ZPLKit module not found under $BIN or .build"; exit 1
+          fi
+          echo "Using module search path: $MODDIR"
           fail=0
           for f in Examples/*.swift; do
-            if swiftc -typecheck -I "$MODDIR" "$f"; then
+            if swiftc -typecheck -I "$MODDIR" -I "$BIN" "$f"; then
               echo "ok: $f"
             else
               echo "::error file=$f::Example failed to typecheck against the built module"
