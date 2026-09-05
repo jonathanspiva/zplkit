@@ -19,5 +19,5 @@
 
 - [ ] Tests added or updated for the change
 - [ ] Public API changes have doc comments
-- [ ] `CHANGELOG.md` updated under `[Unreleased]` if user-facing
+- [ ] `CHANGELOG.md` updated if user-facing (add an `[Unreleased]` section at the top if there isn't one)
 - [ ] PR is focused on a single feature or fix

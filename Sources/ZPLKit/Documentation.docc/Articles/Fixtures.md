@@ -51,20 +51,21 @@ Each ZPL file includes a description comment:
 
 ```json
 {
-  "shipping_label_4x6_203.zpl": {
-    "description": "Standard 4x6 shipping label...",
+  "shipping_4x6_300": {
     "category": "shipping",
-    "features": ["text", "barcode128", "qr", "box"],
-    "size": "4x6",
-    "dpiValue": 203,
+    "description": "Shipping label on 4x6 at 300 DPI. From/to addresses, tracking number, service type, weight, and Code 128 barcode. Higher resolution version.",
+    "dpi": 300,
     "expectedBarcodes": [
-      {
-        "symbology": "code128",
-        "payload": "1Z999AA10123456784"
-      }
-    ]
+      { "payload": "1Z999AA10123456784", "symbology": "code128" },
+      { "payload": "1Z999AA10123456784", "symbology": "qr" }
+    ],
+    "features": ["^BC", "^A0", "^GB"],
+    "size": "4x6"
   }
 }
+
+The key is the fixture's bare name. The ZPL for it lives at
+`fixtures/<key>.zpl` and its reference image at `reference/<key>.png`.
 ```
 
 ### Fields
@@ -73,9 +74,9 @@ Each ZPL file includes a description comment:
 |-------|------|-------------|
 | `description` | string | Human-readable description |
 | `category` | string | Fixture category |
-| `features` | array | ZPL features used |
+| `features` | array | ZPL command tokens the fixture exercises (e.g. `"^BC"`, `"^GB"`) |
 | `size` | string | Label dimensions (e.g., "4x6") |
-| `dpiValue` | number | Printer DPI (203, 300, 600) |
+| `dpi` | number | Printer DPI (203, 300, 600) |
 | `expectedBarcodes` | array | Barcodes that should be detected |
 | `knownLimitations` | string | Notes about Vision framework limitations |
 
@@ -91,11 +92,17 @@ the directory) and read them from disk:
 // Point at your checkout of zplkit.
 let root = URL(filePath: "/path/to/zplkit/Tests/VisualTestHarness")
 
+struct ExpectedBarcode: Decodable {
+    let payload: String
+    let symbology: String
+}
+
 struct Fixture: Decodable {
     let category: String
     let description: String
     let dpi: Int
     let size: String
+    let expectedBarcodes: [ExpectedBarcode]?
 }
 
 let metadata = try JSONDecoder().decode(
@@ -119,11 +126,12 @@ let barcodeFixtures = metadata.filter { $0.value.category == "barcode" }
 ### Verify barcode rendering
 
 ```swift
-for (filename, meta) in metadata where !meta.expectedBarcodes.isEmpty {
-    let zpl = loadFixture(filename)
+for (name, meta) in metadata {
+    guard let expectedBarcodes = meta.expectedBarcodes, !expectedBarcodes.isEmpty else { continue }
+    let zpl = loadFixture(name)
     let image = try renderer.render(zpl)
 
-    for expected in meta.expectedBarcodes {
+    for expected in expectedBarcodes {
         // Use Vision framework to verify barcode renders correctly
         let detected = try detectBarcodes(in: image)
         #expect(detected.contains { $0.payload == expected.payload })

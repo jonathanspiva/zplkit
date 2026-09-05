@@ -161,6 +161,7 @@ try await printer.send(label.render())
 let browser = ZPLPrinterBrowser()
 for await discovered in browser.printers {
     try await ZPLPrinter.send(zpl, to: discovered)
+    browser.stop()   // releases the socket and finishes the stream
     break
 }
 ```
@@ -235,10 +236,13 @@ generates plus the common ones you meet in hand-written ZPL. Anything not listed
 is ignored rather than rejected, so a label using it still renders, just without
 that effect.
 
-**Supported:** `^XA` `^XZ` `^PW` `^LL` `^LH` `^PO` `^PQ` `^MD` `^FO` `^FT` `^FS`
+**Supported:** `^PW` `^LL` `^LH` `^PO` `^PQ` `^MD` `^FO` `^FT` `^FS`
 `^FD` `^FH` `^FR` `^FB` `^FW` `^A` `^CF` `^BY` `^GB` `^GC` `^GD` `^GE` `^GF`,
 and the barcode commands `^BC` `^B3` `^BQ` `^BX` `^B7` `^B2` `^BE` `^B8` `^BU`
 `^B9` `^B0` `^BZ`.
+
+`^XA` and `^XZ` are label delimiters with nothing to draw, so the parser skips
+them like any other unrecognized command.
 
 **Not implemented** (parsed and skipped):
 
@@ -247,16 +251,23 @@ and the barcode commands `^BC` `^B3` `^BQ` `^BX` `^B7` `^B2` `^BE` `^B8` `^BU`
 | `^LR` | Reverses print for every field | Fields render normally. Labelary ignores this too, so there is no reference to validate against |
 | `^CI` | Selects the character encoding | Field data is always treated as UTF-8, which is what ZPLKit emits (with `^CI28`) |
 | `^CC` / `^CT` | Changes the `^` / `~` command prefix characters | A label that remaps its prefixes will not parse at all |
-| `^GFB` with raw binary | Embeds an uncompressed bitmap | Payload bytes equal to `^` (0x5E) or `~` (0x7E) terminate the command early and corrupt the image. Inherent to string-based parsing; use `^GFA` or `^GFC` instead |
+| `^SN` | Prints an auto-incrementing serial number | **The field is missing from the preview entirely.** Serial substitution happens in the printer, and the preview has no equivalent, so a `SerialNumber` element contributes nothing to the rendered image. The printed label is unaffected |
+| `^PR` | Sets print and slew speed | Nothing to draw; speed has no visual equivalent |
+| `^FX` | Comment | Ignored, exactly as the printer ignores it |
 
-The interpretation line under a barcode is drawn in a generic font rather than
-the printer's OCR-B-style face, so its glyphs and spacing differ from a printed
-label even when the encoded data matches.
+Two further caveats about commands that *are* implemented:
+
+- **`^GF` in raw binary form (`^GFB`)** decodes, but any payload byte equal to
+  `^` (0x5E) or `~` (0x7E) terminates the command early and corrupts the image.
+  That is inherent to string-based parsing; use `^GFA` or `^GFC` instead.
+- The interpretation line under a barcode is drawn in a generic font rather than
+  the printer's OCR-B-style face, so its glyphs and spacing differ from a printed
+  label even when the encoded data matches.
 
 ## Known Limitations
 
 - **DataMatrix and Intelligent Mail** generate valid ZPL but render as labeled placeholder boxes in the renderer *preview* (CoreImage has no DataMatrix generator, and a pixel-accurate Intelligent Mail preview encoder isn't implemented); the printer encodes both from the ZPL. Note: Intelligent Mail generation is spec-correct (`^BZ` postal type 3, with the Barcode Identifier validated), but a printed symbol's **scannability has not yet been confirmed with an IMb-capable scanner**.
-- **Fonts**: only Font 0 (Roboto Condensed Bold) is bundled. Any other font selection falls back to Font 0 in the renderer preview.
+- **Fonts**: only Font 0 (Roboto Condensed Bold) is bundled. Font `A` renders in a system fallback face (Menlo by default); every other font letter falls back to Font 0. Configure this with `FontConfiguration`.
 - **2D barcode previews**: QR, PDF417, Aztec, and Code 128 rendering depend on CoreImage, so preview rendering of those symbologies requires an Apple platform.
 
 ## Requirements
