@@ -28,7 +28,7 @@ have been replaced with placeholder values; every other byte is as-emitted.) The
 `PrinterInfo` / `PrinterStatus` / `MemoryStatus` / `PrinterSettings` extract the
 correct values from the exact bytes these firmwares emit (e.g. ZM400 reports
 `darkness 30, 2 IPS, 812-dot width, thermal-transfer`, GX420t reports
-`darkness 15, 4 IPS, 816-dot width, direct-thermal, serial 50J000000001`. This
+`darkness 15, 4 IPS, 816-dot width, direct-thermal, serial 50J000000001`). This
 layer runs on every CI build with no printer attached, so parser regressions
 against real-firmware output are caught automatically.
 

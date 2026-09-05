@@ -133,16 +133,16 @@ These affect anyone who built against pre-release code:
 - **Memory status**: `queryMemory()` for `~HM` (Host Memory) response parsing
 - **Configuration**: `PrinterConfiguration` with type-safe enums, presets, and `apply`/`setup` methods
 - **Diagnostics**: combined status, info, memory, and settings in one call
-- **Test pages**: `printConfigurationLabel()`, `printNetworkConfigLabel()`
+- **Test pages**: `printConfigurationLabel()`
 - Structured response types: `PrinterStatus`, `PrinterInfo`, `MemoryStatus`
-- Async/await API with configurable connection and response timeouts, plus an idle timeout for automatic connection cleanup
+- Async/await API with a configurable connection timeout and a per-call response timeout
 
 #### ZPLKitVerifier (Label Verification)
 - Barcode detection via Vision framework (Code128, QR, Code39, EAN-13, Aztec, PDF417, etc.), covering all 24 Vision symbologies
 - Text OCR via the Swift-native `RecognizeTextRequest`
 - **Discovery mode**: `analyze()` to discover all barcodes and text in an image
 - **Assertion mode**: `verify()` with a declarative expectations DSL
-- Expectation types: `Barcode(symbology, exactly/containing:)`, `Text(exactly/containing:)`
+- Expectation types: `BarcodeExpectation(symbology)` / `(symbology, containing:)` / `(symbology, exactly:)`, and `TextExpectation(substring)` / `(exactly:)`
 - Vision hints optimization for faster detection
 - Bounds/clipping detection for edge content
 - Result types: `AnalysisResult`, `VerificationResult`, `DetectedBarcode`, `DetectedText`

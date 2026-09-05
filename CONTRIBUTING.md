@@ -37,7 +37,7 @@ Sources/
 ├── ZPLKit/           # Core label generation (no dependencies)
 │   ├── Elements/     # Text, Barcode128, Box, QRCode, etc.
 │   ├── Types/        # DPI, Dimension, Position, Rotation
-│   └── Internal/     # String escaping utilities
+│   └── Internal/     # String escaping, barcode checksums, character validation
 ├── ZPLKitRenderer/   # ZPL parsing and PNG rendering
 │   ├── Parser/       # ZPL string parsing
 │   ├── Barcodes/     # Barcode pattern generation

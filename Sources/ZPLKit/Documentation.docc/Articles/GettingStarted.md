@@ -202,6 +202,7 @@ let command = PrinterCommand.printNetworkConfig.zpl  // "~WL"
 | DPI | Dots per mm | Use case |
 |-----|-------------|----------|
 | `.dpi152` | 6 dpmm | Economy printers |
+| `.dpi200` | ~8 dpmm | Compatibility alias for printers labeled "200dpi" (ZM400-200dpi, GX420t-200dpi); the printhead is really 203 |
 | `.dpi203` | 8 dpmm | Most common |
 | `.dpi300` | 12 dpmm | High quality |
 | `.dpi600` | 24 dpmm | Ultra high resolution |
@@ -210,7 +211,7 @@ let command = PrinterCommand.printNetworkConfig.zpl  // "~WL"
 
 | Category | Commands |
 |----------|----------|
-| **Label Format** | `^XA` `^XZ` `^PW` `^LL` `^LH` `^LRY` |
+| **Label Format** | `^XA` `^XZ` `^PW` `^LL` `^LH` `^LRY` `^CI` |
 | **Text & Fonts** | `^A` `^CF` `^FD` `^FS` `^FB` `^FH` `^FR` `^FT` |
 | **1D Barcodes** | `^BC` `^B3` `^BE` `^B8` `^BU` `^B9` `^B2` `^BZ` `^BY` |
 | **2D Barcodes** | `^BQ` `^BX` `^B7` `^B0` |

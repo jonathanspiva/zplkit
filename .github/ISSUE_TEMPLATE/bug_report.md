@@ -31,7 +31,7 @@ What actually happened. Include any error messages or incorrect output.
 
 - ZPLKit version:
 - Swift version:
-- Platform: (macOS / iOS / tvOS / watchOS)
+- Platform: (macOS / iOS / tvOS / watchOS / visionOS / Linux)
 - OS version:
 
 ## Additional Context
