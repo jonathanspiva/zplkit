@@ -309,3 +309,69 @@ struct UPCEFieldDataTests {
         #expect(!fieldData("1234565").contains("^FD123456^FS"))
     }
 }
+
+// MARK: - Foundation-free string replacement
+
+@Suite("replacingAll")
+struct ReplacingAllTests {
+
+    @Test(arguments: [
+        // (receiver, target, replacement, expected)
+        ("PRICE>5", ">", ">0", "PRICE>05"),
+        ("a>b>c", ">", ">0", "a>0b>0c"),
+        ("no matches here", "^", "_5E", "no matches here"),
+        ("", ">", ">0", ""),
+        (">", ">", ">0", ">0"),
+        (">>", ">", ">0", ">0>0"),           // adjacent matches
+        ("1,234,567", ",", "", "1234567"),   // deletion
+        ("xax", "a", "bb", "xbbx"),
+        ("aaa", "a", "aa", "aaaaaa"),        // replacement CONTAINS target: must not rescan
+        ("\r\n\r\n", "\r\n", "\n", "\n\n"),  // multi-character target
+        ("abcabc", "abc", "x", "xx"),
+        ("start", "start", "end", "end"),    // whole receiver
+    ])
+    func replaces(input: String, target: String, replacement: String, expected: String) {
+        #expect(input.replacingAll(target, with: replacement) == expected)
+    }
+
+    // An empty target would otherwise interleave the replacement between every
+    // character, or loop forever. Foundation returns the receiver unchanged.
+    @Test("An empty target returns the receiver unchanged")
+    func emptyTarget() {
+        #expect("abc".replacingAll("", with: "X") == "abc")
+        #expect("".replacingAll("", with: "X") == "")
+    }
+
+    // The helper replaced Foundation's `replacingOccurrences(of:with:)`. The
+    // test target may still import Foundation, so assert the two agree rather
+    // than trusting that they do. If they ever diverge, the ZPL escaping paths
+    // that depend on this are the first thing to break.
+    @Test(arguments: [
+        ("PRICE>5", ">", ">0"),
+        ("a>b>c>", ">", ">0"),
+        ("", ">", ">0"),
+        (">>>", ">", ">0"),
+        ("aaa", "a", "aa"),
+        ("1,234,567", ",", ""),
+        ("line\r\nbreak\nhere", "\r\n", "\n"),
+        ("back\\slash", "\\", "\\\\"),
+        ("nothing", "zzz", "!"),
+        ("^~_", "^", "_5E"),
+    ])
+    func matchesFoundation(input: String, target: String, replacement: String) {
+        #expect(
+            input.replacingAll(target, with: replacement)
+                == input.replacingOccurrences(of: target, with: replacement)
+        )
+    }
+
+    // Works on Substring too, since the extension is on StringProtocol and the
+    // template substitution path slices as it scans.
+    @Test("Works on a Substring receiver")
+    func substringReceiver() {
+        let full = "keep>drop"
+        let tail = full.dropFirst(4)   // ">drop"
+        #expect(tail == ">drop", "fixture must still contain the target")
+        #expect(tail.replacingAll(">", with: ">0") == ">0drop")
+    }
+}

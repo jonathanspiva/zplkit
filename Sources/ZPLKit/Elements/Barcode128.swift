@@ -121,7 +121,7 @@ public struct Barcode128: ZPLElement, Equatable, Hashable {
         // never touches `>` or digits, so the two transforms don't interfere.
         // Verified on hardware (ZM400 V53, GX420t V56, 2026-07-23): raw "PRICE>5"
         // decodes to "PRICE"; the escaped form decodes to "PRICE>5".
-        let invocationSafe = data.replacingOccurrences(of: ">", with: ">0")
+        let invocationSafe = data.replacingAll(">", with: ">0")
         let (needsHex, escapedData) = escapeZPLFieldData(invocationSafe)
 
         var result = "^FO\(pos.x),\(pos.y)"

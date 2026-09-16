@@ -46,3 +46,31 @@ func escapeZPLFieldData(_ string: String) -> (needsHexMode: Bool, escaped: Strin
 
     return (needsHexMode, result)
 }
+
+/// Replaces every non-overlapping occurrence of `target` with `replacement`.
+///
+/// This exists so the ZPL-generation core stays free of Foundation.
+/// `String.replacingOccurrences(of:with:)` is a Foundation API, and several
+/// files here used to reach it only because *another* file in the module
+/// imported Foundation and the import leaked across the module. That made the
+/// core unbuildable for WebAssembly, where the Foundation module in the Swift
+/// SDK need not match the host compiler.
+///
+/// Semantics match the Foundation call for the literal, non-regex case: a scan
+/// from the start taking the earliest match each time, so replacements never
+/// overlap and the replacement text is never re-scanned. An empty `target`
+/// returns the receiver unchanged rather than interleaving.
+extension StringProtocol {
+    func replacingAll(_ target: String, with replacement: String) -> String {
+        guard !target.isEmpty else { return String(self) }
+        var result = ""
+        var rest = self[...]
+        while let match = rest.firstRange(of: target) {
+            result += rest[..<match.lowerBound]
+            result += replacement
+            rest = rest[match.upperBound...]
+        }
+        result += rest
+        return result
+    }
+}
