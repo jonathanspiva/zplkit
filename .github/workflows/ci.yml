@@ -355,7 +355,22 @@ jobs:
           }
           print(label.render())
           EOF
-          actual="$(swift run 2>/dev/null)"
+          # Keep stderr. Redirecting it to /dev/null here meant a BUILD failure
+          # in this step produced no diagnostic at all: `set -e` aborted on the
+          # failed assignment before anything was echoed, so the log showed only
+          # "exit code 1" with no compiler output to explain it.
+          err="$(mktemp)"
+          if ! actual="$(swift run 2>"$err")"; then
+            echo "::error::The consumer package failed to build or run on Linux"
+            echo "--- swift run stderr ---"
+            cat "$err"
+            exit 1
+          fi
+          # Warnings are worth seeing even on success.
+          if [ -s "$err" ]; then
+            echo "--- swift run stderr (non-fatal) ---"
+            cat "$err"
+          fi
           expected='^XA^PW812^LL406^FO51,41^A0N,30,30^FDHELLO LINUX^FS^FO51,122^BY2^BCN,102,Y,N,N^FDZPLKIT-1234^FS^FO20,20^GB771,365,3,B,0^FS^XZ'
           echo "actual:   $actual"
           if [ "$actual" != "$expected" ]; then
