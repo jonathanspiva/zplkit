@@ -208,6 +208,12 @@ breaks before it, go unnoticed.
 
 ## [1.0.0] - 2026-08-14
 
+> **Erratum.** The *Internal* entry below claiming CI "ran only a third of the
+> test suite", because a bare `swift test` "executes only the first test target
+> and exits 0 (244 of 670 tests)", was never real. It was a test-counting bug
+> in CI, not a toolchain bug; see the *Corrected* section of [1.0.5]. The
+> original text is left unedited.
+
 First public release.
 
 ### Breaking changes
@@ -448,7 +454,7 @@ These affect anyone who built against pre-release code:
 - The test suite uses the Swift Testing framework throughout (no XCTest). Repetitive barcode-validity, clamping, parser-per-command, and verification matrices are parameterized into `@Test(arguments:)` tables. Coverage was preserved per target; the formerly hidden `SKIP`-prefixed Data Matrix test is now a tracked `@Test(.disabled(...))` skip.
 - CI ran only a third of the test suite. On the Xcode 27 beta toolchain a bare
   `swift test` executes only the first test target and exits 0 (244 of 670
-  tests). CI now runs every test target explicitly and asserts the total count.
+  tests). CI now runs every test target explicitly and asserts the total count. *(Retracted in 1.0.5 - see the erratum above.)*
 - `VisualTests --labelary` fetched nothing: a percent-encoded request body made
   Labelary reject all 124 fixtures with "404 ... ZPL generated no labels". The
   API reads the body verbatim and never form-decodes it, so the ZPL is posted as
