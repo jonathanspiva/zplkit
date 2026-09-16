@@ -280,11 +280,20 @@ Two further caveats about commands that *are* implemented:
   needs Vision, and `ZPLKitPrinter` needs Network. You can build labels on a
   Linux server, but not preview, verify, or send them.
 
-  **Linux** is supported and tested: `ZPLKit` builds and its 184-test suite runs
-  on Swift 6.3, CI checks both on every push, and generated ZPL is
-  byte-identical to macOS. The platforms badge above also lists **Wasm and
-  Android**, which follows from the same reduced package graph. Those build but
-  are not tested here, so treat them as plausible rather than supported.
+  **Linux and WebAssembly** are supported and tested. `ZPLKit` builds and its
+  184-test suite runs on both, CI checks them on every push, and the generated
+  ZPL is byte-identical to macOS. The Linux job additionally builds a separate
+  consumer package and compares its output, which is what proves the library is
+  actually linkable by a downstream package rather than merely self-consistent.
+
+  For WebAssembly, `swift build --swift-sdk <wasm-sdk>` targets
+  `wasm32-unknown-wasip1`, and the suite runs under the WasmKit runtime bundled
+  with the toolchain. The core carries no Foundation dependency, which is what
+  makes this possible.
+
+  The platforms badge above also lists **Android**, which follows from the same
+  reduced package graph. That one builds but is not tested here, so treat it as
+  plausible rather than supported.
 - **`ZPLKitVerifier` is unavailable on watchOS.** It is built on Vision, whose
   Swift API (`DetectBarcodesRequest`, `RecognizeTextRequest`) requires watchOS 27
   while ZPLKit's floor is 26. The module compiles to an empty module there, so

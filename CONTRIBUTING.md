@@ -80,6 +80,17 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 > ZPLKitTests 190, ZPLKitRendererTests 163, ZPLKitPrinterTests 245,
 > ZPLKitVerifierTests 114. On Linux only the core target builds, so a Linux run
 > reports 184 (ZPLKitTests minus the six CoreGraphics-gated `Graphic` cases).
+> WebAssembly reports the same 184, running under the WasmKit runtime bundled
+> with the toolchain.
+>
+> **The core must stay free of Foundation.** `Sources/ZPLKit` is the only
+> portable target and is what compiles for WebAssembly; a Foundation import
+> breaks that. Note that `Types/DPI.swift` imports the platform C library
+> (`Darwin`/`Glibc`/`Musl`/`WASILibc`/`Bionic`) and **must keep doing so**:
+> `Double.rounded()` lowers to libm, which links implicitly on Darwin and
+> nowhere else. The test suite cannot catch a regression there, because the test
+> target imports Foundation and so links libm regardless; only the Linux job's
+> consumer-package step will fail.
 >
 > CI asserts the total against a FLOOR pinned to the last known count, not a
 > loose constant. A loose bound stops catching a dropped test target once the
