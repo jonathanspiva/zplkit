@@ -5,7 +5,101 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-09-16
+
+**Fixes a real bug for anyone using ZPLKit off Apple platforms**, and adds
+WebAssembly to the tested platforms.
+
+### Fixed
+
+- **`ZPLKit` could not be linked by a consumer on any non-Darwin platform.**
+  `Double.rounded()` in `Types/DPI.swift` lowers to C math intrinsics
+  (`round`, `rint`, `trunc`, `ceil`, `floor`). On Darwin those resolve
+  implicitly; elsewhere the module must declare a dependency on the platform C
+  library or the linker never pulls in libm. A downstream package that did not
+  itself import Foundation failed with `undefined reference to 'round'`. This
+  affected every release to date.
+
+  `DPI.swift` now imports the platform C library
+  (`Darwin`/`Glibc`/`Musl`/`WASILibc`/`Bionic`).
+
+  **ZPLKit's own test suite could not have caught this.** It is a *link* error
+  that only manifests for a consumer, and the test target imports Foundation, so
+  the test binary linked libm and all 184 Linux tests passed over a library no
+  downstream package could link against. The only check that caught it is the
+  Linux job's "build a real consumer package and run it" step — which had been
+  discarding the compiler's stderr, so its first failure reported nothing at
+  all. That step now surfaces the error.
+
+### Added
+
+- **WebAssembly is a supported, tested platform.** `ZPLKit` cross-compiles to
+  `wasm32-unknown-wasip1`, and the full 184-test core suite runs under the
+  WasmKit runtime bundled with the toolchain — the same count Linux reports.
+  CI builds and tests it on every push, so Wasm now has the same standing as
+  Linux rather than being inferred from the package graph.
+
+  This is what the Foundation removal below was for. The SPI platforms badge has
+  always listed Wasm; until now that followed from the reduced package graph and
+  was never a test result. Android still is not tested, and the README says so.
+
+- **Per-module code-coverage floors**, enforced in CI by `Scripts/coverage.sh`,
+  which you can also run locally:
+
+  | module | floor | measured |
+  |---|---|---|
+  | `ZPLKit` | 88.0% | 89.40% |
+  | `ZPLKitRenderer` | 87.0% | 88.22% |
+  | `ZPLKitPrinter` | 79.0% | 80.90% |
+  | `ZPLKitVerifier` | 95.0% | 96.81% |
+
+  Overall 86.77% line coverage. The floors are a ratchet: coverage may rise
+  freely, a drop fails the build.
+
+### Changed
+
+- **The core no longer imports Foundation.** `Sources/ZPLKit` is the portable
+  target, and Foundation in the WebAssembly Swift SDK need not match the host
+  compiler, so the import made the core uncompilable for Wasm.
+
+  A single `import Foundation` in `ZPLLabel.swift` had been doing three jobs
+  invisibly: supplying `replacingOccurrences` to three files that never imported
+  Foundation (Swift leaks module-level imports across files within a module),
+  supplying `range(of:)` for template substitution, and linking libm off Darwin.
+  The first two are now an internal `replacingAll(_:with:)` and the stdlib's
+  `firstRange(of:)`; the third is the `DPI.swift` fix above.
+
+  Generated ZPL is unchanged. 10 of the 41 tests added in this release assert
+  the new helper matches Foundation's `replacingOccurrences` exactly, so the
+  hardware-verified escaping behaviour is demonstrated unchanged rather than
+  assumed.
+
+- **The fixed test-count assertion is replaced by the coverage floors.** A count
+  says tests *executed*, not that they exercise anything. Worse, the bound
+  shipped in 1.0.5 was justified as never needing adjustment as the suite grows,
+  and **that reasoning was wrong in the unsafe direction**: the check only fires
+  while `total - dropped_target` stays below it, and that value *rises* with the
+  suite. At 712 tests it was two tests away from silently failing to notice a
+  dropped 114-test target. Coverage catches the same failure harder, since a
+  target that stops running takes its module's coverage toward zero.
+
+- **41 new tests** (683 → 712, 76 → 83 suites) covering the portable core: the
+  GTIN check-digit algorithm against published real-world barcodes, non-ASCII
+  digit rejection across every numeric element, `Rotation` and `ZPLFont` raw
+  values as wire format, UPC-E's leading-digit hazard, and the new string
+  helper. One pins that the `isASCIIDigit` guard, not the checksum, is what
+  keeps non-ASCII digits out of `^FD` — `hasValidGTINCheckDigit` uses
+  `wholeNumberValue` and so accepts fullwidth digits on its own.
+
 ## [1.0.5] - 2026-09-15
+
+> **Erratum.** Under *Changed* below, the test-count gate is described as
+> catching a dropped test target and as not needing adjustment as the suite
+> grows. **The second half of that is wrong, in the unsafe direction.** The
+> check only fires while `total - dropped_target` stays below the bound, and
+> that value *rises* as the suite grows; at 712 tests it was two tests from
+> failing to catch a dropped 114-test target. Replaced by per-module coverage
+> floors in [1.0.6]. The original text is left unedited.
 
 No library code changed in this release. It moves the project onto the Xcode 27
 GA toolchain, **retracts a bug that never existed**, and adds test coverage for
@@ -478,6 +572,7 @@ These affect anyone who built against pre-release code:
 - Added a rotation fixture; there was no coverage of field orientation at all,
   which is why the rotated-field anchoring bug went unseen.
 
+[1.0.6]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.6
 [1.0.5]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.5
 [1.0.4]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.4
 [1.0.3]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.3
