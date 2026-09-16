@@ -147,21 +147,18 @@ jobs:
           set -euo pipefail
           log="$(mktemp)"
           swift test 2>&1 | tee "$log"
-          # A green `swift test` does not prove the suite ran. Two distinct
-          # failure shapes, both observed on this package:
-          #
-          #   * It runs an unstable SUBSET of the test targets and still exits
-          #     0. On the Xcode 27 beta that was 244 of 683 tests (2026-08-14,
-          #     27A5218g) and later 408 of 683 (2026-09-04, 6.4.0.33.1) with a
-          #     different pair of targets dropped each time. It is not a stable
-          #     "first target only" rule.
-          #   * It exits 0 when NO test bundle loads at all. With only the
-          #     Command Line Tools selected, every bundle failed to dlopen
-          #     Testing.framework, all four targets reported failures, and the
-          #     exit code was still 0.
+          # A green `swift test` does not prove the suite ran: it exits 0 even
+          # when NO test bundle loads at all. With only the Command Line Tools
+          # selected, every bundle failed to dlopen Testing.framework, all four
+          # targets reported failures, and the exit code was still 0.
           #
           # So assert on the output rather than the exit code: no target
           # reported failures, and the total is plausible.
+          #
+          # (An earlier comment here also claimed `swift test` ran an unstable
+          # SUBSET of the targets. That was retracted in 1.0.5 - it was this
+          # step's own `tail -1` misreading Swift Build's per-target output,
+          # not a toolchain bug. See the count comment below.)
           if grep -q 'Some test targets reported failures' "$log"; then
             echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
           fi
