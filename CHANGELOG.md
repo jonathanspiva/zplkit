@@ -145,6 +145,8 @@ breaks before it, go unnoticed.
   to load Testing.framework, every target reports failure, and the exit code is
   still 0). Every test step now fails on `Some test targets reported failures`
   alongside the existing count assertion.
+  *(The first of those two situations was retracted in 1.0.5 - see the erratum
+  above. The second is real and still stands.)*
 - **The examples typecheck moved to the hosted runner.** It ran only in the
   fork-gated self-hosted job, so a fork PR that broke a documented example got
   a green CI. Moving it surfaced that the step had been broken all along: it
