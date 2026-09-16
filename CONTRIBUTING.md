@@ -76,10 +76,14 @@ swift run BarcodePrintTest --help
 The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#require`, `@Suite`), not XCTest. New tests must be written in that style. Prefer `@Test(arguments:)` parameterized tables for repetitive cases, and `@Test(.disabled("reason"))` for tracked skips.
 
 > **A green `swift test` does not mean the suite ran.** Check the reported test
-> counts, not the exit code. The package has **708 tests** in 82 suites:
-> ZPLKitTests 186, ZPLKitRendererTests 163, ZPLKitPrinterTests 245,
+> counts, not the exit code. The package has **712 tests** in 83 suites:
+> ZPLKitTests 190, ZPLKitRendererTests 163, ZPLKitPrinterTests 245,
 > ZPLKitVerifierTests 114. On Linux only the core target builds, so a Linux run
-> reports 180 (ZPLKitTests minus the six CoreGraphics-gated `Graphic` cases).
+> reports 184 (ZPLKitTests minus the six CoreGraphics-gated `Graphic` cases).
+>
+> CI asserts the total against a FLOOR pinned to the last known count, not a
+> loose constant. A loose bound stops catching a dropped test target once the
+> suite grows past it, which is a failure that looks exactly like success.
 >
 > **Counting the output takes care.** From Swift 6.4, SwiftPM defaults to
 > `--build-system swiftbuild`, which prints one `Test run with N tests` summary

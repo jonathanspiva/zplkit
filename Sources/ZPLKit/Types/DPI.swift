@@ -1,3 +1,24 @@
+// `Double.rounded()` lowers to C math intrinsics (round/rint/trunc/ceil/floor).
+// On Darwin those arrive implicitly, but on other platforms the module needs a
+// declared dependency on the platform C library or the linker never pulls in
+// libm, and a CONSUMER of ZPLKit fails with "undefined reference to 'round'".
+//
+// This used to work by accident: ZPLLabel.swift imported Foundation, which
+// transitively provided libm on Linux. ZPLKit's own test target also imports
+// Foundation, so its tests linked fine and hid the breakage -- only a consumer
+// package that did not import Foundation actually failed.
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#elseif canImport(WASILibc)
+import WASILibc
+#elseif canImport(Bionic)
+import Bionic
+#endif
+
 /// Printer resolution presets matching common Zebra thermal printers.
 ///
 /// DPI (dots per inch) determines the resolution of the printed label.

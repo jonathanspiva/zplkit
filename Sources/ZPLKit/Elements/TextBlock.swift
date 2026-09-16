@@ -174,9 +174,9 @@ public struct TextBlock: ZPLElement, Equatable, Hashable {
         // In ^FB field data, backslash introduces escape sequences (\&, \(, \\),
         // so literal backslashes must be doubled BEFORE inserting \& line breaks.
         let textWithLineBreaks = text
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\n", with: "\\&")
+            .replacingAll("\\", with: "\\\\")
+            .replacingAll("\r\n", with: "\n")
+            .replacingAll("\n", with: "\\&")
         let (needsHex, escapedText) = escapeZPLFieldData(textWithLineBreaks)
 
         let positionCommand = useBaselinePosition ? "^FT" : "^FO"

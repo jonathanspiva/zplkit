@@ -1,4 +1,3 @@
-import Foundation
 
 /// A ZPL label that contains elements and renders to a ZPL string.
 ///
@@ -245,7 +244,7 @@ public struct ZPLLabel: Sendable {
         for (key, value) in substitutions {
             let escapedValue = escapeZPLFieldData(value).escaped
             let code128Value = escapeZPLFieldData(
-                value.replacingOccurrences(of: ">", with: ">0")
+                value.replacingAll(">", with: ">0")
             ).escaped
             lookup["{{\(key)}}"] = escapedValue
             code128Lookup["{{\(key)}}"] = code128Value
@@ -263,8 +262,8 @@ public struct ZPLLabel: Sendable {
         result.reserveCapacity(zpl.count)
         var remainder = Substring(zpl)
         var inCode128Field = false
-        while let start = remainder.range(of: "{{"),
-              let end = remainder.range(of: "}}", range: start.upperBound..<remainder.endIndex) {
+        while let start = remainder.firstRange(of: "{{"),
+              let end = remainder[start.upperBound...].firstRange(of: "}}") {
             let token = String(remainder[start.lowerBound..<end.upperBound])
             let chunk = remainder[..<start.lowerBound]
             // The commands since the last placeholder decide which field this

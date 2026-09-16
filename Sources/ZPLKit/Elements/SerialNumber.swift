@@ -25,7 +25,7 @@ public struct SerialNumber: ZPLElement, Equatable, Hashable {
     public init(_ startValue: String, at position: Position) {
         // Commas are the ^SN parameter separator and cannot appear in the seed;
         // strip them so a value like "1,2" cannot corrupt the ^SN parameters.
-        self.startValue = startValue.replacingOccurrences(of: ",", with: "")
+        self.startValue = startValue.replacingAll(",", with: "")
         self.position = position
     }
 
