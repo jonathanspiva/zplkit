@@ -30,18 +30,28 @@ concurrency:
 #   * GitHub-hosted `macos-26`: macOS 26 + Xcode 26.6 (Swift 6.3). This is the
 #     toolchain that matches the package's advertised floor, so it is what
 #     proves the package actually builds for the users we promise support to.
-#     Being hosted, it is also safe for fork PRs.
-#   * Self-hosted mini (`macos-27`) runs macOS 27 with only the Xcode 27
-#     beta, and is the only machine that can reach the lab printers. It covers
-#     the visual suite and the live-printer job.
+#     Being hosted, it is also safe for fork PRs. The floor job pins this
+#     toolchain by path and asserts it against Package.swift, rather than
+#     inheriting whatever the image default happens to be.
+#   * Self-hosted mini (`macos-27`) runs macOS 27 with Xcode 27, and is the
+#     only machine that can reach the lab printers. It covers the visual suite
+#     and the live-printer job.
 #
-# Stable Xcode 26 is NOT an option on the mini: Apple does not support Xcode
-# 26.x on macOS 27 (it refuses to launch), so the beta is the only usable
-# toolchain there. That is why the floor check lives on the hosted runner
-# instead of just repointing DEVELOPER_DIR.
+# Both moved to release toolchains on 2026-09-15: macOS 27 (Golden Gate) and
+# Swift 6.4 went GA, so the mini now runs Xcode 27.0 GA (27A266a) instead of
+# the beta it was stuck on. Stable Xcode 26 remains impossible there (Apple
+# does not support Xcode 26.x on macOS 27), which is still why the floor check
+# lives on the hosted runner rather than being a DEVELOPER_DIR repoint.
 #
-# DEVELOPER_DIR is therefore set per-job rather than workflow-wide, because the hosted
-# runner has no /Applications/Xcode-beta.app and must use its image default.
+# DEVELOPER_DIR is set per-job rather than workflow-wide because the two runner
+# classes need different Xcodes: the floor pin on the hosted image, and
+# /Applications/Xcode.app on the mini.
+#
+# NOTE on test counts: from Swift 6.4, SwiftPM defaults to `--build-system
+# swiftbuild`, which prints one "Test run with N tests" summary PER TARGET
+# instead of the single merged line the deprecated `native` system printed.
+# Any step that counts tests must SUM those lines. See the comment in the
+# floor job's "Run unit tests" step.
 
 # Fork PRs must NOT run on the self-hosted runner: it lives on a private LAN
 # (with printer access), so a fork PR running there would execute untrusted code
@@ -59,8 +69,31 @@ jobs:
     if: github.event_name != 'workflow_dispatch'
     runs-on: macos-26
     timeout-minutes: 30
+    env:
+      # Pin the floor toolchain by PATH rather than inheriting the image
+      # default. The whole point of this job is to compile at the version
+      # Package.swift advertises; if GitHub bumps the macos-26 image default,
+      # inheriting it would keep this job green while silently testing a
+      # NEWER toolchain than we promise. If this path ever disappears from the
+      # image the job fails loudly, which is the intended outcome.
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # Fails if the pin above drifts from the manifest, so the two can never
+      # disagree silently. Derived from Package.swift, so bumping the floor
+      # there tells you to repoint the pin.
+      - name: Verify this runner is the advertised floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          want="$(grep -m1 -oE 'swift-tools-version: *[0-9]+\.[0-9]+' Package.swift | grep -oE '[0-9]+\.[0-9]+')"
+          got="$(swift --version 2>&1 | grep -oE 'Swift version [0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+')"
+          echo "Package.swift floor: $want / runner Swift: $got"
+          if [ "$want" != "$got" ]; then
+            echo "::error::Floor drift: Package.swift declares swift-tools-version $want but this runner provides Swift $got. Repoint DEVELOPER_DIR at the Xcode shipping Swift $want, or change the pin deliberately."
+            exit 1
+          fi
 
       - name: Show Swift version
         run: swift --version
@@ -132,13 +165,26 @@ jobs:
           if grep -q 'Some test targets reported failures' "$log"; then
             echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
           fi
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
-          if [ -z "$total" ]; then
+          # SUM the summary lines, do not take the last one. The two build
+          # systems report different SHAPES:
+          #   * native (Swift 6.3 / Xcode 26): one merged line, "708 tests in
+          #     82 suites".
+          #   * swiftbuild (the default from Swift 6.4 / Xcode 27): one line
+          #     PER TEST TARGET, e.g. 114 + 186 + 163 + 245 = 708.
+          # A `tail -1` reads only the last target under swiftbuild. That is
+          # what produced the bogus "244 of 683" and "408 of 683" readings
+          # previously recorded as a toolchain bug; nothing was ever skipped.
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+          if [ -z "$total" ] || [ "$total" = "0" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
+          # 600 is chosen to catch a silently DROPPED TARGET, not to track the
+          # exact total: the largest remainder after losing any one target is
+          # 708 - 114 = 594. Adding tests only widens that margin, so this
+          # bound does not need bumping every time the suite grows.
           if [ "$total" -lt 600 ]; then
-            echo "::error::Only $total tests ran; expected the full suite (683)"; exit 1
+            echo "::error::Only $total tests ran; expected the full suite (708)"; exit 1
           fi
 
   # Every platform in Package.swift, actually built. Without this the package
@@ -254,13 +300,18 @@ jobs:
           if grep -q 'Some test targets reported failures' "$log"; then
             echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
           fi
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
-          if [ -z "$total" ]; then
+          # Sum the summary lines, do not take the last. This container is on
+          # Swift 6.3, whose native build system prints ONE merged line, so
+          # tail -1 happens to work today. It stops working the moment the
+          # container is bumped to 6.4, where `swiftbuild` becomes the default
+          # and prints one line per test target. See the floor job's comment.
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+          if [ -z "$total" ] || [ "$total" = "0" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
-          if [ "$total" -lt 150 ]; then
-            echo "::error::Only $total tests ran; expected the full ZPLKit suite (155)"; exit 1
+          if [ "$total" -lt 175 ]; then
+            echo "::error::Only $total tests ran; expected the full ZPLKit suite (180)"; exit 1
           fi
 
       # Building the target proves it compiles; this proves a Linux consumer can
@@ -315,7 +366,7 @@ jobs:
     runs-on: [self-hosted, macos-27]
     timeout-minutes: 30
     env:
-      DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -325,67 +376,49 @@ jobs:
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 
-      # Do NOT collapse this back to a bare `swift test`.
+      # An unfiltered `swift test` is correct here, but its OUTPUT must be
+      # summed, not tail'd. The two build systems report different shapes:
       #
-      # On the Xcode 27 beta toolchain an unfiltered `swift test` runs only
-      # SOME of the test targets and still exits 0. Measured twice on this
-      # package, with a different subset each time:
+      #   * native (Swift 6.3 / Xcode 26): one merged summary line,
+      #     "Test run with 708 tests in 82 suites".
+      #   * swiftbuild (the default from Swift 6.4 / Xcode 27): one summary
+      #     line PER TEST TARGET: 114 + 186 + 163 + 245 = 708, in
+      #     22 + 31 + 23 + 6 = 82 suites. Those per-target figures are
+      #     illustrative and move whenever tests are added; only the TOTAL is
+      #     asserted below.
       #
-      #   * 2026-08-14 (27A5218g / Swift 6.4): only the first target ran,
-      #     "244 tests in 6 suites passed".
-      #   * 2026-09-04 (swiftlang-6.4.0.33.1): two of four ran, 408 tests
-      #     (ZPLKitRendererTests 163 + ZPLKitPrinterTests 245); ZPLKitTests
-      #     (161) and ZPLKitVerifierTests (114) were silently skipped.
+      # This job previously ran a per-target filter loop because a `tail -1`
+      # over the swiftbuild shape read only the LAST target and looked like a
+      # silently truncated run ("244 of 683" on 2026-08-14, "408 of 683" on
+      # 2026-09-04). Measured on Xcode 27.0 GA (27A266a / swiftlang-6.4.0.34.1)
+      # on 2026-09-15: all four targets run under both build systems and the
+      # totals reconcile exactly. No tests were ever being skipped, so the loop
+      # is gone.
       #
-      # So it is not a stable "first target only" rule and cannot be worked
-      # around by reordering. The package has 683 tests in 76 suites; all 683
-      # pass when each target is invoked explicitly, and the stable Swift 6.3
-      # toolchain runs all 683 from a bare `swift test`. Beta SPM bug, not a
-      # package problem.
-      #
-      # Targets are derived from `swift test list` rather than hardcoded, so a
-      # newly added test target is picked up automatically. Revisit once the
-      # Xcode 27 GA toolchain runs the full suite unfiltered.
+      # The exit code still proves nothing on its own: a bundle that fails to
+      # dlopen Testing.framework reports failures and `swift test` STILL exits
+      # 0 (seen with only the Command Line Tools selected). That is a real bug
+      # and the grep below is what catches it. Keep it.
       - name: Run unit tests
-        # Explicit bash: the word-splitting of `$targets` below is a bash/sh
-        # behaviour. zsh does not split unquoted expansions, which silently
-        # collapses the loop into a single bogus filter.
         shell: bash
         run: |
           set -euo pipefail
-          targets="$(swift test list 2>/dev/null | grep -oE '^[A-Za-z0-9_]+Tests' | sort -u)"
-          if [ -z "$targets" ]; then
-            echo "::error::Could not enumerate test targets from 'swift test list'"; exit 1
+          log="$(mktemp)"
+          swift test 2>&1 | tee "$log"
+          if grep -q 'Some test targets reported failures' "$log"; then
+            echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
           fi
-          echo "Test targets: $(echo "$targets" | tr '\n' ' ')"
-          total=0
-          for target in $targets; do
-            echo "::group::$target"
-            log="$(mktemp)"
-            # `< /dev/null` so swift test can't swallow the loop's stdin.
-            swift test --filter "$target" < /dev/null 2>&1 | tee "$log"
-            echo "::endgroup::"
-            # A filter that matches nothing prints this and STILL exits 0, so
-            # an enumeration bug would otherwise pass CI with zero tests run.
-            if grep -q 'No matching test cases were run' "$log"; then
-              echo "::error::Filter '$target' matched no tests"; exit 1
-            fi
-            # Likewise, a bundle that fails to load reports failures and still
-            # exits 0 (seen when the selected toolchain has no
-            # Testing.framework), so the exit code alone proves nothing.
-            if grep -q 'Some test targets reported failures' "$log"; then
-              echo "::error::Target '$target' reported failures ('swift test' still exited 0)"; exit 1
-            fi
-            n="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
-            if [ -z "$n" ]; then
-              echo "::error::Could not determine test count for '$target'"; exit 1
-            fi
-            total=$(( total + n ))
-          done
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+          if [ -z "$total" ] || [ "$total" = "0" ]; then
+            echo "::error::Could not determine the test count from 'swift test' output"; exit 1
+          fi
           echo "Total tests run: $total"
-          # Backstop against the beta's silent partial run (244, then 408, of 683).
+          # 600 is chosen to catch a silently DROPPED TARGET, not to track the
+          # exact total: the largest remainder after losing any one target is
+          # 708 - 114 = 594. Adding tests only widens that margin, so this
+          # bound does not need bumping every time the suite grows.
           if [ "$total" -lt 600 ]; then
-            echo "::error::Only $total tests ran; expected the full suite (683)"; exit 1
+            echo "::error::Only $total tests ran; expected the full suite (708)"; exit 1
           fi
 
   visual-tests:
@@ -398,7 +431,7 @@ jobs:
     timeout-minutes: 30
     needs: build-and-test
     env:
-      DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -438,7 +471,7 @@ jobs:
     runs-on: [self-hosted, macos-27, printers]
     timeout-minutes: 15
     env:
-      DEVELOPER_DIR: /Applications/Xcode-beta.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
