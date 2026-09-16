@@ -115,7 +115,27 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 > nothing** ("No matching test cases were run").
 >
 > CI guards these by asserting on the output rather than the exit code: it
-> fails on `Some test targets reported failures` and on an implausible total.
+> fails on `Some test targets reported failures`, and on a total of zero.
+>
+> **Coverage floors are the real gate.** CI enforces a per-module minimum via
+> `Scripts/coverage.sh`, which you can run yourself:
+>
+> ```bash
+> swift test --enable-code-coverage
+> Scripts/coverage.sh            # report and enforce
+> Scripts/coverage.sh --report   # report only
+> ```
+>
+> The floors are a ratchet: each is the value measured when it was last raised,
+> so coverage may rise freely and a drop fails the build. Raise one deliberately
+> to lock in an improvement. If you have to lower one, say why in the commit
+> message.
+>
+> This replaced a fixed test-count assertion. A count only says tests
+> *executed*, not that they exercise anything, and a fixed bound quietly stops
+> catching a dropped test target once the suite grows past it. Coverage catches
+> that same failure harder -- a target that stops running takes its module's
+> coverage toward zero -- while measuring something worth caring about.
 
 ```bash
 # All tests (see the caveat above on the Xcode 27 beta)
