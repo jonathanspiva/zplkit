@@ -174,7 +174,7 @@ jobs:
           # A `tail -1` reads only the last target under swiftbuild. That is
           # what produced the bogus "244 of 683" and "408 of 683" readings
           # previously recorded as a toolchain bug; nothing was ever skipped.
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | paste -sd+ - | bc || true)"
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
           if [ -z "$total" ] || [ "$total" = "0" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
@@ -296,8 +296,13 @@ jobs:
           if grep -q 'Some test targets reported failures' "$log"; then
             echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
           fi
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | tail -1 || true)"
-          if [ -z "$total" ]; then
+          # Sum the summary lines, do not take the last. This container is on
+          # Swift 6.3, whose native build system prints ONE merged line, so
+          # tail -1 happens to work today. It stops working the moment the
+          # container is bumped to 6.4, where `swiftbuild` becomes the default
+          # and prints one line per test target. See the floor job's comment.
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+          if [ -z "$total" ] || [ "$total" = "0" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
@@ -397,7 +402,7 @@ jobs:
           if grep -q 'Some test targets reported failures' "$log"; then
             echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
           fi
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | paste -sd+ - | bc || true)"
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
           if [ -z "$total" ] || [ "$total" = "0" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
