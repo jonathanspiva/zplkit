@@ -280,7 +280,7 @@ Two further caveats about commands that *are* implemented:
   needs Vision, and `ZPLKitPrinter` needs Network. You can build labels on a
   Linux server, but not preview, verify, or send them.
 
-  **Linux** is supported and tested: `ZPLKit` builds and its 155-test suite runs
+  **Linux** is supported and tested: `ZPLKit` builds and its 180-test suite runs
   on Swift 6.3, CI checks both on every push, and generated ZPL is
   byte-identical to macOS. The platforms badge above also lists **Wasm and
   Android**, which follows from the same reduced package graph. Those build but

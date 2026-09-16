@@ -5,7 +5,93 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-09-15
+
+No library code changed in this release. It moves the project onto the Xcode 27
+GA toolchain, **retracts a bug that never existed**, and adds test coverage for
+the portable core.
+
+### Corrected
+
+- **The "unstable subset of the test targets" described in 1.0.4 was a counting
+  bug, not a toolchain bug. No tests were ever being skipped.** From Swift 6.4,
+  SwiftPM defaults to `--build-system swiftbuild`, which prints one
+  `Test run with N tests` summary line **per test target**, where the older
+  (now deprecated) `native` build system printed a single merged line. CI read
+  the count with `... | tail -1` and therefore saw only the *last* target. The
+  figures quoted in 1.0.4 fall straight out of that: "244 of 683" is the final
+  summary line alone, and "408 of 683" is exactly `163 + 245`, the last two.
+  Re-measured on Xcode 27.0 GA (27A266a / swiftlang-6.4.0.34.1, macOS 27.0
+  26A428): both build systems run the identical suite, `swiftbuild` across four
+  summary lines and `native` in one, and both reconcile exactly to the package
+  totals. The per-target filter loop that this phantom justified has been
+  removed.
+
+  The *other* failure mode described in 1.0.4 is real and unchanged:
+  `swift test` still exits 0 when no test bundle loads at all. The
+  `Some test targets reported failures` assertion that catches it stays.
+
+### Fixed
+
+- **Test counts are summed rather than read from the last line**, in all three
+  jobs that count them. This was not merely cosmetic: against real GA output
+  the old parser reads **245** and fails the `>= 600` gate. It passed only
+  because the hosted floor runner is still on Swift 6.3 and its native build
+  system emits one merged line. The Linux job carried the same latent break,
+  which would have fired the moment its `swift:6.3` container was bumped.
+- `CONTRIBUTING.md` no longer tells contributors that the beta drops test
+  targets, nor hands them a per-target loop to work around it.
+
+### Added
+
+- **25 tests in 6 suites covering the portable core** (`Tests/ZPLKitTests/CoreAlgorithmTests.swift`),
+  deliberately free of CoreGraphics so they run on Linux as well as Apple
+  platforms. `ZPLKitTests` goes 161 to 186; the macOS suite goes 683 to **708
+  tests in 82 suites**, and the Linux run goes 155 to **180**.
+  - The GTIN check-digit algorithm, against six published real-world barcodes,
+    plus the direction of its weighting (a leading zero must not change the
+    result; appending one must).
+  - `isASCIIDigit` rejecting fullwidth, Arabic-Indic, Devanagari, sub- and
+    superscript and double-struck digits, and all six numeric barcode elements
+    rejecting the same.
+  - That the `isASCIIDigit` guard, not the checksum, is what keeps non-ASCII
+    digits out of `^FD`. `hasValidGTINCheckDigit` uses `wholeNumberValue` and
+    so returns `true` for a fullwidth `1234567890128`; only the guard running
+    *before* it in each initializer rejects the input. Nothing previously
+    pinned that ordering, and reversing it would have sent raw multibyte UTF-8
+    to the printer.
+  - `Rotation` and `ZPLFont` raw values, which are the literal ZPL orientation
+    and font characters and therefore wire format, plus their emission through
+    `^A0N` / `^BCR` / `^BEI`.
+  - UPC-E field data, including the documented hazard that a seventh digit is a
+    *leading* number system digit rather than a trailing check digit.
+
+### Changed
+
+- **The self-hosted runner moved from Xcode 27 beta to Xcode 27.0 GA**
+  (27A266a), following macOS 27 and Swift 6.4 going GA. Stable Xcode 26.x
+  remains unusable on macOS 27, so the Swift 6.3 floor check still lives on a
+  GitHub-hosted runner.
+- **The floor job pins its toolchain by path** (`/Applications/Xcode_26.6.app`)
+  instead of inheriting the runner image default, and asserts the runner's
+  Swift version against `Package.swift`. Inheriting meant the job would keep
+  passing while silently testing a *newer* toolchain than the package
+  advertises, the moment GitHub bumped the image.
+- The macOS test-count gate is documented as catching a **dropped target**
+  rather than tracking the exact total: the largest remainder after losing any
+  one target is `708 - 114 = 594`, so the bound needs no adjustment as the
+  suite grows.
+- The DocC "unhandled file" warning is gone on the GA toolchain; a clean
+  `swift build -Xswiftc -warnings-as-errors` emits zero warnings. The 1.0.4
+  note about it no longer applies.
+
 ## [1.0.4] - 2026-09-05
+
+> **Erratum.** The "unstable subset of the test targets" described under
+> *Changed* below was never real. It was a test-counting bug in CI, not a
+> toolchain bug; see the *Corrected* section of [1.0.5] for the measurement.
+> The original text is left unedited. The second failure mode in that same
+> entry, `swift test` exiting 0 when no bundle loads, is real and still stands.
 
 No library code changed in this release. It corrects documentation that had
 drifted from the code and closes the CI gaps that let that drift, and two build
@@ -384,6 +470,8 @@ These affect anyone who built against pre-release code:
 - Added a rotation fixture; there was no coverage of field orientation at all,
   which is why the rotated-field anchoring bug went unseen.
 
+[1.0.5]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.5
+[1.0.4]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.4
 [1.0.3]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.3
 [1.0.1]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.1
 [1.0.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.0
