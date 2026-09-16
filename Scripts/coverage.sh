@@ -52,7 +52,11 @@ fi
 # The path moved with the build system: swiftbuild writes under
 # .build/out/Products/<config>/codecov, the native system under
 # .build/<triple>/<config>/codecov. Probe rather than assume.
-PROF="$(find .build -name 'default.profdata' -print 2>/dev/null | head -1)"
+# Pick the NEWEST profile, not an arbitrary one. Both build-system layouts can
+# coexist under .build (.build/<triple>/<config> and .build/out/Products/<config>),
+# so "first found" could silently report stale numbers from an older run.
+PROF="$(find .build -name 'default.profdata' -print0 2>/dev/null \
+    | xargs -0 ls -t 2>/dev/null | head -1)"
 if [ -z "$PROF" ]; then
     echo "error: no default.profdata found. Run: swift test --enable-code-coverage" >&2
     exit 1
@@ -88,11 +92,18 @@ if [ ${#BINS[@]} -eq 0 ]; then
     echo "error: no test binaries found under .build" >&2; exit 1
 fi
 
+# Bash 3.2 (macOS /bin/bash) treats "${arr[@]}" on an EMPTY array as an unbound
+# variable under `set -u`, so both expansions below are guarded. This matters
+# because the number of test binaries depends on the build system: swiftbuild
+# emits one .xctest per test target, the native build system emits a single
+# <Package>PackageTests.xctest. With one binary there are no extra -object args.
 OBJ_ARGS=()
-for b in "${BINS[@]:1}"; do OBJ_ARGS+=(-object "$b"); done
+if [ ${#BINS[@]} -gt 1 ]; then
+    for b in "${BINS[@]:1}"; do OBJ_ARGS+=(-object "$b"); done
+fi
 
 REPORT="$(mktemp)"
-"${COV[@]}" report "${BINS[0]}" "${OBJ_ARGS[@]}" \
+"${COV[@]}" report "${BINS[0]}" ${OBJ_ARGS[@]+"${OBJ_ARGS[@]}"} \
     -instr-profile="$PROF" \
     -ignore-filename-regex='(Tests|\.build|Tools)/' 2>/dev/null > "$REPORT"
 

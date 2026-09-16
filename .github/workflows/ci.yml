@@ -410,6 +410,10 @@ jobs:
         run: swift --version
 
       - name: Install the Swift SDK for WebAssembly
+        # Explicit bash: inside a container the default shell is `sh`, which has
+        # no `pipefail`, so `set -euo pipefail` aborts the step with exit 2
+        # before running anything.
+        shell: bash
         run: |
           set -euo pipefail
           swift sdk install \
@@ -418,6 +422,7 @@ jobs:
           swift sdk list
 
       - name: Build ZPLKit for WebAssembly
+        shell: bash
         run: |
           set -euo pipefail
           sdk="$(swift sdk list | grep -E '_wasm$' | head -1)"
@@ -432,6 +437,7 @@ jobs:
       # specific trap: it links on Darwin implicitly and needs the platform
       # libc import everywhere else (see Sources/ZPLKit/Types/DPI.swift).
       - name: Run the test suite under WebAssembly
+        shell: bash
         run: |
           set -euo pipefail
           sdk="$(swift sdk list | grep -E '_wasm$' | head -1)"
