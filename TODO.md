@@ -33,24 +33,32 @@ These need a physical printer, and they are the last unverified claims in the do
 
 ### Toolchain
 
-- [ ] **Re-check both Xcode 27 workarounds once the GA toolchain ships.** Still
-  beta as of 2026-09-04 (Swift 6.4 / swiftlang-6.4.0.33.1, macOS 27 26A5425a),
-  and both workarounds are still load-bearing:
-  - **A bare `swift test` still does not run the whole suite.** Re-measured
-    2026-09-04: it ran **2 of the 4 test targets** and exited 0. Only
-    ZPLKitRendererTests (163) and ZPLKitPrinterTests (245) ran, 408 of the 683
-    tests the package actually has; ZPLKitTests (161) and ZPLKitVerifierTests
-    (114) were silently skipped, and all 683 pass when each target is filtered
-    explicitly. Note this is a **different** subset than the 2026-08-14
-    measurement on 27A5218g, which ran only the first target (244 tests). So
-    the bug is not the stable "first target only" rule the CI comments describe;
-    which targets get dropped varies by build. The per-target loop in
-    `build-and-test` and the total-count assertion both stay until GA runs all
-    683 unfiltered.
-  - **The DocC "unhandled file" warning.** The beta warns that
-    `Sources/ZPLKit/Documentation.docc` is an unhandled file; stable 26.6 handles
-    it correctly. Do NOT declare the catalog as a resource to silence it; just
-    re-check on GA.
+Nothing open. Both Xcode 27 "workarounds" were re-checked on the GA toolchain
+(Xcode 27.0 / 27A266a, Swift 6.4 / swiftlang-6.4.0.34.1, macOS 27.0 / 26A428)
+on 2026-09-15 and both are retired:
+
+- **The "silent partial `swift test`" was a measurement bug, not a toolchain
+  bug.** No tests were ever being skipped. From Swift 6.4 SwiftPM defaults to
+  `--build-system swiftbuild`, which prints one `Test run with N tests` summary
+  **per test target** where the (now deprecated) `native` system printed a
+  single merged line. CI read the count with `... | tail -1`, so it saw only
+  the last target. Measured on GA, both build systems run the identical suite:
+  `swiftbuild` reports 114 + 161 + 163 + 245 = **683 tests** in
+  22 + 25 + 23 + 6 = **76 suites**; `native` reports one merged
+  `683 tests in 76 suites`. Both reconcile exactly to the package totals.
+  The old readings fall straight out of the parser: "244 of 683" (2026-08-14)
+  is the last summary line alone, and "408 of 683" (2026-09-04) is exactly
+  `163 + 245`, the last two. The per-target filter loop is gone and the count
+  is now summed.
+- **The DocC "unhandled file" warning is gone.** A clean
+  `swift build -Xswiftc -warnings-as-errors` on GA completes with zero
+  warnings. No change was needed.
+
+What is still load-bearing, and should NOT be removed: the
+`Some test targets reported failures` grep. That catches a real and separate
+bug where a test bundle fails to `dlopen` Testing.framework (seen with only the
+Command Line Tools selected) and `swift test` **still exits 0**. The exit code
+genuinely lies there; that one is not a parsing artifact.
 
 ### Tooling and CI
 - [ ] **Consider refreshing the remaining references against current Labelary.**
@@ -62,6 +70,13 @@ These need a physical printer, and they are the last unverified claims in the do
   regression before adopting it as the baseline.
 - [ ] **Wire the live-printer sweep into the runner's `workflow_dispatch` job.**
   UDP-4201 discovery is hardware-validated, but the sweep isn't automated.
+- [ ] **Watch for Swift Package Index's Swift 6.4 build row on v1.0.4.** Swift
+  6.4 went GA 2026-09-15; SPI had not re-cycled its builders as of that date
+  (the badge still read `Swift 6.3`, platforms unchanged). The matrix is **per
+  version**, so whatever verdict SPI publishes against v1.0.4 is frozen until
+  the next tag. The package itself builds and tests clean on 6.4 GA locally
+  (683/683, zero warnings), so no action is expected, but check the badge
+  before assuming.
 
 ### Notes for the next release
 Not tasks, but the two facts that cost time last release and are not recorded
