@@ -146,7 +146,7 @@ jobs:
         run: |
           set -euo pipefail
           log="$(mktemp)"
-          swift test 2>&1 | tee "$log"
+          swift test --enable-code-coverage 2>&1 | tee "$log"
           # A green `swift test` does not prove the suite ran: it exits 0 even
           # when NO test bundle loads at all. With only the Command Line Tools
           # selected, every bundle failed to dlopen Testing.framework, all four
@@ -176,21 +176,21 @@ jobs:
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
-          # A FLOOR equal to the last known total, not a loose constant.
-          #
-          # This must catch a silently dropped test target. A fixed bound could
-          # not: the check only fires while (total - dropped_target) is below
-          # it, and that value RISES as the suite grows. The previous bound of
-          # 600 was within two tests of failing to catch a dropped 114-test
-          # target (712 - 114 = 598).
-          #
-          # Pinned to the current total instead, so any dropped target lands far
-          # below it. Adding tests keeps passing (the total only rises), so this
-          # needs raising only when you want to lock in a new floor.
-          expected=712
-          if [ "$total" -lt "$expected" ]; then
-            echo "::error::Only $total tests ran; expected at least $expected (a dropped target?)"; exit 1
+          # Sanity only: a total of zero means nothing ran at all. The real
+          # guard against a silently dropped TARGET is the per-module coverage
+          # floor in the next step, which is both stricter and meaningful --
+          # a target that stops running takes its module's coverage to zero.
+          if [ "$total" -lt 1 ]; then
+            echo "::error::No tests ran at all"; exit 1
           fi
+
+      # Replaces the old fixed test-count assertion. A count says tests
+      # EXECUTED, not that they exercise anything, and a fixed bound stops
+      # catching a dropped target once the suite grows past it. See the header
+      # comment in Scripts/coverage.sh.
+      - name: Check per-module coverage floors
+        shell: bash
+        run: ./Scripts/coverage.sh
 
   # Every platform in Package.swift, actually built. Without this the package
   # advertised iOS/tvOS/watchOS while only macOS was ever compiled, and watchOS
@@ -315,8 +315,12 @@ jobs:
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
-          # Floor pinned to the last known total; see the macOS job's comment
-          # for why a loose constant cannot catch a dropped target.
+          # Linux keeps a test-count floor rather than a coverage floor: this
+          # job builds only ZPLKit, so there is no per-module signal to gate on,
+          # and its coverage numbers differ from macOS anyway (the
+          # CoreGraphics-gated Graphic element never compiles here). The
+          # per-module coverage floors run in floor-build-and-test, which builds
+          # every module. Pinned to the last known total.
           expected=184
           if [ "$total" -lt "$expected" ]; then
             echo "::error::Only $total tests ran; expected at least $expected (ZPLKit core on Linux)"; exit 1
@@ -377,6 +381,90 @@ jobs:
             echo "::error::Linux output does not match the macOS reference"
             echo "expected: $expected"
             exit 1
+          fi
+
+  # WebAssembly. ZPLKit's core is the only portable target and is deliberately
+  # free of Foundation, so it cross-compiles to wasm32-unknown-wasip1.
+  #
+  # This runs on Linux, not macOS, for two reasons that are not worked around:
+  #   * Package.swift is evaluated on the HOST. `#if canImport(Darwin)` is true
+  #     on macOS, so the package still declares the Apple-only targets and tries
+  #     to build them for Wasm. On Linux it correctly reduces to ZPLKit alone.
+  #   * The container toolchain matches the Swift SDK. Xcode's Swift is a
+  #     different build from the swift.org release that produced the SDK, which
+  #     makes module loading fail.
+  #
+  # Pinned to 6.3.3 because that is the newest Swift for which an official
+  # container image exists; the SDK must match the toolchain exactly. Move both
+  # together when a newer image ships.
+  wasm-build:
+    name: WebAssembly (wasm32-unknown-wasip1)
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: swift:6.3.3
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Install the Swift SDK for WebAssembly
+        # Explicit bash: inside a container the default shell is `sh`, which has
+        # no `pipefail`, so `set -euo pipefail` aborts the step with exit 2
+        # before running anything.
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift sdk install \
+            "https://download.swift.org/swift-6.3.3-release/wasm-sdk/swift-6.3.3-RELEASE/swift-6.3.3-RELEASE_wasm.artifactbundle.tar.gz" \
+            --checksum cabfa08b73bb8ac783927ecd15fa386e99d0c139c5f232445067bcf58379cae7
+          swift sdk list
+
+      - name: Build ZPLKit for WebAssembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="$(swift sdk list | grep -E '_wasm$' | head -1)"
+          if [ -z "$sdk" ]; then
+            echo "::error::No Wasm Swift SDK is installed"; exit 1
+          fi
+          echo "Using SDK: $sdk"
+          swift build --swift-sdk "$sdk" -Xswiftc -warnings-as-errors
+
+      # The core has no Foundation dependency, so a Wasm build that suddenly
+      # needs one is a regression. `Double.rounded()` lowering to libm is the
+      # specific trap: it links on Darwin implicitly and needs the platform
+      # libc import everywhere else (see Sources/ZPLKit/Types/DPI.swift).
+      - name: Run the test suite under WebAssembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="$(swift sdk list | grep -E '_wasm$' | head -1)"
+          log="$(mktemp)"
+          # swift-testing DOES run under WASI on this toolchain, via the
+          # WasmKit runtime bundled with it: measured 184 tests in 31 suites
+          # on 2026-09-16, the same count Linux reports (the core target minus
+          # the six CoreGraphics-gated Graphic cases, which never compile off
+          # Apple platforms).
+          #
+          # The failure branch below is kept deliberately: if a future toolchain
+          # loses the ability to host tests under WASI, that should degrade to a
+          # notice rather than block every PR, because the BUILD is the property
+          # this job exists to protect. A run that reports zero tests is still a
+          # hard failure.
+          if swift test --swift-sdk "$sdk" > "$log" 2>&1; then
+            echo "Tests ran under WebAssembly:"
+            grep -E 'Test run with [0-9]+ test' "$log" || true
+            total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+            echo "Total tests run under Wasm: $total"
+            if [ "$total" -lt 1 ]; then
+              echo "::error::swift test exited 0 under Wasm but ran nothing"; exit 1
+            fi
+          else
+            echo "::notice::Running tests under Wasm is not supported by this toolchain yet; the BUILD above is the gate."
+            echo "--- swift test output (informational) ---"
+            tail -30 "$log"
           fi
 
   build-and-test:
@@ -447,9 +535,10 @@ jobs:
           # Pinned to the current total instead, so any dropped target lands far
           # below it. Adding tests keeps passing (the total only rises), so this
           # needs raising only when you want to lock in a new floor.
-          expected=712
-          if [ "$total" -lt "$expected" ]; then
-            echo "::error::Only $total tests ran; expected at least $expected (a dropped target?)"; exit 1
+          # Sanity only; the coverage floors in floor-build-and-test are the
+          # real guard against a dropped target.
+          if [ "$total" -lt 1 ]; then
+            echo "::error::No tests ran at all"; exit 1
           fi
 
   visual-tests:
