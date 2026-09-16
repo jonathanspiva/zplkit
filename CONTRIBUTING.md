@@ -76,47 +76,42 @@ swift run BarcodePrintTest --help
 The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#require`, `@Suite`), not XCTest. New tests must be written in that style. Prefer `@Test(arguments:)` parameterized tables for repetitive cases, and `@Test(.disabled("reason"))` for tracked skips.
 
 > **A green `swift test` does not mean the suite ran.** Check the reported test
-> counts, not the exit code. The package has **683 tests** in 76 suites:
-> ZPLKitTests 161, ZPLKitRendererTests 163, ZPLKitPrinterTests 245,
-> ZPLKitVerifierTests 114. Two ways a run can come back green having tested
-> much less, or nothing:
+> counts, not the exit code. The package has **708 tests** in 82 suites:
+> ZPLKitTests 186, ZPLKitRendererTests 163, ZPLKitPrinterTests 245,
+> ZPLKitVerifierTests 114. On Linux only the core target builds, so a Linux run
+> reports 180 (ZPLKitTests minus the six CoreGraphics-gated `Graphic` cases).
 >
-> **1. Xcode 27 beta runs only some of the test targets.** Measured twice, with
-> a different subset each time: 244 of 683 on 27A5218g (2026-08-14, first
-> target only) and 408 of 683 on swiftlang-6.4.0.33.1 (2026-09-04,
-> ZPLKitRendererTests and ZPLKitPrinterTests only). It is not a stable "first
-> target only" rule, so you cannot work around it by reordering. All 683 pass
-> when each target is run explicitly, and the stable Swift 6.3 toolchain runs
-> the full suite from a bare `swift test`, so this is a toolchain bug rather
-> than a package problem. On stable, `swift test` is fine; on the beta, run
-> each target:
+> **Counting the output takes care.** From Swift 6.4, SwiftPM defaults to
+> `--build-system swiftbuild`, which prints one `Test run with N tests` summary
+> **per test target**, where the older (now deprecated) `native` system printed
+> a single merged line. So sum the summary lines; do not read the last one:
 >
 > ```bash
-> for t in ZPLKitTests ZPLKitRendererTests ZPLKitVerifierTests ZPLKitPrinterTests; do
->   swift test --filter "$t"
-> done
+> swift test 2>&1 | grep -oE 'Test run with [0-9]+ test' \
+>   | grep -oE '[0-9]+' | awk '{s+=$1} END {print s}'
 > ```
 >
-> Note that `swift test --filter` **also exits 0 when a filter matches nothing**
-> ("No matching test cases were run").
+> Earlier revisions of this file claimed the Xcode 27 beta "runs only some of
+> the test targets" (244 of 683, later 408 of 683). **That was a counting bug,
+> not a toolchain bug** — those figures are what `tail -1` reads from the
+> per-target report. Re-measured on Xcode 27.0 GA: both build systems run the
+> whole suite. There is no per-target loop to work around it, and none is
+> needed.
 >
-> **2. No toolchain selected means no tests run, silently.** With only the
-> Command Line Tools active (no Xcode selected), every test bundle fails to
-> load `Testing.framework`, all four targets report failures, and `swift test`
-> **still exits 0**. If you keep both Xcodes installed, select one explicitly:
+> **What is still real: no toolchain selected means no tests run, silently.**
+> With only the Command Line Tools active (no Xcode selected), every test
+> bundle fails to load `Testing.framework`, all four targets report failures,
+> and `swift test` **still exits 0**. Select one explicitly:
 >
 > ```bash
-> export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer       # stable
-> export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer  # beta
+> export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 > ```
 >
-> CI guards both cases by asserting on the output rather than the exit code: it
+> Note too that `swift test --filter` **also exits 0 when a filter matches
+> nothing** ("No matching test cases were run").
+>
+> CI guards these by asserting on the output rather than the exit code: it
 > fails on `Some test targets reported failures` and on an implausible total.
->
-> One other beta artifact: `swift build` warns that
-> `Sources/ZPLKit/Documentation.docc` is an "unhandled file". The stable
-> toolchain handles the catalog correctly. It is only a warning, so do not
-> "fix" it by declaring the catalog as a resource.
 
 ```bash
 # All tests (see the caveat above on the Xcode 27 beta)

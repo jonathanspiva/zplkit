@@ -43,9 +43,9 @@ on 2026-09-15 and both are retired:
   **per test target** where the (now deprecated) `native` system printed a
   single merged line. CI read the count with `... | tail -1`, so it saw only
   the last target. Measured on GA, both build systems run the identical suite:
-  `swiftbuild` reports 114 + 161 + 163 + 245 = **683 tests** in
-  22 + 25 + 23 + 6 = **76 suites**; `native` reports one merged
-  `683 tests in 76 suites`. Both reconcile exactly to the package totals.
+  `swiftbuild` reports one summary line per target where `native` reports one
+  merged line; both reconcile exactly to the package totals (at the time of
+  measurement, 683 tests in 76 suites; the suite has grown since).
   The old readings fall straight out of the parser: "244 of 683" (2026-08-14)
   is the last summary line alone, and "408 of 683" (2026-09-04) is exactly
   `163 + 245`, the last two. The per-target filter loop is gone and the count
@@ -75,7 +75,7 @@ genuinely lies there; that one is not a parsing artifact.
   (the badge still read `Swift 6.3`, platforms unchanged). The matrix is **per
   version**, so whatever verdict SPI publishes against v1.0.4 is frozen until
   the next tag. The package itself builds and tests clean on 6.4 GA locally
-  (683/683, zero warnings), so no action is expected, but check the badge
+  (full suite green, zero warnings), so no action is expected, but check the badge
   before assuming.
 
 ### Notes for the next release

@@ -167,10 +167,10 @@ jobs:
           fi
           # SUM the summary lines, do not take the last one. The two build
           # systems report different SHAPES:
-          #   * native (Swift 6.3 / Xcode 26): one merged line, "683 tests in
-          #     76 suites".
+          #   * native (Swift 6.3 / Xcode 26): one merged line, "708 tests in
+          #     82 suites".
           #   * swiftbuild (the default from Swift 6.4 / Xcode 27): one line
-          #     PER TEST TARGET, e.g. 114 + 161 + 163 + 245 = 683.
+          #     PER TEST TARGET, e.g. 114 + 186 + 163 + 245 = 708.
           # A `tail -1` reads only the last target under swiftbuild. That is
           # what produced the bogus "244 of 683" and "408 of 683" readings
           # previously recorded as a toolchain bug; nothing was ever skipped.
@@ -179,8 +179,12 @@ jobs:
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
+          # 600 is chosen to catch a silently DROPPED TARGET, not to track the
+          # exact total: the largest remainder after losing any one target is
+          # 708 - 114 = 594. Adding tests only widens that margin, so this
+          # bound does not need bumping every time the suite grows.
           if [ "$total" -lt 600 ]; then
-            echo "::error::Only $total tests ran; expected the full suite (683)"; exit 1
+            echo "::error::Only $total tests ran; expected the full suite (708)"; exit 1
           fi
 
   # Every platform in Package.swift, actually built. Without this the package
@@ -306,8 +310,8 @@ jobs:
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
-          if [ "$total" -lt 150 ]; then
-            echo "::error::Only $total tests ran; expected the full ZPLKit suite (155)"; exit 1
+          if [ "$total" -lt 175 ]; then
+            echo "::error::Only $total tests ran; expected the full ZPLKit suite (180)"; exit 1
           fi
 
       # Building the target proves it compiles; this proves a Linux consumer can
@@ -376,10 +380,12 @@ jobs:
       # summed, not tail'd. The two build systems report different shapes:
       #
       #   * native (Swift 6.3 / Xcode 26): one merged summary line,
-      #     "Test run with 683 tests in 76 suites".
+      #     "Test run with 708 tests in 82 suites".
       #   * swiftbuild (the default from Swift 6.4 / Xcode 27): one summary
-      #     line PER TEST TARGET: 114 + 161 + 163 + 245 = 683, in
-      #     22 + 25 + 23 + 6 = 76 suites.
+      #     line PER TEST TARGET: 114 + 186 + 163 + 245 = 708, in
+      #     22 + 31 + 23 + 6 = 82 suites. Those per-target figures are
+      #     illustrative and move whenever tests are added; only the TOTAL is
+      #     asserted below.
       #
       # This job previously ran a per-target filter loop because a `tail -1`
       # over the swiftbuild shape read only the LAST target and looked like a
@@ -407,8 +413,12 @@ jobs:
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
+          # 600 is chosen to catch a silently DROPPED TARGET, not to track the
+          # exact total: the largest remainder after losing any one target is
+          # 708 - 114 = 594. Adding tests only widens that margin, so this
+          # bound does not need bumping every time the suite grows.
           if [ "$total" -lt 600 ]; then
-            echo "::error::Only $total tests ran; expected the full suite (683)"; exit 1
+            echo "::error::Only $total tests ran; expected the full suite (708)"; exit 1
           fi
 
   visual-tests:
