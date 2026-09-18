@@ -145,8 +145,14 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 > This replaced a fixed test-count assertion. A count only says tests
 > *executed*, not that they exercise anything, and a fixed bound quietly stops
 > catching a dropped test target once the suite grows past it. Coverage catches
-> that same failure harder -- a target that stops running takes its module's
-> coverage toward zero -- while measuring something worth caring about.
+> that same failure harder, while measuring something worth caring about.
+>
+> It catches it because the script checks every module in its floor list, and
+> a module in that list which is **missing** from the coverage report fails the
+> build exactly like one that is below its floor. Coverage does not sink toward
+> zero when a test target stops running: a module linked only by that target
+> (ZPLKitPrinter, for one) leaves the report entirely. So adding a module means
+> adding its floor, and renaming one means renaming its floor.
 
 ```bash
 # All tests (see the caveat above on the Xcode 27 beta)
