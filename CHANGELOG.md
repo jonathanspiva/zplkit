@@ -5,7 +5,59 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+CI only. No library code changed.
+
+### Fixed
+
+- **The coverage gate could not fail on a module that vanished from the
+  report.** `Scripts/coverage.sh` looped over the modules llvm-cov *reported*,
+  never over its own floor list, and 1.0.6 justified the gate on the premise
+  that a dropped test target takes its module's coverage toward zero. That
+  premise is wrong: `ZPLKitPrinter` is linked only by `ZPLKitPrinterTests`, so
+  when that bundle stops running the module does not sink, it leaves the report
+  altogether. The script then printed "All modules at or above their coverage
+  floors" and exited 0. Since the test-count assertion had been relaxed to
+  "greater than zero" in the same release, a silently dropped
+  `ZPLKitPrinterTests` passed every job. The gate now iterates the floor list,
+  and a module named there and missing from the report is a hard failure.
+  Verified by removing the built `ZPLKitPrinterTests` bundle: previously green,
+  now fails.
+
+- **Module names no longer depend on llvm-cov's path shortening.** The script
+  read the module from the first path component of the text report's filename
+  column, but `llvm-cov report` strips the longest common path prefix. Over the
+  whole suite the rows read `ZPLKit/Elements/Aztec.swift`; over a single target
+  they read `Aztec.swift`, every module became unrecognised, and the run passed
+  with nothing enforced. It now reads `llvm-cov export -summary-only`, whose
+  JSON carries absolute paths. Reported numbers are unchanged (86.77% line,
+  80.25% region).
+
+- **A failing test under WebAssembly now fails CI.** The Wasm job treated any
+  non-zero `swift test` exit as "this toolchain cannot host tests yet",
+  printed a notice and passed, including for a genuine test failure or a
+  runtime trap, which is the class of regression the step exists to catch. It
+  now degrades to a notice only when the test runner produced no output at all
+  (an SDK or link failure, which never reaches the runner) and fails the job
+  when tests ran and failed.
+
+- **A test-count step that found no count now says so.** Under `pipefail`, a
+  no-match `grep` in the counting pipeline aborted the step before its own
+  error message could print, so "nothing ran" failed the job with no
+  diagnostic.
+
 ## [1.0.6] - 2026-09-16
+
+> **Erratum.** Under *Changed* below, the coverage floors are described as
+> catching a dropped test target because "a target that stops running takes its
+> module's coverage toward zero". **That is wrong for a module linked only by
+> its own test target**, such as `ZPLKitPrinter`: the module disappears from the
+> coverage report rather than sinking, and the gate as shipped iterated the
+> report, so it passed. *Added* below also describes WebAssembly as tested on
+> every push; a Wasm test **failure** degraded to a notice and did not fail the
+> job. Both are fixed under [Unreleased]. The original text is left unedited.
+
 
 **Fixes a real bug for anyone using ZPLKit off Apple platforms**, and adds
 WebAssembly to the tested platforms.

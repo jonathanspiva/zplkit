@@ -171,15 +171,16 @@ jobs:
           # A `tail -1` reads only the last target under swiftbuild. That is
           # what produced the bogus "244 of 683" and "408 of 683" readings
           # previously recorded as a toolchain bug; nothing was ever skipped.
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)"
           if [ -z "$total" ] || [ "$total" = "0" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
           # Sanity only: a total of zero means nothing ran at all. The real
           # guard against a silently dropped TARGET is the per-module coverage
-          # floor in the next step, which is both stricter and meaningful --
-          # a target that stops running takes its module's coverage to zero.
+          # floor in the next step, which fails on any module named in its
+          # floor list that is missing from the coverage report -- which is what
+          # a module whose only test target stopped running looks like.
           if [ "$total" -lt 1 ]; then
             echo "::error::No tests ran at all"; exit 1
           fi
@@ -310,7 +311,7 @@ jobs:
           # tail -1 happens to work today. It stops working the moment the
           # container is bumped to 6.4, where `swiftbuild` becomes the default
           # and prints one line per test target. See the floor job's comment.
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)"
           if [ -z "$total" ] || [ "$total" = "0" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
@@ -448,20 +449,34 @@ jobs:
           # the six CoreGraphics-gated Graphic cases, which never compile off
           # Apple platforms).
           #
-          # The failure branch below is kept deliberately: if a future toolchain
-          # loses the ability to host tests under WASI, that should degrade to a
-          # notice rather than block every PR, because the BUILD is the property
-          # this job exists to protect. A run that reports zero tests is still a
+          # The failure branch below is kept deliberately, but ONLY for the case
+          # it was written for: if a future toolchain loses the ability to host
+          # tests under WASI, that should degrade to a notice rather than block
+          # every PR, because the BUILD is the property this job exists to
+          # protect. A FAILING test is a different thing entirely and fails the
+          # job -- otherwise the libm-class regression this step exists to catch
+          # would sail through as a notice.
+          #
+          # The discriminator is whether the swift-testing runner produced any
+          # output at all. An SDK or link failure never reaches it; a failing
+          # test or a runtime trap does. A run that reports zero tests is also a
           # hard failure.
           if swift test --swift-sdk "$sdk" > "$log" 2>&1; then
             echo "Tests ran under WebAssembly:"
             grep -E 'Test run with [0-9]+ test' "$log" || true
-            total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+            total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)"
             echo "Total tests run under Wasm: $total"
             if [ "$total" -lt 1 ]; then
               echo "::error::swift test exited 0 under Wasm but ran nothing"; exit 1
             fi
           else
+            status=$?
+            if grep -qE 'Test run (started|with [0-9]+ test)|Executed [0-9]+ test' "$log"; then
+              echo "::error::The test suite ran under WebAssembly and failed (swift test exited $status)"
+              echo "--- swift test output ---"
+              tail -60 "$log"
+              exit 1
+            fi
             echo "::notice::Running tests under Wasm is not supported by this toolchain yet; the BUILD above is the gate."
             echo "--- swift test output (informational) ---"
             tail -30 "$log"
@@ -519,24 +534,20 @@ jobs:
           if grep -q 'Some test targets reported failures' "$log"; then
             echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
           fi
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)"
           if [ -z "$total" ] || [ "$total" = "0" ]; then
             echo "::error::Could not determine the test count from 'swift test' output"; exit 1
           fi
           echo "Total tests run: $total"
-          # A FLOOR equal to the last known total, not a loose constant.
-          #
-          # This must catch a silently dropped test target. A fixed bound could
-          # not: the check only fires while (total - dropped_target) is below
-          # it, and that value RISES as the suite grows. The previous bound of
-          # 600 was within two tests of failing to catch a dropped 114-test
-          # target (712 - 114 = 598).
-          #
-          # Pinned to the current total instead, so any dropped target lands far
-          # below it. Adding tests keeps passing (the total only rises), so this
-          # needs raising only when you want to lock in a new floor.
-          # Sanity only; the coverage floors in floor-build-and-test are the
-          # real guard against a dropped target.
+          # Sanity only: zero means nothing ran. There is deliberately no
+          # numeric floor here. A fixed bound catches a dropped test target only
+          # while (total - dropped_target) stays below it, and that value RISES
+          # as the suite grows: the old bound of 600 was within two tests of
+          # missing a dropped 114-test target (712 - 114 = 598). The guard
+          # against a dropped target is the per-module coverage gate in
+          # floor-build-and-test, which fails on a module that is missing from
+          # the report and not merely low. That job is hosted and runs on every
+          # push and PR, so the guard is never skipped.
           if [ "$total" -lt 1 ]; then
             echo "::error::No tests ran at all"; exit 1
           fi

@@ -11,9 +11,15 @@
 #
 # CI used to assert a total test count to catch a test target that silently
 # stopped running. That is a weak proxy: it says tests EXECUTED, not that they
-# exercise anything. Coverage catches the same failure far more meaningfully --
-# if a target stops running, its module's coverage collapses toward zero -- and
-# it measures something worth caring about on its own.
+# exercise anything. Coverage catches the same failure far more meaningfully,
+# and it measures something worth caring about on its own.
+#
+# It only catches it because the check below iterates THIS list of floors, not
+# the modules llvm-cov reports. A module's coverage does not sink toward zero
+# when its test target stops running: a module linked only by that target (which
+# is true of ZPLKitPrinter) drops out of the report altogether, and a loop over
+# the report would sail past it. A module named here and missing from the report
+# is a hard failure.
 #
 # The floors are a RATCHET: each is the value measured when it was last raised.
 # Coverage may rise freely; a drop below the floor fails. Raise a floor
@@ -102,8 +108,15 @@ if [ ${#BINS[@]} -gt 1 ]; then
     for b in "${BINS[@]:1}"; do OBJ_ARGS+=(-object "$b"); done
 fi
 
+# --- collect the per-file summaries -----------------------------------------
+# `export -summary-only`, not `report`, deliberately. The text report strips the
+# longest common path prefix from its filename column, so the module name is
+# only in there by luck: over the whole suite the rows read
+# "ZPLKit/Elements/Aztec.swift", but over a single test target they read
+# "Aztec.swift" and every module silently becomes unrecognised. The JSON carries
+# absolute paths, which cannot be misread.
 REPORT="$(mktemp)"
-"${COV[@]}" report "${BINS[0]}" ${OBJ_ARGS[@]+"${OBJ_ARGS[@]}"} \
+"${COV[@]}" export -summary-only "${BINS[0]}" ${OBJ_ARGS[@]+"${OBJ_ARGS[@]}"} \
     -instr-profile="$PROF" \
     -ignore-filename-regex='(Tests|\.build|Tools)/' 2>/dev/null > "$REPORT"
 
@@ -112,46 +125,111 @@ if [ ! -s "$REPORT" ]; then
 fi
 
 # --- aggregate per module ---------------------------------------------------
-# llvm-cov report columns:
-#   1 filename, 2 regions, 3 missed regions, 4 cover%,
-#   5 functions, 6 missed functions, 7 executed%,
-#   8 lines, 9 missed lines, 10 cover%
+# The export is one long line. Put each file record on its own line first, so
+# the parser can stay line-oriented: a multi-character RS is not portable across
+# the awks in play (BSD awk on macOS, mawk in the Swift Linux images).
+#
+# Each record:
+#   {"filename":"<abs>/Sources/<Module>/<...>.swift","summary":{...
+#     "lines":{"count":N,"covered":M,...} ... "regions":{"count":N,"covered":M,...}}}
+RECORDS="$(mktemp)"
+awk '{ gsub(/\{"filename":/, "\n&"); print }' "$REPORT" > "$RECORDS"
+
+SUMMARY="$(awk '
+    # Pull "<key>":{"count":N,"covered":M out of a record. Returns "N M".
+    function counts(rec, key,   s, n, a) {
+        if (!match(rec, "\"" key "\":\\{\"count\":[0-9]+,\"covered\":[0-9]+"))
+            return ""
+        s = substr(rec, RSTART, RLENGTH)
+        n = split(s, a, /[^0-9]+/)
+        return a[n - 1] " " a[n]
+    }
+    /^\{"filename":"/ {
+        rest = substr($0, length("{\"filename\":\"") + 1)
+        fn = substr(rest, 1, index(rest, "\"") - 1)
+
+        # The module is the path component under the LAST "Sources/".
+        p = fn
+        if (match(p, /.*\/Sources\//)) p = substr(p, RSTART + RLENGTH)
+        mod = p
+        sub(/\/.*/, "", mod)
+        if (mod == "" || mod == fn) next
+
+        split(counts($0, "lines"), l, " ")
+        split(counts($0, "regions"), r, " ")
+        lt[mod] += l[1]; lc[mod] += l[2]
+        rt[mod] += r[1]; rc[mod] += r[2]
+        seen[mod] = 1
+    }
+    END {
+        for (m in seen) {
+            lp = lt[m] > 0 ? lc[m] / lt[m] * 100 : 0
+            rp = rt[m] > 0 ? rc[m] / rt[m] * 100 : 0
+            printf "%s %.2f %.2f %d %d %d %d\n", m, lp, rp, lc[m], lt[m], rc[m], rt[m]
+        }
+    }
+' "$RECORDS" | sort)"
+
+if [ -z "$SUMMARY" ]; then
+    echo "error: no module could be read out of the coverage report" >&2
+    echo "       (expected source paths under Sources/<Module>/)" >&2
+    exit 1
+fi
+
 echo ""
 printf "%-18s %10s %12s   %s\n" "module" "line cov" "region cov" "covered/total"
 printf -- "---------------------------------------------------------------\n"
 
-SUMMARY="$(awk '
-    NF>=10 && $1 ~ /\// {
-        mod=$1; sub(/\/.*/,"",mod)
-        lt[mod]+=$8; lm[mod]+=$9; rt[mod]+=$2; rm[mod]+=$3
-    }
-    END {
-        for (m in lt)
-            printf "%s %.2f %.2f %d %d\n", m, (lt[m]-lm[m])/lt[m]*100, (rt[m]-rm[m])/rt[m]*100, lt[m]-lm[m], lt[m]
-    }
-' "$REPORT" | sort)"
-
+# --- enforce ----------------------------------------------------------------
+# Iterate FLOORS, NOT the modules llvm-cov happened to report. A module linked
+# only by its own test bundle (ZPLKitPrinter) does not sink toward zero when
+# that bundle stops running: it disappears from the report entirely. A loop over
+# the report would then find nothing to complain about and pass, which is
+# exactly the failure this gate exists to catch.
 fail=0
-while read -r mod line region covered total; do
-    [ -z "$mod" ] && continue
-    floor="$(echo "$FLOORS" | awk -F: -v m="$mod" '$1==m {print $2}')"
-    status=""
-    if [ -n "$floor" ]; then
-        below="$(awk -v a="$line" -v b="$floor" 'BEGIN{print (a<b) ? 1 : 0}')"
-        if [ "$below" = "1" ]; then
-            status="  BELOW FLOOR ($floor%)"
-            fail=1
-        else
-            status="  (floor $floor%)"
-        fi
+checked=""
+while IFS= read -r entry; do
+    [ -z "$entry" ] && continue
+    mod="${entry%%:*}"
+    floor="${entry#*:}"
+    checked="$checked $mod"
+
+    row="$(echo "$SUMMARY" | awk -v m="$mod" '$1 == m {print; exit}')"
+    if [ -z "$row" ]; then
+        printf "%-18s %9s  %10s   %s\n" "$mod" "-" "-" "  MISSING from the coverage report"
+        fail=1
+        continue
+    fi
+
+    set -- $row
+    line="$2"; region="$3"; covered="$4"; total="$5"
+    below="$(awk -v a="$line" -v b="$floor" 'BEGIN{print (a<b) ? 1 : 0}')"
+    if [ "$below" = "1" ]; then
+        status="  BELOW FLOOR ($floor%)"
+        fail=1
     else
-        status="  (no floor set)"
+        status="  (floor $floor%)"
     fi
     printf "%-18s %9s%% %11s%%   %s/%s%s\n" "$mod" "$line" "$region" "$covered" "$total" "$status"
+done <<< "$FLOORS"
+
+# Anything covered but without a floor: reported, never enforced. A new module
+# shows up here until someone sets its floor.
+while read -r mod line region covered total rcovered rtotal; do
+    [ -z "$mod" ] && continue
+    case " $checked " in
+        *" $mod "*) continue ;;
+    esac
+    printf "%-18s %9s%% %11s%%   %s/%s%s\n" "$mod" "$line" "$region" "$covered" "$total" "  (no floor set)"
 done <<< "$SUMMARY"
 
 printf -- "---------------------------------------------------------------\n"
-tail -1 "$REPORT" | awk '{printf "%-18s %9s %11s\n", "TOTAL", $10, $4}'
+echo "$SUMMARY" | awk '
+    { lc += $4; lt += $5; rc += $6; rt += $7 }
+    END {
+        printf "%-18s %9.2f%% %11.2f%%\n", "TOTAL",
+            (lt > 0 ? lc / lt * 100 : 0), (rt > 0 ? rc / rt * 100 : 0)
+    }'
 echo ""
 
 if [ "$REPORT_ONLY" = "1" ]; then
@@ -160,8 +238,8 @@ if [ "$REPORT_ONLY" = "1" ]; then
 fi
 
 if [ "$fail" = "1" ]; then
-    echo "::error::Code coverage dropped below a module floor. Either add tests, or raise/lower the floor in Scripts/coverage.sh deliberately and say why."
+    echo "::error::A module is below its coverage floor, or missing from the report entirely. A missing module means its test target did not run (or the module was renamed). Add tests, restore the target, or change the floor in Scripts/coverage.sh deliberately and say why."
     exit 1
 fi
 
-echo "All modules at or above their coverage floors."
+echo "All modules with floors are at or above them."

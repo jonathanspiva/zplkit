@@ -70,13 +70,15 @@ genuinely lies there; that one is not a parsing artifact.
   regression before adopting it as the baseline.
 - [ ] **Wire the live-printer sweep into the runner's `workflow_dispatch` job.**
   UDP-4201 discovery is hardware-validated, but the sweep isn't automated.
-- [ ] **Watch for Swift Package Index's Swift 6.4 build row on v1.0.4.** Swift
-  6.4 went GA 2026-09-15; SPI had not re-cycled its builders as of that date
-  (the badge still read `Swift 6.3`, platforms unchanged). The matrix is **per
-  version**, so whatever verdict SPI publishes against v1.0.4 is frozen until
-  the next tag. The package itself builds and tests clean on 6.4 GA locally
-  (full suite green, zero warnings), so no action is expected, but check the badge
-  before assuming.
+- [ ] **Watch Swift Package Index's build row for v1.0.6.** As of 2026-09-17
+  both badge endpoints (`.../badge?type=swift-versions` and `?type=platforms`)
+  return `pending`, i.e. SPI has picked up the new tag but published no build
+  results yet, so the README badges render grey. The matrix is **per version**,
+  so the v1.0.4/v1.0.5 rows will never change and whatever SPI publishes lands
+  against v1.0.6. The package builds and tests clean on Swift 6.4 GA locally
+  (full suite green, zero warnings), so no action is expected. Note the page
+  itself answers only to a real browser: any scripted fetch gets a Cloudflare
+  403, which says nothing about indexing.
 
 ### Notes for the next release
 Not tasks, but the two facts that cost time last release and are not recorded
