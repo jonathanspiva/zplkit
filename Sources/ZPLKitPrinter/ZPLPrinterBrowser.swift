@@ -1,7 +1,5 @@
 import Foundation
-#if canImport(Darwin)
 import Darwin
-#endif
 
 /// Discovers Zebra printers on the local network using Zebra's proprietary
 /// UDP discovery protocol (the same mechanism Zebra's Link-OS `NetworkDiscoverer`

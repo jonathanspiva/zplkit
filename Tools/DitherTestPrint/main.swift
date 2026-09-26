@@ -29,10 +29,10 @@ print("Loaded image: \(cgImage.width)x\(cgImage.height)")
 let env = ProcessInfo.processInfo.environment
 let printers: [(name: String, host: String, labelHeight: Double)] = [
     ("ZM400", env["ZPLTOOL_ZM400_HOST"] ?? "192.168.1.100", 6.0),
-    ("GX420t", env["ZPLTOOL_GX420T_HOST"] ?? "192.168.1.100", 2.0),
+    ("GX420t", env["ZPLTOOL_GX420T_HOST"] ?? "192.168.1.101", 2.0),
 ]
 
-for printer in printers {
+for (index, printer) in printers.enumerated() {
     let labelW = 4.0
     let labelH = printer.labelHeight
 
@@ -54,7 +54,7 @@ for printer in printers {
     print("  Sent in \(elapsed)s")
 
     // Pause between prints
-    if printer.host != printers.last?.host {
+    if index < printers.count - 1 {
         try await Task.sleep(nanoseconds: 1_000_000_000)
     }
 }

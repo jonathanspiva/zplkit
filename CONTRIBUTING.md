@@ -6,20 +6,9 @@ Thanks for your interest in contributing to ZPLKit! This document covers the dev
 
 ### Requirements
 
-- macOS 26+ (for the Vision framework used in tests)
-- Swift 6.3 (`swift-tools-version: 6.3`)
-- Xcode 26 (or VSCode with the Swift extension pointed at the same toolchain)
-
-> **Heads up:** ZPLKit builds on the current *stable* toolchain. It also builds
-> and passes its full suite on the Xcode 27 beta, but that toolchain has two
-> bugs worth knowing about before you trust a local run. See the caveat under
-> [Running Tests](#running-tests). If you keep both Xcodes installed, select one
-> explicitly with `DEVELOPER_DIR`:
->
-> ```bash
-> export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer       # stable
-> export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer  # beta
-> ```
+- macOS 27+ (for the Vision framework used in tests)
+- Swift 6.4 (`swift-tools-version: 6.4`)
+- Xcode 27 (or VSCode with the Swift extension pointed at the same toolchain)
 
 ### Getting Started
 
@@ -92,14 +81,9 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 > target imports Foundation and so links libm regardless; only the Linux job's
 > consumer-package step will fail.
 >
-> CI asserts the total against a FLOOR pinned to the last known count, not a
-> loose constant. A loose bound stops catching a dropped test target once the
-> suite grows past it, which is a failure that looks exactly like success.
->
-> **Counting the output takes care.** From Swift 6.4, SwiftPM defaults to
-> `--build-system swiftbuild`, which prints one `Test run with N tests` summary
-> **per test target**, where the older (now deprecated) `native` system printed
-> a single merged line. So sum the summary lines; do not read the last one:
+> **Counting the output takes care.** SwiftPM's default build system
+> (`swiftbuild`) prints one `Test run with N tests` summary **per test target**,
+> so sum the summary lines; do not read the last one:
 >
 > ```bash
 > swift test 2>&1 | grep -oE 'Test run with [0-9]+ test' \
@@ -108,10 +92,8 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 >
 > Earlier revisions of this file claimed the Xcode 27 beta "runs only some of
 > the test targets" (244 of 683, later 408 of 683). **That was a counting bug,
-> not a toolchain bug** — those figures are what `tail -1` reads from the
-> per-target report. Re-measured on Xcode 27.0 GA: both build systems run the
-> whole suite. There is no per-target loop to work around it, and none is
-> needed.
+> not a toolchain bug**: those figures are what `tail -1` reads from the
+> per-target report. Nothing was ever skipped.
 >
 > **What is still real: no toolchain selected means no tests run, silently.**
 > With only the Command Line Tools active (no Xcode selected), every test
@@ -155,7 +137,7 @@ The test suite uses the **Swift Testing** framework (`@Test`, `#expect`, `#requi
 > adding its floor, and renaming one means renaming its floor.
 
 ```bash
-# All tests (see the caveat above on the Xcode 27 beta)
+# All tests (check the summed count, see above)
 swift test
 
 # Specific module

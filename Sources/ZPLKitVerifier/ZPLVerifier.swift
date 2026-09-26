@@ -1,7 +1,7 @@
-// ZPLKitVerifier is built on Vision. Vision's Swift API (DetectBarcodesRequest,
-// RecognizeTextRequest) is unavailable on watchOS below 27, and the Vision
-// module is absent entirely on non-Apple platforms, so this module compiles
-// to an empty module there rather than failing the package build.
+// ZPLKitVerifier is built on Vision. watchOS 27 has `DetectBarcodesRequest` but
+// no `RecognizeTextRequest` at all, and the Vision module is absent entirely on
+// non-Apple platforms, so this module compiles to an empty module on both
+// rather than failing the package build.
 #if canImport(Vision) && !os(watchOS)
 import Foundation
 import CoreGraphics

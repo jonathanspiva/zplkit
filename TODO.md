@@ -70,15 +70,6 @@ genuinely lies there; that one is not a parsing artifact.
   regression before adopting it as the baseline.
 - [ ] **Wire the live-printer sweep into the runner's `workflow_dispatch` job.**
   UDP-4201 discovery is hardware-validated, but the sweep isn't automated.
-- [ ] **Watch Swift Package Index's build row for v1.0.6.** As of 2026-09-17
-  both badge endpoints (`.../badge?type=swift-versions` and `?type=platforms`)
-  return `pending`, i.e. SPI has picked up the new tag but published no build
-  results yet, so the README badges render grey. The matrix is **per version**,
-  so the v1.0.4/v1.0.5 rows will never change and whatever SPI publishes lands
-  against v1.0.6. The package builds and tests clean on Swift 6.4 GA locally
-  (full suite green, zero warnings), so no action is expected. Note the page
-  itself answers only to a real browser: any scripted fetch gets a Cloudflare
-  403, which says nothing about indexing.
 
 ### Notes for the next release
 Not tasks, but the two facts that cost time last release and are not recorded
@@ -89,12 +80,21 @@ anywhere else:
   compile and `xcodebuild` failed everywhere; both fixed in 1.0.1).
 - **swiftpackageindex.com returns 403 to any scripted fetch** (Cloudflare),
   indexed or not. Only the `/api/.../badge` endpoints answer `curl`, which is
-  what the README badges use. Verified still working 2026-09-04: platforms reads
-  `iOS | macOS | visionOS | tvOS | watchOS | Linux | Wasm | Android`, Swift
-  reads `6.3`.
+  what the README badges use. Verified 2026-09-25 against v1.0.6: platforms
+  reads `iOS | macOS | visionOS | tvOS | watchOS | Linux | Wasm | Android`,
+  Swift reads `6.4 | 6.3`. Expect Swift to drop to `6.4` once the 27-floor
+  release is indexed.
+- **The 27 floor is a breaking change for OS 26 consumers**, since SwiftPM
+  resolves versions without looking at platforms. Decide 1.1.0 vs 2.0.0 before
+  tagging, and update the README's `from: "1.0.0"` if it is 2.0.0.
 
 ## Later
 
+- [ ] **Barcode-only `ZPLKitVerifier` on watchOS.** watchOS 27 has
+  `DetectBarcodesRequest` but no `RecognizeTextRequest`, so the module is still
+  empty there. Enabling barcode analysis would mean gating the text types
+  (`TextExpectation`, `DetectedText`, `AnalysisResult.texts`, the text scanner)
+  individually rather than the whole module.
 - [ ] **Bound the concurrency of `send()`.** `send()` is now the only thing in
   `ZPLKitPrinter` still on GCD: it runs its blocking socket work on
   `DispatchQueue.global()` (ZPLPrinter.swift:146). Mass fan-out (60+ concurrent

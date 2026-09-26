@@ -195,7 +195,7 @@ let command = PrinterCommand.printNetworkConfig.zpl  // "~WL"
 | `.printNetworkConfig` | Print network settings (`~WL`) |
 | `.calibrate` | Run media calibration (`~JC`) |
 | `.reset` | Power-on reset (`~JR`) |
-| `.cancelJob` | Cancel current print job (`~JA`) |
+| `.cancelJob` | Cancel all print jobs (`~JA`) |
 
 ## Supported DPI
 

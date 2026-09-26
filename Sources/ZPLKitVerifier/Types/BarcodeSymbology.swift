@@ -5,7 +5,7 @@ import Vision
 ///
 /// These map to the Vision framework's `BarcodeSymbology` types. The
 /// Swift-native Vision API these use shipped in iOS 18 / macOS 15; ZPLKit's own
-/// floor of 26 is the package's, not this API's.
+/// floor of 27 is the package's, not this API's.
 ///
 /// Not `@frozen`: Vision gains symbologies over time, so new cases may be added
 /// in future releases. Consumers switching over this enum should include a

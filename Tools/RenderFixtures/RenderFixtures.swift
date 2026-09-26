@@ -74,5 +74,8 @@ struct RenderFixtures {
         }
 
         print("\nDone. \(successCount) succeeded, \(failCount) failed.")
+        if failCount > 0 {
+            exit(1)
+        }
     }
 }

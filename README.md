@@ -272,8 +272,8 @@ Two further caveats about commands that *are* implemented:
 
 ## Requirements
 
-- Swift 6.3+
-- iOS 26+ / macOS 26+ / tvOS 26+ / watchOS 26+
+- Swift 6.4+
+- iOS 27+ / macOS 27+ / tvOS 27+ / watchOS 27+
 - **Non-Apple platforms get `ZPLKit` only.** On a non-Darwin host the package
   declares just that one library, because the other three products are
   Apple-only by design: `ZPLKitRenderer` needs CoreGraphics, `ZPLKitVerifier`
@@ -294,13 +294,13 @@ Two further caveats about commands that *are* implemented:
   The platforms badge above also lists **Android**, which follows from the same
   reduced package graph. That one builds but is not tested here, so treat it as
   plausible rather than supported.
-- **`ZPLKitVerifier` is unavailable on watchOS.** It is built on Vision, whose
-  Swift API (`DetectBarcodesRequest`, `RecognizeTextRequest`) requires watchOS 27
-  while ZPLKit's floor is 26. The module compiles to an empty module there, so
-  `ZPLKit`, `ZPLKitRenderer`, and `ZPLKitPrinter` all work on watchOS but
-  verification does not.
+- **`ZPLKitVerifier` is unavailable on watchOS.** It is built on Vision, and the
+  watchOS SDK has no `RecognizeTextRequest` (barcode detection does exist there
+  as of watchOS 27, text recognition does not). The module compiles to an empty
+  module there, so `ZPLKit`, `ZPLKitRenderer`, and `ZPLKitPrinter` all work on
+  watchOS but verification does not.
 
-The floor tracks the newest generally-available OS release rather than the current beta, so ZPLKit installs on a shipping toolchain. It is still deliberately narrow: ZPLKit uses the modern Swift concurrency, Vision, and Network APIs directly rather than carrying back-compatibility shims. If you need wider platform support, pin to a fork rather than expecting older-OS compatibility.
+The floor tracks the newest generally-available OS release rather than the current beta, so ZPLKit installs on a shipping toolchain. It is still deliberately narrow: ZPLKit uses the modern Swift concurrency, Vision, and Network APIs directly rather than carrying back-compatibility shims. If you need wider platform support, pin to a fork rather than expecting older-OS compatibility. On OS 26 with Swift 6.3, the 1.0.x releases (1.0.6 and earlier) still work.
 
 ## Resources
 

@@ -7,9 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-CI only. No library code changed.
+### Changed
+
+- **The platform floor is now macOS / iOS / tvOS / watchOS 27 and Swift 6.4**
+  (`swift-tools-version: 6.4`), following macOS 27 and Swift 6.4 going GA on
+  2026-09-15. **This is a breaking change for anyone on OS 26 or Swift 6.3.**
+  SwiftPM does not consider platforms when resolving versions, so a consumer
+  whose deployment target is 26 will resolve to this release and then fail to
+  build; pin to `1.0.x` to stay on 26.
+- `ZPLKitVerifier` is still unavailable on watchOS. The earlier stated reason
+  (Vision's Swift API needs watchOS 27) was incomplete: watchOS 27 has
+  `DetectBarcodesRequest` but its SDK has no `RecognizeTextRequest` at all.
+- CI: the floor, cross-platform, and docs jobs moved from the hosted
+  `macos-26` / Xcode 26.6 image to the hosted `xcode-27` image, pinned to
+  Xcode 27.0. visionOS joined the cross-platform build matrix. The Linux and
+  WebAssembly jobs moved to the `swift:6.4` containers and the 6.4.0 Wasm SDK
+  (both still run 184 tests). The test-output check that was copied into
+  three jobs now lives in `Scripts/check-test-output.sh`.
+
+### Removed
+
+- Dead conditional-compilation branches in Apple-only targets: the
+  non-`Compression` fallback in the `^GF` parser and a `Glibc` import in
+  `ZPLKitPrinter`, neither of which could ever compile.
 
 ### Fixed
+
+- `RenderFixtures` exits non-zero when any fixture fails to render.
+- `DitherTestPrint` defaulted both printers to the same host, which also
+  skipped the pause between the two jobs.
+- Docs: the `PrinterCommand` example called an API that does not exist; `~JA`
+  is now consistently described as cancelling all jobs; `IntelligentMail` is
+  listed under 1D barcodes in the DocC topics; CONTRIBUTING no longer describes
+  Xcode 27 beta bugs or a macOS test-count floor that no longer exist.
 
 - **The coverage gate could not fail on a module that vanished from the
   report.** `Scripts/coverage.sh` looped over the modules llvm-cov *reported*,
