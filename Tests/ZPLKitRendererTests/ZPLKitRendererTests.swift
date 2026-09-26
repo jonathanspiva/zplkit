@@ -5,6 +5,15 @@ import ZPLKitVerifier
 @testable import ZPLKitRenderer
 @testable import ZPLKit
 
+/// GitHub's hosted macOS 27 runner cannot run Vision text recognition: every
+/// `RecognizeTextRequest` fails with `e5rt_e5_compiler_compile call failed`
+/// (the on-device model never compiles in that VM). The hosted CI job sets
+/// `ZPLKIT_SKIP_VISION_OCR=1` to skip suites that need it; the self-hosted
+/// runner and local runs never set it, so they still run everything. An
+/// explicit opt-out rather than a runtime probe, so a real OCR regression can
+/// never quietly skip itself.
+let visionOCRAvailable = ProcessInfo.processInfo.environment["ZPLKIT_SKIP_VISION_OCR"] != "1"
+
 // MARK: - Parser: Layout & Field Commands
 
 @Suite("Parser Layout & Field Commands")
@@ -817,7 +826,7 @@ struct CoreTests {
 
 // MARK: - Barcode Decode Verification (ZPLVerifier)
 
-@Suite("Barcode Decode Verification")
+@Suite("Barcode Decode Verification", .enabled(if: visionOCRAvailable, "Vision OCR unavailable on this runner"))
 struct BarcodeVerificationTests {
 
     /// A renderable barcode + the expectation used to verify the decoded output.

@@ -32,6 +32,12 @@ Also fixes three CI gates that could not fail on what they were added to catch
   WebAssembly jobs moved to the `swift:6.4` containers and the 6.4.0 Wasm SDK
   (both still run 184 tests). The test-output check that was copied into
   three jobs now lives in `Scripts/check-test-output.sh`.
+- CI: the per-module coverage gate moved from the hosted floor job to the
+  self-hosted `build-and-test` job. GitHub's hosted macOS 27 VM cannot run
+  Vision text recognition (`e5rt_e5_compiler_compile call failed` on every
+  `RecognizeTextRequest`), so the hosted job sets `ZPLKIT_SKIP_VISION_OCR=1`
+  to skip the two suites that need OCR. Every other environment, including a
+  plain local `swift test`, runs them.
 
 ### Removed
 

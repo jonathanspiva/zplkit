@@ -51,9 +51,9 @@ concurrency:
 # Fork PRs must NOT run on the self-hosted runner: it lives on a private LAN
 # (with printer access), so a fork PR running there would execute untrusted code
 # on that machine. This condition runs jobs for pushes and same-repo PRs only;
-# fork PRs are skipped on the self-hosted jobs. They still get build + full
-# test coverage from the hosted `floor-build-and-test` job below, which carries
-# no fork gate. As a second layer, keep Actions -> "Require approval for all
+# fork PRs are skipped on the self-hosted jobs. They still get a build and the
+# test suite (minus the two Vision OCR suites the hosted VM cannot run) from the
+# hosted `floor-build-and-test` job below, which carries no fork gate. As a second layer, keep Actions -> "Require approval for all
 # outside collaborators" enabled on the repo settings.
 jobs:
   # The floor check. Runs on a GitHub-hosted image whose Xcode (27.0 /
@@ -72,6 +72,11 @@ jobs:
       # job green while silently testing a NEWER toolchain than we promise. If this path ever disappears from the
       # image the job fails loudly, which is the intended outcome.
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      # Vision text recognition cannot run in this VM (every RecognizeTextRequest
+      # fails with `e5rt_e5_compiler_compile call failed`), so the two suites
+      # that need OCR are skipped here and run on the self-hosted build-and-test
+      # job instead. See `visionOCRAvailable` in the test targets.
+      ZPLKIT_SKIP_VISION_OCR: "1"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -125,21 +130,13 @@ jobs:
         run: |
           set -euo pipefail
           log="$(mktemp)"
-          swift test --enable-code-coverage 2>&1 | tee "$log"
+          swift test 2>&1 | tee "$log"
           # Deliberately no numeric floor: a fixed bound catches a dropped test
           # target only while (total - dropped_target) stays below it, and that
-          # value rises as the suite grows. The per-module coverage floor in
-          # the next step is the guard against a dropped target: it fails on
-          # any module in its floor list that is missing from the report.
+          # value rises as the suite grows. The guard against a dropped target
+          # is the per-module coverage gate on the self-hosted build-and-test
+          # job, which runs the whole suite (OCR included).
           ./Scripts/check-test-output.sh "$log"
-
-      # Replaces the old fixed test-count assertion. A count says tests
-      # EXECUTED, not that they exercise anything, and a fixed bound stops
-      # catching a dropped target once the suite grows past it. See the header
-      # comment in Scripts/coverage.sh.
-      - name: Check per-module coverage floors
-        shell: bash
-        run: ./Scripts/coverage.sh
 
   # Every platform in Package.swift, actually built. Without this the package
   # advertised iOS/tvOS/watchOS while only macOS was ever compiled, and watchOS
@@ -258,8 +255,8 @@ jobs:
           # job builds only ZPLKit, so there is no per-module signal to gate on,
           # and its coverage numbers differ from macOS anyway (the
           # CoreGraphics-gated Graphic element never compiles here). The
-          # per-module coverage floors run in floor-build-and-test, which builds
-          # every module. Pinned to the last known total.
+          # per-module coverage floors run in the self-hosted build-and-test
+          # job, which builds every module. Pinned to the last known total.
           ./Scripts/check-test-output.sh "$log" 184
 
       # Building the target proves it compiles; this proves a Linux consumer can
@@ -441,9 +438,22 @@ jobs:
         run: |
           set -euo pipefail
           log="$(mktemp)"
-          swift test 2>&1 | tee "$log"
+          swift test --enable-code-coverage 2>&1 | tee "$log"
           # No numeric floor, same reasoning as floor-build-and-test.
           ./Scripts/check-test-output.sh "$log"
+
+      # Replaces the old fixed test-count assertion. A count says tests
+      # EXECUTED, not that they exercise anything, and a fixed bound stops
+      # catching a dropped target once the suite grows past it. See the header
+      # comment in Scripts/coverage.sh.
+      #
+      # Lives here rather than on the hosted floor job because the hosted
+      # macOS 27 VM cannot run Vision OCR, so ZPLKitVerifier's coverage there
+      # would be artificially low. The cost: fork PRs (which never reach this
+      # runner) get no coverage gate, only the hosted build and tests.
+      - name: Check per-module coverage floors
+        shell: bash
+        run: ./Scripts/coverage.sh
 
   visual-tests:
     # Same fork-gate as build-and-test (see the note above).
