@@ -300,7 +300,7 @@ Two further caveats about commands that *are* implemented:
   module there, so `ZPLKit`, `ZPLKitRenderer`, and `ZPLKitPrinter` all work on
   watchOS but verification does not.
 
-The floor tracks the newest generally-available OS release rather than the current beta, so ZPLKit installs on a shipping toolchain. It is still deliberately narrow: ZPLKit uses the modern Swift concurrency, Vision, and Network APIs directly rather than carrying back-compatibility shims. If you need wider platform support, pin to a fork rather than expecting older-OS compatibility. On OS 26 with Swift 6.3, the 1.0.x releases (1.0.6 and earlier) still work.
+The floor tracks the newest generally-available OS release rather than the current beta, so ZPLKit installs on a shipping toolchain. It is still deliberately narrow: ZPLKit uses the modern Swift concurrency, Vision, and Network APIs directly rather than carrying back-compatibility shims. If you need wider platform support, pin to a fork rather than expecting older-OS compatibility. On OS 26 with Swift 6.3, stay on 1.0.x with `.upToNextMinor(from: "1.0.6")`.
 
 ## Resources
 

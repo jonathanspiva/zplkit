@@ -84,9 +84,10 @@ anywhere else:
   reads `iOS | macOS | visionOS | tvOS | watchOS | Linux | Wasm | Android`,
   Swift reads `6.4 | 6.3`. Expect Swift to drop to `6.4` once the 27-floor
   release is indexed.
-- **The 27 floor is a breaking change for OS 26 consumers**, since SwiftPM
-  resolves versions without looking at platforms. Decide 1.1.0 vs 2.0.0 before
-  tagging, and update the README's `from: "1.0.0"` if it is 2.0.0.
+- **1.1.0 raised the floor to 27 as a minor release** (decided 2026-09-25),
+  even though SwiftPM resolves versions without looking at platforms, so an
+  OS 26 consumer on `from: "1.0.0"` picks it up and fails to build. The
+  CHANGELOG and README point OS 26 users at 1.0.x.
 
 ## Later
 

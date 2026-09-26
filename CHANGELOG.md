@@ -7,14 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-25
+
+**Raises the platform floor to 27 and Swift 6.4.** No API changes. If you are
+still on OS 26 or Swift 6.3, stay on 1.0.x: SwiftPM does not consider
+platforms when resolving versions, so a package whose deployment target is 26
+and that depends on `from: "1.0.0"` will resolve to 1.1.0 and then fail to
+build. Pin with `.upToNextMinor(from: "1.0.6")`.
+
+Also fixes three CI gates that could not fail on what they were added to catch
+(see *Fixed*), and cleans up dead code, tools, and docs.
+
 ### Changed
 
 - **The platform floor is now macOS / iOS / tvOS / watchOS 27 and Swift 6.4**
   (`swift-tools-version: 6.4`), following macOS 27 and Swift 6.4 going GA on
-  2026-09-15. **This is a breaking change for anyone on OS 26 or Swift 6.3.**
-  SwiftPM does not consider platforms when resolving versions, so a consumer
-  whose deployment target is 26 will resolve to this release and then fail to
-  build; pin to `1.0.x` to stay on 26.
+  2026-09-15.
 - `ZPLKitVerifier` is still unavailable on watchOS. The earlier stated reason
   (Vision's Swift API needs watchOS 27) was incomplete: watchOS 27 has
   `DetectBarcodesRequest` but its SDK has no `RecognizeTextRequest` at all.
@@ -654,6 +662,7 @@ These affect anyone who built against pre-release code:
 - Added a rotation fixture; there was no coverage of field orientation at all,
   which is why the rotated-field anchoring bug went unseen.
 
+[1.1.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.1.0
 [1.0.6]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.6
 [1.0.5]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.5
 [1.0.4]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.4
