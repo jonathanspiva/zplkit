@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-09-25
+## [1.1.0] - 2026-09-29
 
 **Raises the platform floor to 27 and Swift 6.4.** No API changes. If you are
 still on OS 26 or Swift 6.3, stay on 1.0.x: SwiftPM does not consider
