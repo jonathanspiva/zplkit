@@ -25,58 +25,58 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Two classes of runner, on purpose:
+# Three classes of runner, on purpose:
 #
-#   * GitHub-hosted `macos-26`: macOS 26 + Xcode 26.6 (Swift 6.3). This is the
+#   * GitHub-hosted `xcode-27`: macOS 27 + Xcode 27.0 (Swift 6.4). This is the
 #     toolchain that matches the package's advertised floor, so it is what
 #     proves the package actually builds for the users we promise support to.
 #     Being hosted, it is also safe for fork PRs. The floor job pins this
 #     toolchain by path and asserts it against Package.swift, rather than
-#     inheriting whatever the image default happens to be.
+#     inheriting whatever the image default happens to be. The image is still
+#     marked "preview" by GitHub (actions/runner-images#14404), so expect the
+#     occasional queueing delay.
 #   * Self-hosted mini (`macos-27`) runs macOS 27 with Xcode 27, and is the
 #     only machine that can reach the lab printers. It covers the visual suite
 #     and the live-printer job.
+#   * GitHub-hosted `ubuntu-latest` in the official `swift:6.4` containers, for
+#     the Linux and WebAssembly builds of the portable core.
 #
-# Both moved to release toolchains on 2026-09-15: macOS 27 (Golden Gate) and
-# Swift 6.4 went GA, so the mini now runs Xcode 27.0 GA (27A266a) instead of
-# the beta it was stuck on. Stable Xcode 26 remains impossible there (Apple
-# does not support Xcode 26.x on macOS 27), which is still why the floor check
-# lives on the hosted runner rather than being a DEVELOPER_DIR repoint.
-#
-# DEVELOPER_DIR is set per-job rather than workflow-wide because the two runner
-# classes need different Xcodes: the floor pin on the hosted image, and
+# DEVELOPER_DIR is set per-job rather than workflow-wide because the runner
+# classes need different paths: the floor pin on the hosted image, and
 # /Applications/Xcode.app on the mini.
 #
-# NOTE on test counts: from Swift 6.4, SwiftPM defaults to `--build-system
-# swiftbuild`, which prints one "Test run with N tests" summary PER TARGET
-# instead of the single merged line the deprecated `native` system printed.
-# Any step that counts tests must SUM those lines. See the comment in the
-# floor job's "Run unit tests" step.
+# Test counts: see Scripts/check-test-output.sh. SwiftPM prints one summary
+# line per test target, so every count is SUMMED, never tail'd.
 
 # Fork PRs must NOT run on the self-hosted runner: it lives on a private LAN
 # (with printer access), so a fork PR running there would execute untrusted code
 # on that machine. This condition runs jobs for pushes and same-repo PRs only;
-# fork PRs are skipped on the self-hosted jobs. They still get build + full
-# test coverage from the hosted `floor-build-and-test` job above, which carries
-# no fork gate. As a second layer, keep Actions -> "Require approval for all
+# fork PRs are skipped on the self-hosted jobs. They still get a build and the
+# test suite (minus the two Vision OCR suites the hosted VM cannot run) from the
+# hosted `floor-build-and-test` job below, which carries no fork gate. As a second layer, keep Actions -> "Require approval for all
 # outside collaborators" enabled on the repo settings.
 jobs:
-  # The floor check. Runs on a GitHub-hosted image whose default Xcode (26.6 /
-  # Swift 6.3) is exactly the package's minimum, so a change that only compiles
+  # The floor check. Runs on a GitHub-hosted image whose Xcode (27.0 /
+  # Swift 6.4) is exactly the package's minimum, so a change that only compiles
   # on a newer toolchain fails here. No fork gate: hosted runners are
   # untrusted-code-safe, so this is the CI signal outside contributors get.
   floor-build-and-test:
     if: github.event_name != 'workflow_dispatch'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
     env:
       # Pin the floor toolchain by PATH rather than inheriting the image
       # default. The whole point of this job is to compile at the version
-      # Package.swift advertises; if GitHub bumps the macos-26 image default,
-      # inheriting it would keep this job green while silently testing a
-      # NEWER toolchain than we promise. If this path ever disappears from the
+      # Package.swift advertises. The xcode-27 image already carries 27.1 and
+      # 27.2 betas; if GitHub bumps its default, inheriting it would keep this
+      # job green while silently testing a NEWER toolchain than we promise. If this path ever disappears from the
       # image the job fails loudly, which is the intended outcome.
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      # Vision text recognition cannot run in this VM (every RecognizeTextRequest
+      # fails with `e5rt_e5_compiler_compile call failed`), so the two suites
+      # that need OCR are skipped here and run on the self-hosted build-and-test
+      # job instead. See `visionOCRAvailable` in the test targets.
+      ZPLKIT_SKIP_VISION_OCR: "1"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -95,9 +95,6 @@ jobs:
             exit 1
           fi
 
-      - name: Show Swift version
-        run: swift --version
-
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 
@@ -108,26 +105,13 @@ jobs:
       - name: Typecheck examples
         run: |
           set -euo pipefail
-          # Where SwiftPM puts .swiftmodule files depends on the toolchain, so
-          # probe rather than assume. Swift 6.3 / Xcode 26 writes them to
-          # <bin-path>/Modules; the Swift 6.4 / Xcode 27 layout writes them to
-          # <bin-path> itself. This step used to hardcode the latter, which is
-          # why it only ever passed on the self-hosted beta runner.
+          # SwiftPM writes ZPLKit.swiftmodule (a per-arch directory bundle, so
+          # test with -e, not -f) directly into the bin path. Swift 6.3 used
+          # <bin>/Modules instead; that layout is below the floor now.
           BIN="$(swift build --show-bin-path)"
-          MODDIR=""
-          for candidate in "$BIN/Modules" "$BIN"; do
-            # ZPLKit.swiftmodule is a directory bundle (per-arch) under the
-            # newer layout, so test for existence (-e), not a file (-f).
-            if [ -e "$candidate/ZPLKit.swiftmodule" ]; then
-              MODDIR="$candidate"; break
-            fi
-          done
-          if [ -z "$MODDIR" ]; then
-            found="$(find .build -maxdepth 6 -name 'ZPLKit.swiftmodule' -print -quit 2>/dev/null || true)"
-            if [ -n "$found" ]; then MODDIR="$(dirname "$found")"; fi
-          fi
-          if [ -z "$MODDIR" ]; then
-            echo "::error::Built ZPLKit module not found under $BIN or .build"; exit 1
+          MODDIR="$BIN"
+          if [ ! -e "$MODDIR/ZPLKit.swiftmodule" ]; then
+            echo "::error::Built ZPLKit module not found under $BIN"; exit 1
           fi
           echo "Using module search path: $MODDIR"
           fail=0
@@ -146,51 +130,13 @@ jobs:
         run: |
           set -euo pipefail
           log="$(mktemp)"
-          swift test --enable-code-coverage 2>&1 | tee "$log"
-          # A green `swift test` does not prove the suite ran: it exits 0 even
-          # when NO test bundle loads at all. With only the Command Line Tools
-          # selected, every bundle failed to dlopen Testing.framework, all four
-          # targets reported failures, and the exit code was still 0.
-          #
-          # So assert on the output rather than the exit code: no target
-          # reported failures, and the total is plausible.
-          #
-          # (An earlier comment here also claimed `swift test` ran an unstable
-          # SUBSET of the targets. That was retracted in 1.0.5 - it was this
-          # step's own `tail -1` misreading Swift Build's per-target output,
-          # not a toolchain bug. See the count comment below.)
-          if grep -q 'Some test targets reported failures' "$log"; then
-            echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
-          fi
-          # SUM the summary lines, do not take the last one. The two build
-          # systems report different SHAPES:
-          #   * native (Swift 6.3 / Xcode 26): one merged line, "712 tests in
-          #     83 suites".
-          #   * swiftbuild (the default from Swift 6.4 / Xcode 27): one line
-          #     PER TEST TARGET, e.g. 114 + 190 + 163 + 245 = 712.
-          # A `tail -1` reads only the last target under swiftbuild. That is
-          # what produced the bogus "244 of 683" and "408 of 683" readings
-          # previously recorded as a toolchain bug; nothing was ever skipped.
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
-          if [ -z "$total" ] || [ "$total" = "0" ]; then
-            echo "::error::Could not determine the test count from 'swift test' output"; exit 1
-          fi
-          echo "Total tests run: $total"
-          # Sanity only: a total of zero means nothing ran at all. The real
-          # guard against a silently dropped TARGET is the per-module coverage
-          # floor in the next step, which is both stricter and meaningful --
-          # a target that stops running takes its module's coverage to zero.
-          if [ "$total" -lt 1 ]; then
-            echo "::error::No tests ran at all"; exit 1
-          fi
-
-      # Replaces the old fixed test-count assertion. A count says tests
-      # EXECUTED, not that they exercise anything, and a fixed bound stops
-      # catching a dropped target once the suite grows past it. See the header
-      # comment in Scripts/coverage.sh.
-      - name: Check per-module coverage floors
-        shell: bash
-        run: ./Scripts/coverage.sh
+          swift test 2>&1 | tee "$log"
+          # Deliberately no numeric floor: a fixed bound catches a dropped test
+          # target only while (total - dropped_target) stays below it, and that
+          # value rises as the suite grows. The guard against a dropped target
+          # is the per-module coverage gate on the self-hosted build-and-test
+          # job, which runs the whole suite (OCR included).
+          ./Scripts/check-test-output.sh "$log"
 
   # Every platform in Package.swift, actually built. Without this the package
   # advertised iOS/tvOS/watchOS while only macOS was ever compiled, and watchOS
@@ -200,12 +146,16 @@ jobs:
   # matrix there. No fork gate: hosted runner.
   cross-platform-build:
     if: github.event_name != 'workflow_dispatch'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
     strategy:
       fail-fast: false
       matrix:
-        platform: [iOS, tvOS, watchOS]
+        # visionOS is not declared in Package.swift, but Swift Package Index
+        # builds it anyway and lists it on the platforms badge.
+        platform: [iOS, tvOS, watchOS, visionOS]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -213,8 +163,8 @@ jobs:
         run: swift --version
 
       # `ZPLKit-Package` (every target), NOT `ZPLKit`. The per-product `ZPLKit`
-      # scheme builds only that one library, so it passes on watchOS even when
-      # ZPLKitVerifier is broken there. Swift Package Index builds the whole
+      # scheme builds only that one library, so it passed on watchOS even while
+      # ZPLKitVerifier was broken there (1.0.0). Swift Package Index builds the whole
       # package, so this job has to as well or it proves nothing.
       - name: Build for ${{ matrix.platform }}
         run: |
@@ -232,8 +182,10 @@ jobs:
   # gate.
   docs-build:
     if: github.event_name != 'workflow_dispatch'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -279,7 +231,7 @@ jobs:
   linux-build:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    container: swift:6.3
+    container: swift:6.4
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -299,32 +251,13 @@ jobs:
           set -euo pipefail
           log="$(mktemp)"
           swift test 2>&1 | tee "$log"
-          # Same reasoning as the macOS jobs: a green `swift test` does not
-          # prove the suite ran, and it exits 0 even when a target fails to
-          # load. Assert on the output, not the exit code.
-          if grep -q 'Some test targets reported failures' "$log"; then
-            echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
-          fi
-          # Sum the summary lines, do not take the last. This container is on
-          # Swift 6.3, whose native build system prints ONE merged line, so
-          # tail -1 happens to work today. It stops working the moment the
-          # container is bumped to 6.4, where `swiftbuild` becomes the default
-          # and prints one line per test target. See the floor job's comment.
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
-          if [ -z "$total" ] || [ "$total" = "0" ]; then
-            echo "::error::Could not determine the test count from 'swift test' output"; exit 1
-          fi
-          echo "Total tests run: $total"
           # Linux keeps a test-count floor rather than a coverage floor: this
           # job builds only ZPLKit, so there is no per-module signal to gate on,
           # and its coverage numbers differ from macOS anyway (the
           # CoreGraphics-gated Graphic element never compiles here). The
-          # per-module coverage floors run in floor-build-and-test, which builds
-          # every module. Pinned to the last known total.
-          expected=184
-          if [ "$total" -lt "$expected" ]; then
-            echo "::error::Only $total tests ran; expected at least $expected (ZPLKit core on Linux)"; exit 1
-          fi
+          # per-module coverage floors run in the self-hosted build-and-test
+          # job, which builds every module. Pinned to the last known total.
+          ./Scripts/check-test-output.sh "$log" 184
 
       # Building the target proves it compiles; this proves a Linux consumer can
       # actually depend on the product and get correct ZPL out. The expected
@@ -337,7 +270,7 @@ jobs:
           cd /tmp/consumer
           # Unquoted heredoc so $GITHUB_WORKSPACE expands to the checkout path.
           cat > Package.swift <<EOF
-          // swift-tools-version: 6.3
+          // swift-tools-version: 6.4
           import PackageDescription
           let package = Package(
               name: "consumer",
@@ -394,15 +327,14 @@ jobs:
   #     different build from the swift.org release that produced the SDK, which
   #     makes module loading fail.
   #
-  # Pinned to 6.3.3 because that is the newest Swift for which an official
-  # container image exists; the SDK must match the toolchain exactly. Move both
-  # together when a newer image ships.
+  # The container and the Swift SDK must be the exact same release. Move the
+  # image tag, SDK URL, and checksum together.
   wasm-build:
     name: WebAssembly (wasm32-unknown-wasip1)
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    container: swift:6.3.3
+    container: swift:6.4.0
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -417,8 +349,8 @@ jobs:
         run: |
           set -euo pipefail
           swift sdk install \
-            "https://download.swift.org/swift-6.3.3-release/wasm-sdk/swift-6.3.3-RELEASE/swift-6.3.3-RELEASE_wasm.artifactbundle.tar.gz" \
-            --checksum cabfa08b73bb8ac783927ecd15fa386e99d0c139c5f232445067bcf58379cae7
+            "https://download.swift.org/swift-6.4.0-release/wasm-sdk/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE_wasm.artifactbundle.tar.gz" \
+            --checksum f07b7be3c586d92d7a07051fc6d303b87ebea67eadc40640ba59d5a8b79aa86d
           swift sdk list
 
       - name: Build ZPLKit for WebAssembly
@@ -442,26 +374,40 @@ jobs:
           set -euo pipefail
           sdk="$(swift sdk list | grep -E '_wasm$' | head -1)"
           log="$(mktemp)"
-          # swift-testing DOES run under WASI on this toolchain, via the
-          # WasmKit runtime bundled with it: measured 184 tests in 31 suites
-          # on 2026-09-16, the same count Linux reports (the core target minus
+          # swift-testing runs under WASI via the WasmKit runtime bundled with
+          # the toolchain: measured 184 tests in 31 suites on 6.3.3
+          # (2026-09-16), the same count Linux reports (the core target minus
           # the six CoreGraphics-gated Graphic cases, which never compile off
           # Apple platforms).
           #
-          # The failure branch below is kept deliberately: if a future toolchain
-          # loses the ability to host tests under WASI, that should degrade to a
-          # notice rather than block every PR, because the BUILD is the property
-          # this job exists to protect. A run that reports zero tests is still a
+          # The failure branch below is kept deliberately, but ONLY for the case
+          # it was written for: if a future toolchain loses the ability to host
+          # tests under WASI, that should degrade to a notice rather than block
+          # every PR, because the BUILD is the property this job exists to
+          # protect. A FAILING test is a different thing entirely and fails the
+          # job -- otherwise the libm-class regression this step exists to catch
+          # would sail through as a notice.
+          #
+          # The discriminator is whether the swift-testing runner produced any
+          # output at all. An SDK or link failure never reaches it; a failing
+          # test or a runtime trap does. A run that reports zero tests is also a
           # hard failure.
           if swift test --swift-sdk "$sdk" > "$log" 2>&1; then
             echo "Tests ran under WebAssembly:"
             grep -E 'Test run with [0-9]+ test' "$log" || true
-            total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+            total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)"
             echo "Total tests run under Wasm: $total"
             if [ "$total" -lt 1 ]; then
               echo "::error::swift test exited 0 under Wasm but ran nothing"; exit 1
             fi
           else
+            status=$?
+            if grep -qE 'Test run (started|with [0-9]+ test)|Executed [0-9]+ test' "$log"; then
+              echo "::error::The test suite ran under WebAssembly and failed (swift test exited $status)"
+              echo "--- swift test output ---"
+              tail -60 "$log"
+              exit 1
+            fi
             echo "::notice::Running tests under Wasm is not supported by this toolchain yet; the BUILD above is the gate."
             echo "--- swift test output (informational) ---"
             tail -30 "$log"
@@ -487,59 +433,27 @@ jobs:
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 
-      # An unfiltered `swift test` is correct here, but its OUTPUT must be
-      # summed, not tail'd. The two build systems report different shapes:
-      #
-      #   * native (Swift 6.3 / Xcode 26): one merged summary line,
-      #     "Test run with 712 tests in 83 suites".
-      #   * swiftbuild (the default from Swift 6.4 / Xcode 27): one summary
-      #     line PER TEST TARGET: 114 + 190 + 163 + 245 = 712, in
-      #     22 + 32 + 23 + 6 = 83 suites. Those per-target figures are
-      #     illustrative and move whenever tests are added; only the TOTAL is
-      #     asserted below.
-      #
-      # This job previously ran a per-target filter loop because a `tail -1`
-      # over the swiftbuild shape read only the LAST target and looked like a
-      # silently truncated run ("244 of 683" on 2026-08-14, "408 of 683" on
-      # 2026-09-04). Measured on Xcode 27.0 GA (27A266a / swiftlang-6.4.0.34.1)
-      # on 2026-09-15: all four targets run under both build systems and the
-      # totals reconcile exactly. No tests were ever being skipped, so the loop
-      # is gone.
-      #
-      # The exit code still proves nothing on its own: a bundle that fails to
-      # dlopen Testing.framework reports failures and `swift test` STILL exits
-      # 0 (seen with only the Command Line Tools selected). That is a real bug
-      # and the grep below is what catches it. Keep it.
       - name: Run unit tests
         shell: bash
         run: |
           set -euo pipefail
           log="$(mktemp)"
-          swift test 2>&1 | tee "$log"
-          if grep -q 'Some test targets reported failures' "$log"; then
-            echo "::error::A test target reported failures ('swift test' still exited 0)"; exit 1
-          fi
-          total="$(grep -oE 'Test run with [0-9]+ test' "$log" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
-          if [ -z "$total" ] || [ "$total" = "0" ]; then
-            echo "::error::Could not determine the test count from 'swift test' output"; exit 1
-          fi
-          echo "Total tests run: $total"
-          # A FLOOR equal to the last known total, not a loose constant.
-          #
-          # This must catch a silently dropped test target. A fixed bound could
-          # not: the check only fires while (total - dropped_target) is below
-          # it, and that value RISES as the suite grows. The previous bound of
-          # 600 was within two tests of failing to catch a dropped 114-test
-          # target (712 - 114 = 598).
-          #
-          # Pinned to the current total instead, so any dropped target lands far
-          # below it. Adding tests keeps passing (the total only rises), so this
-          # needs raising only when you want to lock in a new floor.
-          # Sanity only; the coverage floors in floor-build-and-test are the
-          # real guard against a dropped target.
-          if [ "$total" -lt 1 ]; then
-            echo "::error::No tests ran at all"; exit 1
-          fi
+          swift test --enable-code-coverage 2>&1 | tee "$log"
+          # No numeric floor, same reasoning as floor-build-and-test.
+          ./Scripts/check-test-output.sh "$log"
+
+      # Replaces the old fixed test-count assertion. A count says tests
+      # EXECUTED, not that they exercise anything, and a fixed bound stops
+      # catching a dropped target once the suite grows past it. See the header
+      # comment in Scripts/coverage.sh.
+      #
+      # Lives here rather than on the hosted floor job because the hosted
+      # macOS 27 VM cannot run Vision OCR, so ZPLKitVerifier's coverage there
+      # would be artificially low. The cost: fork PRs (which never reach this
+      # runner) get no coverage gate, only the hosted build and tests.
+      - name: Check per-module coverage floors
+        shell: bash
+        run: ./Scripts/coverage.sh
 
   visual-tests:
     # Same fork-gate as build-and-test (see the note above).

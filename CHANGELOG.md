@@ -5,7 +5,103 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.1.0] - 2026-09-29
+
+**Raises the platform floor to 27 and Swift 6.4.** No API changes. If you are
+still on OS 26 or Swift 6.3, stay on 1.0.x: SwiftPM does not consider
+platforms when resolving versions, so a package whose deployment target is 26
+and that depends on `from: "1.0.0"` will resolve to 1.1.0 and then fail to
+build. Pin with `.upToNextMinor(from: "1.0.6")`.
+
+Also fixes three CI gates that could not fail on what they were added to catch
+(see *Fixed*), and cleans up dead code, tools, and docs.
+
+### Changed
+
+- **The platform floor is now macOS / iOS / tvOS / watchOS 27 and Swift 6.4**
+  (`swift-tools-version: 6.4`), following macOS 27 and Swift 6.4 going GA on
+  2026-09-15.
+- `ZPLKitVerifier` is still unavailable on watchOS. The earlier stated reason
+  (Vision's Swift API needs watchOS 27) was incomplete: watchOS 27 has
+  `DetectBarcodesRequest` but its SDK has no `RecognizeTextRequest` at all.
+- CI: the floor, cross-platform, and docs jobs moved from the hosted
+  `macos-26` / Xcode 26.6 image to the hosted `xcode-27` image, pinned to
+  Xcode 27.0. visionOS joined the cross-platform build matrix. The Linux and
+  WebAssembly jobs moved to the `swift:6.4` containers and the 6.4.0 Wasm SDK
+  (both still run 184 tests). The test-output check that was copied into
+  three jobs now lives in `Scripts/check-test-output.sh`.
+- CI: the per-module coverage gate moved from the hosted floor job to the
+  self-hosted `build-and-test` job. GitHub's hosted macOS 27 VM cannot run
+  Vision text recognition (`e5rt_e5_compiler_compile call failed` on every
+  `RecognizeTextRequest`), so the hosted job sets `ZPLKIT_SKIP_VISION_OCR=1`
+  to skip the two suites that need OCR. Every other environment, including a
+  plain local `swift test`, runs them.
+
+### Removed
+
+- Dead conditional-compilation branches in Apple-only targets: the
+  non-`Compression` fallback in the `^GF` parser and a `Glibc` import in
+  `ZPLKitPrinter`, neither of which could ever compile.
+
+### Fixed
+
+- `RenderFixtures` exits non-zero when any fixture fails to render.
+- `DitherTestPrint` defaulted both printers to the same host, which also
+  skipped the pause between the two jobs.
+- Docs: the `PrinterCommand` example called an API that does not exist; `~JA`
+  is now consistently described as cancelling all jobs; `IntelligentMail` is
+  listed under 1D barcodes in the DocC topics; CONTRIBUTING no longer describes
+  Xcode 27 beta bugs or a macOS test-count floor that no longer exist.
+
+- **The coverage gate could not fail on a module that vanished from the
+  report.** `Scripts/coverage.sh` looped over the modules llvm-cov *reported*,
+  never over its own floor list, and 1.0.6 justified the gate on the premise
+  that a dropped test target takes its module's coverage toward zero. That
+  premise is wrong: `ZPLKitPrinter` is linked only by `ZPLKitPrinterTests`, so
+  when that bundle stops running the module does not sink, it leaves the report
+  altogether. The script then printed "All modules at or above their coverage
+  floors" and exited 0. Since the test-count assertion had been relaxed to
+  "greater than zero" in the same release, a silently dropped
+  `ZPLKitPrinterTests` passed every job. The gate now iterates the floor list,
+  and a module named there and missing from the report is a hard failure.
+  Verified by removing the built `ZPLKitPrinterTests` bundle: previously green,
+  now fails.
+
+- **Module names no longer depend on llvm-cov's path shortening.** The script
+  read the module from the first path component of the text report's filename
+  column, but `llvm-cov report` strips the longest common path prefix. Over the
+  whole suite the rows read `ZPLKit/Elements/Aztec.swift`; over a single target
+  they read `Aztec.swift`, every module became unrecognised, and the run passed
+  with nothing enforced. It now reads `llvm-cov export -summary-only`, whose
+  JSON carries absolute paths. Reported numbers are unchanged (86.77% line,
+  80.25% region).
+
+- **A failing test under WebAssembly now fails CI.** The Wasm job treated any
+  non-zero `swift test` exit as "this toolchain cannot host tests yet",
+  printed a notice and passed, including for a genuine test failure or a
+  runtime trap, which is the class of regression the step exists to catch. It
+  now degrades to a notice only when the test runner produced no output at all
+  (an SDK or link failure, which never reaches the runner) and fails the job
+  when tests ran and failed.
+
+- **A test-count step that found no count now says so.** Under `pipefail`, a
+  no-match `grep` in the counting pipeline aborted the step before its own
+  error message could print, so "nothing ran" failed the job with no
+  diagnostic.
+
 ## [1.0.6] - 2026-09-16
+
+> **Erratum.** Under *Changed* below, the coverage floors are described as
+> catching a dropped test target because "a target that stops running takes its
+> module's coverage toward zero". **That is wrong for a module linked only by
+> its own test target**, such as `ZPLKitPrinter`: the module disappears from the
+> coverage report rather than sinking, and the gate as shipped iterated the
+> report, so it passed. *Added* below also describes WebAssembly as tested on
+> every push; a Wasm test **failure** degraded to a notice and did not fail the
+> job. Both are fixed under [Unreleased]. The original text is left unedited.
+
 
 **Fixes a real bug for anyone using ZPLKit off Apple platforms**, and adds
 WebAssembly to the tested platforms.
@@ -572,6 +668,7 @@ These affect anyone who built against pre-release code:
 - Added a rotation fixture; there was no coverage of field orientation at all,
   which is why the rotated-field anchoring bug went unseen.
 
+[1.1.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.1.0
 [1.0.6]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.6
 [1.0.5]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.5
 [1.0.4]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.4

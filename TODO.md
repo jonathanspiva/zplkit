@@ -70,13 +70,6 @@ genuinely lies there; that one is not a parsing artifact.
   regression before adopting it as the baseline.
 - [ ] **Wire the live-printer sweep into the runner's `workflow_dispatch` job.**
   UDP-4201 discovery is hardware-validated, but the sweep isn't automated.
-- [ ] **Watch for Swift Package Index's Swift 6.4 build row on v1.0.4.** Swift
-  6.4 went GA 2026-09-15; SPI had not re-cycled its builders as of that date
-  (the badge still read `Swift 6.3`, platforms unchanged). The matrix is **per
-  version**, so whatever verdict SPI publishes against v1.0.4 is frozen until
-  the next tag. The package itself builds and tests clean on 6.4 GA locally
-  (full suite green, zero warnings), so no action is expected, but check the badge
-  before assuming.
 
 ### Notes for the next release
 Not tasks, but the two facts that cost time last release and are not recorded
@@ -87,12 +80,22 @@ anywhere else:
   compile and `xcodebuild` failed everywhere; both fixed in 1.0.1).
 - **swiftpackageindex.com returns 403 to any scripted fetch** (Cloudflare),
   indexed or not. Only the `/api/.../badge` endpoints answer `curl`, which is
-  what the README badges use. Verified still working 2026-09-04: platforms reads
-  `iOS | macOS | visionOS | tvOS | watchOS | Linux | Wasm | Android`, Swift
-  reads `6.3`.
+  what the README badges use. Verified 2026-09-25 against v1.0.6: platforms
+  reads `iOS | macOS | visionOS | tvOS | watchOS | Linux | Wasm | Android`,
+  Swift reads `6.4 | 6.3`. Expect Swift to drop to `6.4` once the 27-floor
+  release is indexed.
+- **1.1.0 raised the floor to 27 as a minor release** (decided 2026-09-25),
+  even though SwiftPM resolves versions without looking at platforms, so an
+  OS 26 consumer on `from: "1.0.0"` picks it up and fails to build. The
+  CHANGELOG and README point OS 26 users at 1.0.x.
 
 ## Later
 
+- [ ] **Barcode-only `ZPLKitVerifier` on watchOS.** watchOS 27 has
+  `DetectBarcodesRequest` but no `RecognizeTextRequest`, so the module is still
+  empty there. Enabling barcode analysis would mean gating the text types
+  (`TextExpectation`, `DetectedText`, `AnalysisResult.texts`, the text scanner)
+  individually rather than the whole module.
 - [ ] **Bound the concurrency of `send()`.** `send()` is now the only thing in
   `ZPLKitPrinter` still on GCD: it runs its blocking socket work on
   `DispatchQueue.global()` (ZPLPrinter.swift:146). Mass fan-out (60+ concurrent

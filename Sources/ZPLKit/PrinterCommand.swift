@@ -4,8 +4,10 @@
 /// Send the command string to the printer via TCP port 9100.
 ///
 /// ```swift
-/// let command = PrinterCommand.printNetworkConfig
-/// connection.send(Data(command.zpl.utf8))
+/// import ZPLKitPrinter
+///
+/// let printer = ZPLPrinter(host: "192.168.1.100")
+/// try await printer.send(PrinterCommand.printNetworkConfig.zpl)
 /// ```
 public enum PrinterCommand: String, Sendable {
     /// Print the printer's network configuration on a label (`~WL`).
@@ -24,9 +26,9 @@ public enum PrinterCommand: String, Sendable {
     /// Performs a power-on reset. The printer will restart and reload settings.
     case reset = "~JR"
 
-    /// Cancel the current print job (`~JA`).
+    /// Cancel all print jobs (`~JA`).
     ///
-    /// Cancels any format currently being processed or printed.
+    /// Cancels the format currently printing and every format queued behind it.
     case cancelJob = "~JA"
 
     /// The ZPL command string to send to the printer.

@@ -9,6 +9,15 @@ import Testing
 /// A specific protocol import disambiguates so the result builder can name the protocol.
 import protocol ZPLKitVerifier.Expectation
 
+/// GitHub's hosted macOS 27 runner cannot run Vision text recognition: every
+/// `RecognizeTextRequest` fails with `e5rt_e5_compiler_compile call failed`
+/// (the on-device model never compiles in that VM). The hosted CI job sets
+/// `ZPLKIT_SKIP_VISION_OCR=1` to skip suites that need it; the self-hosted
+/// runner and local runs never set it, so they still run everything. An
+/// explicit opt-out rather than a runtime probe, so a real OCR regression can
+/// never quietly skip itself.
+let visionOCRAvailable = ProcessInfo.processInfo.environment["ZPLKIT_SKIP_VISION_OCR"] != "1"
+
 // MARK: - Expectation Construction
 
 @Suite("Expectation Construction")
@@ -565,7 +574,7 @@ struct DetectedCodableTests {
 
 // MARK: - Integration (Vision)
 
-@Suite("Verifier Integration")
+@Suite("Verifier Integration", .enabled(if: visionOCRAvailable, "Vision OCR unavailable on this runner"))
 struct VerifierIntegrationTests {
 
     @Test("analyze decodes a rendered QR code")

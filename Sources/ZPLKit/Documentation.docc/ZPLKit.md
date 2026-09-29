@@ -38,6 +38,7 @@ ZPLKit provides four modules:
 - ``UPCA``
 - ``UPCE``
 - ``Interleaved2of5``
+- ``IntelligentMail``
 
 ### 2D Barcodes
 
@@ -45,7 +46,6 @@ ZPLKit provides four modules:
 - ``DataMatrix``
 - ``PDF417``
 - ``Aztec``
-- ``IntelligentMail``
 
 ### Shapes
 

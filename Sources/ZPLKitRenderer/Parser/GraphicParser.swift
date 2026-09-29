@@ -1,8 +1,6 @@
 import Foundation
 
-#if canImport(Compression)
 import Compression
-#endif
 
 /// Internal parser for graphic commands (^GF)
 enum GraphicParser {
@@ -359,16 +357,10 @@ enum GraphicParser {
 
         if let z64 = payload(after: ":Z64:") {
             guard let deflated = Data(base64Encoded: z64) else { return [] }
-            #if canImport(Compression)
             if let inflated = zlibInflate(deflated, expectedSize: totalBytes) {
                 return clamp(inflated, to: totalBytes)
             }
             return []
-            #else
-            // TODO: zlib inflate requires the Compression framework, which is not
-            // available on this platform. The compressed graphic is dropped.
-            return []
-            #endif
         }
 
         // Unknown / unmarked compressed payload: drop gracefully.
@@ -395,7 +387,6 @@ enum GraphicParser {
         return crc
     }
 
-    #if canImport(Compression)
     /// Inflates raw zlib (`:Z64:`) data using the Compression framework. The Zebra
     /// `:Z64:` stream is a standard zlib stream (2-byte header + DEFLATE + Adler-32),
     /// so we strip the 2-byte zlib header and trailing checksum and feed the raw
@@ -428,5 +419,4 @@ enum GraphicParser {
         destination.removeLast(destination.count - decodedCount)
         return destination
     }
-    #endif
 }
