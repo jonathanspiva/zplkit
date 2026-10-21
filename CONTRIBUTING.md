@@ -175,6 +175,17 @@ against correctly-sized renders they scored *high*, inflating the reported
 accuracy. Tolerance is 5%, since Labelary sizes from dots/mm and returns e.g.
 1216px for 4in @ 300dpi.
 
+Not every reference is Labelary output. The four `^FR` fixtures
+(`bin_hazmat`, `return_small`, `shipping_return`, `sku_clearance`) use ZPLKit
+renders on purpose, because Labelary extends `^FR` beyond a single field. Do
+not overwrite them with a wholesale copy of `output-labelary/`: they drop from
+~97-100% to 53-83% and pull the overall score down by almost a point.
+
+QR fixtures score around 89% against Labelary, and that is a difference in QR
+encoders, not a rendering bug: ZPLKit draws QR codes through CoreImage, which
+picks a different (equally valid) symbol than Labelary does for the same data.
+Labelary's own choice changed between the 2026-07 and 2026-10 references.
+
 Small labels score lowest (~70% on a 2x0.5) and that is expected, not a bug:
 sub-pixel glyph-advance differences shift every following glyph, and on a
 406x101 canvas the text is most of the image. Compare the PNGs in

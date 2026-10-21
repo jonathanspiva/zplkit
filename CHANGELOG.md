@@ -28,6 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests: the loopback `FakePrinter` could close the same descriptor twice
   (once in `shutdown()`, again when its connection handler finished), which
   could close a socket belonging to another test running in parallel.
+- Tests: refreshed 36 visual-test reference images that had drifted from
+  current Labelary output. None of the drift was a renderer regression: ZPLKit
+  agrees better with the fresh references in 27 of the 36. Ten `graphic_*_fill`
+  references predated the switch from SF Symbols to FontAwesome icons, and
+  seven fetched in 2026-07 were rendered from a percent-encoded request body,
+  so every space in their label text came out as a literal `+`. The rest are
+  small Labelary-side changes (a different QR matrix for the same data, and
+  shape-edge rasterization). The four `^FR` references, which are ZPLKit
+  renders on purpose, were left alone. Visual accuracy rises from 90.9% to
+  91.1%.
 
 ### Changed
 

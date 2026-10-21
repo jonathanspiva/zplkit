@@ -61,13 +61,6 @@ Command Line Tools selected) and `swift test` **still exits 0**. The exit code
 genuinely lies there; that one is not a parsing artifact.
 
 ### Tooling and CI
-- [ ] **Consider refreshing the remaining references against current Labelary.**
-  35 of the 87 old references are size-identical to Labelary 3.3.0 output, but
-  the rest have drifted (mostly <1%, a few up to 11% on `shapes_*`). A wholesale
-  refresh scores 90.2% vs the current 90.9%, i.e. today's Labelary agrees
-  slightly *less* with our renderer than the older vintage did. Worth
-  understanding whether that is a Labelary antialiasing change or a real ZPLKit
-  regression before adopting it as the baseline.
 - [ ] **Wire the live-printer sweep into the runner's `workflow_dispatch` job.**
   UDP-4201 discovery is hardware-validated, but the sweep isn't automated.
 
