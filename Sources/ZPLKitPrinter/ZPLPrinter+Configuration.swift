@@ -57,8 +57,9 @@ extension ZPLPrinter {
     ///
     /// Waits for the printer to go idle first (see ``waitUntilIdle(timeout:)``).
     /// Tilde commands run the moment they arrive, ahead of any queued formats,
-    /// and a `~JC` that arrives while labels are queued discards them: on a
-    /// GX420t (V56.17.17Z), two labels sent just before a `~JC` never printed.
+    /// and a `~JC` that arrives while labels are queued calibrates ahead of
+    /// them. On a GX420t (V56.17.17Z) the two queued labels then stalled until
+    /// the next job arrived and printed out of register.
     ///
     /// The calibration only measures in gap or mark tracking; in continuous
     /// tracking `~JC` feeds nothing.

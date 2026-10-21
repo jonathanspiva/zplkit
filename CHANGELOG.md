@@ -53,12 +53,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Visual-suite scores: `features_textblock` 88.6% to 90.7% (the font leak);
 nothing else moves by more than 0.1 point except `serial_number`, which now
 draws its five serials.
-- **`calibrate()` (and so `setup()`) could discard queued labels.** Tilde
-  commands run the moment they arrive, ahead of queued formats. Measured on a
-  GX420t (V56.17.17Z): two labels sent immediately before `~JC` never printed.
-  `calibrate()` and `calibrateFull()` now wait for the printer to go idle first
-  (`idleTimeout`, default 60s). The same two-label sequence through the fixed
-  `calibrate()` held the `~JC` for 2.7s while both labels printed.
+- **`calibrate()` (and so `setup()`) could stall queued labels and print them
+  out of register.** Tilde commands run the moment they arrive, ahead of queued
+  formats. Measured on a GX420t (V56.17.17Z): with two labels queued, `~JC`
+  calibrated first and the two labels did not print at all until the next job
+  arrived minutes later, at which point they came out out of register (and
+  `~HS` reported no formats queued while they were stuck). This matches the
+  misaligned labels previously seen after `setup()`. `calibrate()` and
+  `calibrateFull()` now wait for the printer to go idle first (`idleTimeout`,
+  default 60s). With the fix, `calibrate()` held the `~JC` for 2.7s and the
+  calibration ran only after every queued label had printed.
 - `calibrateFull()` was documented as a more thorough calibration. `~JG` is
   Zebra's graphing calibration: the same measurement as `~JC` plus a printed
   graph of the media sensor profile, so it is a diagnostic that costs extra

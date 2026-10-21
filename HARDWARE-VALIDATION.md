@@ -94,6 +94,19 @@ being left paused, not a code defect).
   piped through `nc` both printed completely and in register, and the printer
   reported Ready before and after.
 
+- **`~JC` calibration ordering** (2026-10-21, GX420t V56.17.17Z, gap stock).
+  The `^HH` TOTAL USAGE counter (1-in resolution) shows whether a calibration
+  actually fed. `~JC` in gap tracking fed ~7 in and re-measured the label; in
+  continuous tracking it fed nothing. A gap-tracking format followed
+  immediately by `~JC` (what `setup()` sends) calibrated under gap, so the
+  ordering is fine on an idle printer. On a **busy** printer it is not: with
+  two labels queued, `~JC` jumped ahead (6 in fed, no labels), the labels
+  stalled while `~HS` reported zero formats queued, and they printed only when
+  the next job arrived, out of register. With `calibrate()` waiting for
+  `waitUntilIdle()`, a repeat printed all queued labels first and calibrated
+  last (14 in fed: four labels plus one calibration). Confirmed from photos of
+  the printed strip.
+
 ### 3. Synthetic + malicious-input fixtures (run in CI)
 
 `ResponseParsingTests` complements the real captures with hand-built edge cases
