@@ -89,7 +89,7 @@ public enum ZPLParser {
     private static func processCommand(_ cmdType: String, params rawParams: String, state: inout ParserState) {
         // Command parameters tolerate surrounding whitespace (pretty-printed /
         // indented ZPL), EXCEPT field data: spaces inside `^FD` are significant.
-        let params = cmdType == "^FD"
+        let params = cmdType == "^FD" || cmdType == "^SN"
             ? rawParams
             : rawParams.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -172,7 +172,7 @@ public enum ZPLParser {
             let parts = splitParams(params)
             if parts.count >= 1, let designator = parts[0].first,
                designator.isLetter || designator.isNumber {
-                state.currentFont = String(designator)
+                state.defaultFont = String(designator)
             }
             if parts.count >= 2 {
                 // An omitted height follows the supplied width for the scalable
@@ -181,10 +181,12 @@ public enum ZPLParser {
                 // an omitted height rendered at the wrong size.
                 let parsedHeight = Int(parts[1])
                 let parsedWidth = parts.count > 2 ? Int(parts[2]) : nil
-                let height = parsedHeight ?? parsedWidth ?? state.currentFontHeight
-                state.currentFontHeight = min(height, RenderLimits.maxFontHeight)
-                state.currentFontWidth = min(parsedWidth ?? height, RenderLimits.maxFontHeight)
+                let height = parsedHeight ?? parsedWidth ?? state.defaultFontHeight
+                state.defaultFontHeight = min(max(height, 0), RenderLimits.maxFontHeight)
+                state.defaultFontWidth = min(max(parsedWidth ?? height, 0), RenderLimits.maxFontHeight)
             }
+            // `^CF` also applies to the field in progress, if it has no `^A`.
+            state.resetFieldFont()
 
         // Default field orientation. Applies to any field that omits its own
         // orientation slot. A barcode must take its default from here, NOT from
@@ -207,6 +209,10 @@ public enum ZPLParser {
         // and `^FR` / `^FH` are field-scoped.
         case "^FS":
             state.pendingBarcode = nil
+            state.openFieldElementIndex = nil
+            // `^A` applies to one field only; the next field without its own
+            // `^A` uses the `^CF` default (verified against Labelary).
+            state.resetFieldFont()
             state.isReversed = false
             state.fieldHexIndicator = nil
             // `^FB` is field-scoped too. Without this, a `^FB` whose field
@@ -243,6 +249,13 @@ public enum ZPLParser {
         // Field data (text content or barcode data)
         case "^FD":
             processFieldData(params, state: &state)
+
+        // Serialization data: `^SNv,n,z` stands in for `^FD`, and the printer
+        // increments `v` by `n` on each copy. A preview is the first label of
+        // the series, so the start value is the field data. Commas cannot
+        // appear in `v` (they delimit the parameters).
+        case "^SN":
+            processFieldData(String(splitParams(params)[0]), state: &state)
 
         // Shapes
         case "^GB":
@@ -322,6 +335,16 @@ public enum ZPLParser {
         let text = TextParser.decodeFieldData(params, hexIndicator: state.fieldHexIndicator)
         state.fieldHexIndicator = nil
 
+        // A field holds one piece of data. A second `^FD`/`^SN` before `^FS`
+        // replaces the first, drawn at the field's latest `^FO` (verified
+        // against Labelary). This matters for a `^FX` comment that mentions a
+        // command: the comment ends at the next caret, so `^FX uses ^SN ...`
+        // really does open an `^SN` field, which the next `^FD` then replaces.
+        if let open = state.openFieldElementIndex, open < state.elements.count {
+            state.elements.remove(at: open)
+        }
+        defer { state.openFieldElementIndex = state.elements.count - 1 }
+
         // Check if this data is for a pending barcode
         if var barcode = state.pendingBarcode {
             barcode = ParsedBarcode(
@@ -338,7 +361,8 @@ public enum ZPLParser {
                 useBaseline: state.useFieldTypeset
             )
             state.elements.append(.barcode(barcode))
-            state.pendingBarcode = nil
+            // Keep the barcode definition until `^FS`, so replacement data in
+            // the same field is still barcode data.
         } else if state.textBlockWidth > 0 {
             state.elements.append(.textBlock(ParsedTextBlock(
                 text: text,
@@ -388,10 +412,15 @@ private struct ParserState {
     // Current state during parsing
     var currentX = 0
     var currentY = 0
-    var currentFont = "0"
-    var currentFontHeight = 30
-    var currentFontWidth = 30
+    var currentFont = "A"
+    var currentFontHeight = 9
+    var currentFontWidth = 5
     var currentRotation = "N"
+    /// The `^CF` default font, which a field without its own `^A` uses. A
+    /// printer with no `^CF` uses Font A at 9x5 dots.
+    var defaultFont = "A"
+    var defaultFontHeight = 9
+    var defaultFontWidth = 5
     /// Default field orientation from `^FW`, used by any field that omits its
     /// own orientation slot. Kept separate from `currentRotation` (which `^A`
     /// overwrites) so a font rotation cannot leak into a barcode.
@@ -404,6 +433,8 @@ private struct ParserState {
     var useFieldTypeset = false
     var isReversed = false
     var fieldHexIndicator: Character? = nil
+    /// Index in `elements` of the current field's data element, until `^FS`.
+    var openFieldElementIndex: Int? = nil
     var moduleWidth = 2
     // Set by ^BY's third parameter; nil means "no ^BY height seen", in which
     // case the parser keeps its historical 100-dot preview default.
@@ -416,6 +447,15 @@ private struct ParserState {
 
     // Pending barcode (barcode commands come before ^FD with the data)
     var pendingBarcode: ParsedBarcode? = nil
+
+    /// Returns the field font to the `^CF` default and the rotation to the
+    /// `^FW` default, so one field's `^A` cannot leak into the next.
+    mutating func resetFieldFont() {
+        currentFont = defaultFont
+        currentFontHeight = defaultFontHeight
+        currentFontWidth = defaultFontWidth
+        currentRotation = fieldDefaultRotation
+    }
 
     /// Resets every `^FB` text-block field to its default so the next field does
     /// not inherit stale values from a previously consumed block.

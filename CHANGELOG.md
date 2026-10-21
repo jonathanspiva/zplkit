@@ -38,6 +38,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shape-edge rasterization). The four `^FR` references, which are ZPLKit
   renders on purpose, were left alone. Visual accuracy rises from 90.9% to
   91.1%.
+- **`^SN` serial numbers now appear in previews.** The parser had no `^SN`
+  case, so a `SerialNumber` element (or any `^SN` field, including a serialized
+  barcode) silently vanished from the rendered image. A preview now shows the
+  start value, which is what the first printed label carries.
+- **A field's `^A` font no longer leaks into later fields.** `^A` applies to
+  one field only; a field without its own `^A` uses the `^CF` default, or Font
+  A at 9x5 dots when there is no `^CF` (verified against Labelary). The renderer
+  carried the last `^A` font, size and rotation into every following field, so
+  a field that relied on the default rendered in the previous field's font. The
+  `^FW` default rotation still applies.
+- **Font A rendered at about half its width.** Its width was scaled by
+  `width / height` like the scalable Font 0, but `^AAN,9,5` is Font A's native
+  9x5 cell, not a squeeze. Each character now advances `6 * width / 5` dots,
+  matching Labelary.
+- **Two data commands in one field produced two elements.** A second `^FD` or
+  `^SN` before `^FS` now replaces the first, at the field's latest `^FO`, as on
+  Labelary. This was visible once `^SN` rendered: a `^FX` comment mentioning
+  `^SN` drew its own text at the top of the `serial_number` fixture.
+
+Visual-suite scores: `features_textblock` 88.6% to 90.7% (the font leak);
+nothing else moves by more than 0.1 point except `serial_number`, which now
+draws its five serials.
 
 ### Changed
 
