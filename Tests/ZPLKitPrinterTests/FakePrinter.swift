@@ -47,6 +47,11 @@ final class FakePrinter: @unchecked Sendable {
         /// Accept, drain the request fully, then close gracefully without a
         /// reply. Exercises a graceful close after a `send()`.
         case drainThenClose
+
+        /// Accept the connection and never read from it, holding it open until
+        /// `shutdown()`. Once the socket buffers fill, the client's `write()`
+        /// blocks, which is how a paused or wedged printer behaves.
+        case stall
     }
 
     // MARK: - State (lock-guarded)
@@ -243,6 +248,9 @@ final class FakePrinter: @unchecked Sendable {
             // never reply. Leave the connection open; shutdown() closes it.
             _ = readRequest(clientFD, drain: false)
 
+        case .stall:
+            break
+
         case .drainThenClose:
             _ = readRequest(clientFD, drain: true)
             closeClient(clientFD)
@@ -312,13 +320,15 @@ final class FakePrinter: @unchecked Sendable {
         }
     }
 
+    /// Closes `fd` only if it is still tracked. `shutdown()` may already have
+    /// closed it, and closing it again could hit an unrelated socket that has
+    /// since reused the descriptor number (another test's client, running in
+    /// parallel).
     private func closeClient(_ fd: Int32) {
         lock.lock()
-        if let idx = clientFDs.firstIndex(of: fd) {
-            clientFDs.remove(at: idx)
-        }
+        let owned = clientFDs.firstIndex(of: fd).map { clientFDs.remove(at: $0) } != nil
         lock.unlock()
-        Darwin.close(fd)
+        if owned { Darwin.close(fd) }
     }
 
     // MARK: - Response builders (valid ZPL framing)
@@ -601,10 +611,11 @@ final class FakePrinterRouting: @unchecked Sendable {
         }
     }
 
+    /// Closes `fd` only if it is still tracked; see `FakePrinter.closeClient`.
     private func closeClient(_ fd: Int32) {
         lock.lock()
-        if let idx = clientFDs.firstIndex(of: fd) { clientFDs.remove(at: idx) }
+        let owned = clientFDs.firstIndex(of: fd).map { clientFDs.remove(at: $0) } != nil
         lock.unlock()
-        Darwin.close(fd)
+        if owned { Darwin.close(fd) }
     }
 }

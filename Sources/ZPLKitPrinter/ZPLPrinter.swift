@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import Synchronization
 
 /// Thread-safe replacement for `strerror`, which returns a pointer to a shared
 /// static buffer and is therefore not reentrant. `send()` runs its blocking
@@ -22,6 +23,50 @@ private func posixErrorString(_ code: Int32) -> String {
         return String(decoding: bytes, as: UTF8.self)
     }
     return "Unknown error \(code)"
+}
+
+/// Cancellation state shared between a `send()` worker and its task's
+/// cancellation handler.
+///
+/// The connect phase polls `isCancelled` between short `poll()` slices. The
+/// write phase is a blocking `write()` that no flag can reach, so the worker
+/// registers its socket and `cancel()` shuts it down, which makes the write
+/// return immediately. Registration and shutdown happen under one lock, and the
+/// worker unregisters before it closes the fd, so `cancel()` can never shut
+/// down an unrelated socket that has reused the same descriptor number.
+private final class SendCancellation: Sendable {
+    private struct State {
+        var cancelled = false
+        var socket: Int32 = -1
+    }
+
+    private let state = Mutex(State())
+
+    var isCancelled: Bool {
+        state.withLock { $0.cancelled }
+    }
+
+    func cancel() {
+        state.withLock { s in
+            s.cancelled = true
+            if s.socket >= 0 { _ = Darwin.shutdown(s.socket, SHUT_RDWR) }
+        }
+    }
+
+    /// Registers the connected socket for the write phase. Returns false, and
+    /// registers nothing, if the send was already cancelled.
+    func register(_ sock: Int32) -> Bool {
+        state.withLock { s in
+            if s.cancelled { return false }
+            s.socket = sock
+            return true
+        }
+    }
+
+    /// Must be called before the registered socket is closed.
+    func unregister() {
+        state.withLock { $0.socket = -1 }
+    }
 }
 
 /// Sends ZPL commands to a Zebra printer over TCP.
@@ -51,6 +96,18 @@ public struct ZPLPrinter: Sendable {
 
     /// Default connection timeout in seconds.
     public static let defaultTimeout: TimeInterval = 10
+
+    /// The most `send()` calls that run at once in a process. Further calls
+    /// wait for a free slot (without holding a thread) before connecting.
+    ///
+    /// Each in-flight `send()` blocks a thread for its connect and write, up to
+    /// the full timeout against an unreachable printer, so an unbounded fan-out
+    /// could exhaust the system thread pool. A Zebra printer handles one raw
+    /// job at a time anyway, so this only throttles sends to many printers.
+    public static let maxConcurrentSends = 8
+
+    /// Upper bound on how long a cancelled `send()` keeps waiting on a connect.
+    private static let cancellationPollMillis: Int32 = 50
 
     /// The printer's hostname or IP address.
     public let host: String
@@ -122,8 +179,20 @@ public struct ZPLPrinter: Sendable {
     ///   migrate this off POSIX without verifying on a **physical** printer
     ///   (identical bytes via `nc` print; via `NetworkConnection` they don't).
     ///
+    /// At most ``maxConcurrentSends`` sends run at once per process; the rest
+    /// wait their turn before connecting.
+    ///
+    /// Cancelling the calling task stops the send promptly: a queued send
+    /// never connects, a connect in progress is abandoned, and a write in
+    /// progress is cut off by shutting down the socket. A send cancelled
+    /// mid-write may leave a partial job on the printer, which discards it as
+    /// it does any truncated format. If every byte was already written when
+    /// cancellation arrives, the send reports success, since the job was
+    /// delivered.
+    ///
     /// - Parameter data: The data to send.
-    /// - Throws: `PrinterError` if the connection or send fails.
+    /// - Throws: `PrinterError` if the connection or send fails, or
+    ///   `CancellationError` if the task is cancelled first.
     public func send(_ data: Data) async throws {
         // An empty send is a no-op success. Returning early also avoids a
         // trap on `baseAddress` being nil for empty Data in withUnsafeBytes.
@@ -142,6 +211,28 @@ public struct ZPLPrinter: Sendable {
             throw PrinterError.invalidConfiguration("Port \(port) is not valid")
         }
 
+        // The slot is held until the worker below has finished with its
+        // thread, including after a cancellation, so the cap really bounds
+        // blocked threads.
+        try await SendLimiter.shared.acquire()
+        defer { SendLimiter.shared.release() }
+
+        let cancellation = SendCancellation()
+        try await withTaskCancellationHandler {
+            try await blockingSend(data, host: host, port: port, timeout: timeout, cancellation: cancellation)
+        } onCancel: {
+            cancellation.cancel()
+        }
+    }
+
+    /// The POSIX connect + write behind `send()`, run on a GCD thread.
+    private func blockingSend(
+        _ data: Data,
+        host: String,
+        port: UInt16,
+        timeout: TimeInterval,
+        cancellation: SendCancellation
+    ) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             DispatchQueue.global().async {
                 // Set send timeout, preserving fractional seconds. Clamp to a
@@ -185,6 +276,10 @@ public struct ZPLPrinter: Sendable {
                 var candidate: UnsafeMutablePointer<addrinfo>? = resolved
                 connectLoop: while let info = candidate {
                     defer { candidate = info.pointee.ai_next }
+
+                    // getaddrinfo itself can't be interrupted, so this is the
+                    // first point a cancellation during DNS resolution is seen.
+                    if cancellation.isCancelled { break connectLoop }
 
                     let sock = socket(info.pointee.ai_family,
                                       info.pointee.ai_socktype,
@@ -234,19 +329,29 @@ public struct ZPLPrinter: Sendable {
                         var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
                         // Re-poll on EINTR with the remaining timeout: a signal
                         // (SIGCHLD, debugger attach) mid-connect is not a
-                        // printer timeout.
+                        // printer timeout. Poll in short slices so a cancelled
+                        // send stops waiting promptly rather than at the
+                        // connect timeout.
                         let pollStartNanos = DispatchTime.now().uptimeNanoseconds
                         var pollResult: Int32
                         var pollErrno: Int32 = 0
                         while true {
                             let elapsedMillis = (DispatchTime.now().uptimeNanoseconds - pollStartNanos) / 1_000_000
                             let remainingMillis = Int32(max(Int64(pollTimeoutMillis) - Int64(clamping: elapsedMillis), 0))
-                            pollResult = poll(&pfd, 1, remainingMillis)
+                            let sliceMillis = min(remainingMillis, ZPLPrinter.cancellationPollMillis)
+                            pollResult = poll(&pfd, 1, sliceMillis)
                             if pollResult < 0 {
                                 pollErrno = errno
                                 if pollErrno == EINTR { continue }
+                            } else if pollResult == 0 && remainingMillis > sliceMillis
+                                        && !cancellation.isCancelled {
+                                continue
                             }
                             break
+                        }
+                        if pollResult == 0 && cancellation.isCancelled {
+                            Darwin.close(sock)
+                            break connectLoop
                         }
                         if pollResult < 0 {
                             Darwin.close(sock)
@@ -294,12 +399,23 @@ public struct ZPLPrinter: Sendable {
                 }
 
                 guard connectedSock >= 0 else {
+                    if cancellation.isCancelled {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
                     continuation.resume(throwing: lastError ?? PrinterError.connectionFailed(
                         host: host, port: port, underlying: "Could not connect to any resolved address"))
                     return
                 }
 
                 let sock = connectedSock
+
+                // From here a cancel shuts the socket down to unblock write().
+                guard cancellation.register(sock) else {
+                    Darwin.close(sock)
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
 
                 // Restore blocking mode for write.
                 let blockingFlags = fcntl(sock, F_GETFL, 0)
@@ -327,11 +443,15 @@ public struct ZPLPrinter: Sendable {
                     }
                 }
 
-                // close() sends TCP FIN for graceful shutdown.
+                // close() sends TCP FIN for graceful shutdown. Unregister first
+                // so a late cancel can't shut down a reused descriptor.
+                cancellation.unregister()
                 Darwin.close(sock)
 
                 if sent == count {
                     continuation.resume()
+                } else if cancellation.isCancelled {
+                    continuation.resume(throwing: CancellationError())
                 } else if writeErrno == EAGAIN || writeErrno == EWOULDBLOCK {
                     // SO_SNDTIMEO expiry surfaces as EAGAIN on a blocking write:
                     // the printer stopped draining (paused, buffer full). Report
