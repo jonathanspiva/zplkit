@@ -19,6 +19,11 @@ public enum PrinterCommand: String, Sendable {
     ///
     /// Calibrates the printer for the current media (label size, gap detection).
     /// The printer will feed several labels during calibration.
+    ///
+    /// Like every tilde command, it runs as soon as it arrives, ahead of queued
+    /// formats; labels still waiting to print can stall and come out of
+    /// register afterwards. On a printer that
+    /// may be busy, use `ZPLPrinter.calibrate()`, which waits for it to go idle.
     case calibrate = "~JC"
 
     /// Reset the printer (`~JR`).
