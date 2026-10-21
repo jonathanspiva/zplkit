@@ -189,6 +189,8 @@ let config = PrinterConfiguration.directThermal(
 try await printer.setup(config)  // apply + save + calibrate
 ```
 
+`calibrate()` (and so `setup()`) waits for the printer to finish any queued jobs before sending `~JC`, and throws `PrinterError.printerBusy` if they don't finish within the timeout (a paused printer never drains). Tilde commands jump the printer's queue, and a `~JC` that arrives while labels are queued discards them, so don't send `PrinterCommand.calibrate` raw on a printer that may be busy.
+
 Use presets for common setups, or configure individual settings:
 
 ```swift

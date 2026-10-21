@@ -402,10 +402,14 @@ struct NetworkRoundTripTests {
         #expect(!sent.contains("^JUS"))
     }
 
-    @Test("setup() applies+saves in one payload, then calibrates")
+    @Test("setup() applies+saves in one payload, waits for idle, then calibrates")
     func setupAppliesSavesAndCalibrates() async throws {
-        // setup() opens TWO connections: the config+save payload, then ~JC.
-        let fake = try FakePrinter(defaultBehavior: .drainThenClose)
+        // setup() opens FOUR connections: the config+save payload, two ~HS
+        // idle checks, then ~JC.
+        let idle = FakePrinter.Behavior.respond(chunks: FakePrinter.makeHSResponse(), gap: 0)
+        let fake = try FakePrinter(
+            behaviors: [.drainThenClose, idle, idle],
+            defaultBehavior: .drainThenClose)
         defer { fake.shutdown() }
 
         let config = PrinterConfiguration.directThermal(
@@ -423,7 +427,55 @@ struct NetworkRoundTripTests {
         #expect(sent.contains("~JC"))    // calibration command sent
         #expect(sent.contains("^XA"))
         #expect(sent.contains("^XZ"))
-        #expect(fake.connectionCount == 2)
+        #expect(fake.connectionCount == 4)
+        // The calibration goes last, after the idle checks.
+        #expect(sent.hasSuffix("~JC"))
+    }
+
+    // MARK: - waitUntilIdle() / calibrate()
+
+    @Test("waitUntilIdle() waits out queued formats, then needs two idle readings")
+    func waitUntilIdleDrains() async throws {
+        let busy = FakePrinter.Behavior.respond(chunks: FakePrinter.makeHSResponse(formatsInBuffer: 2), gap: 0)
+        let printing = FakePrinter.Behavior.respond(chunks: FakePrinter.makeHSResponse(labelsRemaining: 1), gap: 0)
+        let idle = FakePrinter.Behavior.respond(chunks: FakePrinter.makeHSResponse(), gap: 0)
+        // An idle reading between busy ones must not count.
+        let fake = try FakePrinter(behaviors: [busy, idle, printing, idle, idle])
+        defer { fake.shutdown() }
+
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
+        try await printer.waitUntilIdle(timeout: successTimeout)
+        #expect(fake.connectionCount == 5)
+    }
+
+    @Test("calibrate() on a printer that never goes idle throws printerBusy and sends no ~JC")
+    func calibrateBusyThrows() async throws {
+        let busy = FakePrinter.Behavior.respond(chunks: FakePrinter.makeHSResponse(formatsInBuffer: 1), gap: 0)
+        let fake = try FakePrinter(defaultBehavior: busy)
+        defer { fake.shutdown() }
+
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
+        do {
+            try await printer.calibrate(idleTimeout: 0.5)
+            Issue.record("expected calibrate() to throw while the printer is busy")
+        } catch PrinterError.printerBusy(let host, let port) {
+            #expect(host == "127.0.0.1")
+            #expect(port == fake.port)
+        }
+        #expect(!fake.receivedString.contains("~JC"))
+    }
+
+    @Test("calibrateFull() waits for idle, then sends ~JG")
+    func calibrateFullWaitsThenSends() async throws {
+        let idle = FakePrinter.Behavior.respond(chunks: FakePrinter.makeHSResponse(), gap: 0)
+        let fake = try FakePrinter(behaviors: [idle, idle], defaultBehavior: .drainThenClose)
+        defer { fake.shutdown() }
+
+        let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: successTimeout)
+        try await printer.calibrateFull()
+        try await waitUntil { fake.receivedString.contains("~JG") }
+        #expect(fake.receivedString.hasSuffix("~JG"))
+        #expect(fake.connectionCount == 3)
     }
 
     @Test("saveConfiguration() sends ^XA^JUS^XZ")

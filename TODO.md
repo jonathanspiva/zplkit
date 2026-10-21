@@ -9,13 +9,6 @@ git history; hardware findings that are still relevant are written up in
 ### Hardware verification
 These need a physical printer, and they are the last unverified claims in the docs.
 
-- [ ] **Test ZPLKit `calibrate()` against a manual media calibration.** On the
-  GX420t, `ZPLPrinter.setup()` / `calibrate()` (which sends `~JC`) did NOT fully
-  re-register the media; labels printed but sat misaligned, borders crossing
-  the label gaps. The printer's **manual 2-blink media calibration** (hold FEED,
-  release on the 2nd green flash) fixed alignment. Verify what `calibrate()` and
-  `calibrateFull()` actually emit and whether they should trigger the fuller
-  length/gap re-measure rather than just `~JC`.
 - [ ] **`^NS` network reconfig does not take effect via `~JR`.** Round-trip test
   on the GX420t (V56): `^NSP,<free-ip>` + `^JUS` + `~JR` left the IP unchanged.
   `networkConfig()`/`dhcp()` are documented as **experimental** in the README.

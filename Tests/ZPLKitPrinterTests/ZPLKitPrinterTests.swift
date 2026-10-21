@@ -98,6 +98,10 @@ struct ZPLKitPrinterTests {
         let invalidResponseError = PrinterError.invalidResponse("Unexpected format")
         #expect(invalidResponseError.errorDescription?.contains("Invalid response") == true)
 
+        let busyError = PrinterError.printerBusy(host: "192.168.1.100", port: 9100)
+        #expect(busyError.errorDescription?.contains("192.168.1.100:9100") == true)
+        #expect(busyError.errorDescription?.contains("queued") == true)
+
         let sendError = PrinterError.sendFailed(underlying: "Broken pipe")
         #expect(sendError.errorDescription?.contains("send") == true)
         #expect(sendError.errorDescription?.contains("Broken pipe") == true)

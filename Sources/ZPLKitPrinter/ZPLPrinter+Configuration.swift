@@ -51,13 +51,57 @@ extension ZPLPrinter {
 
     /// Runs a media and ribbon sensor calibration.
     ///
-    /// The printer feeds several labels to calibrate its sensors.
-    /// This is typically needed after changing media type or label size.
-    /// ZPL: `~JC`.
+    /// The printer feeds several labels to measure the label length and set
+    /// its sensor levels. This is typically needed after changing media type
+    /// or label size. ZPL: `~JC`.
     ///
-    /// - Throws: `PrinterError` if the command fails to send.
-    public func calibrate() async throws {
+    /// Waits for the printer to go idle first (see ``waitUntilIdle(timeout:)``).
+    /// Tilde commands run the moment they arrive, ahead of any queued formats,
+    /// and a `~JC` that arrives while labels are queued discards them: on a
+    /// GX420t (V56.17.17Z), two labels sent just before a `~JC` never printed.
+    ///
+    /// The calibration only measures in gap or mark tracking; in continuous
+    /// tracking `~JC` feeds nothing.
+    ///
+    /// - Parameter idleTimeout: How long to wait for queued jobs to finish.
+    /// - Throws: `PrinterError.printerBusy` if the printer is still busy after
+    ///   `idleTimeout`, or another `PrinterError` if a query or send fails.
+    public func calibrate(idleTimeout: TimeInterval = defaultIdleTimeout) async throws {
+        try await waitUntilIdle(timeout: idleTimeout)
         try await send("~JC")
+    }
+
+    /// Default for how long ``calibrate(idleTimeout:)`` and
+    /// ``calibrateFull(idleTimeout:)`` wait for queued jobs to finish.
+    public static let defaultIdleTimeout: TimeInterval = 60
+
+    /// Waits until the printer has no formats queued, no partial format in
+    /// progress, and no labels left in a batch.
+    ///
+    /// Polls ``queryStatus()``. The printer must read idle on two consecutive
+    /// polls, so a format that has only just arrived is not mistaken for an
+    /// empty queue.
+    ///
+    /// - Parameter timeout: How long to wait before giving up.
+    /// - Throws: `PrinterError.printerBusy` if the printer is still busy after
+    ///   `timeout` (a paused printer never drains its queue), or another
+    ///   `PrinterError` if a status query fails.
+    public func waitUntilIdle(timeout: TimeInterval = defaultIdleTimeout) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + .milliseconds(Int(min(max(0, timeout), 86_400) * 1000))
+        var idleReadings = 0
+        while true {
+            let status = try await queryStatus()
+            let idle = status.formatsInBuffer == 0
+                && !status.isPartialFormatInProgress
+                && status.labelsRemainingInBatch == 0
+            idleReadings = idle ? idleReadings + 1 : 0
+            if idleReadings >= 2 { return }
+            if clock.now >= deadline {
+                throw PrinterError.printerBusy(host: host, port: port)
+            }
+            try await Task.sleep(for: .milliseconds(250))
+        }
     }
 
     /// Zero-touch printer setup: apply configuration with integrated save,
@@ -115,13 +159,20 @@ extension ZPLPrinter {
         try await send("^XA^XZ")
     }
 
-    /// Runs a full sensor calibration profile.
+    /// Runs a graphing sensor calibration: the same measurement as
+    /// ``calibrate(idleTimeout:)``, plus a printed graph of the media sensor
+    /// profile. ZPL: `~JG`.
     ///
-    /// The printer feeds several labels while measuring sensor values across
-    /// the full range. More thorough than ``calibrate()`` (`~JC`). ZPL: `~JG`.
+    /// Use it to diagnose sensor or registration problems; the graph costs
+    /// several extra labels. It is not a more thorough calibration than `~JC`.
+    /// Waits for the printer to go idle first, for the same reason as
+    /// ``calibrate(idleTimeout:)``.
     ///
-    /// - Throws: `PrinterError` if the command fails to send.
-    public func calibrateFull() async throws {
+    /// - Parameter idleTimeout: How long to wait for queued jobs to finish.
+    /// - Throws: `PrinterError.printerBusy` if the printer is still busy after
+    ///   `idleTimeout`, or another `PrinterError` if a query or send fails.
+    public func calibrateFull(idleTimeout: TimeInterval = defaultIdleTimeout) async throws {
+        try await waitUntilIdle(timeout: idleTimeout)
         try await send("~JG")
     }
 

@@ -24,6 +24,10 @@ public enum PrinterError: Error, LocalizedError, Sendable {
     /// Received invalid or malformed response from printer.
     case invalidResponse(String)
 
+    /// The printer still had queued or in-progress jobs when a wait for it to
+    /// go idle ran out. See ``ZPLPrinter/waitUntilIdle(timeout:)``.
+    case printerBusy(host: String, port: UInt16)
+
     public var errorDescription: String? {
         switch self {
         case .connectionFailed(let host, let port, let underlying):
@@ -38,6 +42,8 @@ public enum PrinterError: Error, LocalizedError, Sendable {
             return "No response from \(host):\(port) (printer may be in error state)"
         case .invalidResponse(let message):
             return "Invalid response: \(message)"
+        case .printerBusy(let host, let port):
+            return "Printer at \(host):\(port) still has jobs queued or printing"
         }
     }
 }

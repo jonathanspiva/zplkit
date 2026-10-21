@@ -9,13 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `ZPLPrinter.maxConcurrentSends` (8): at most this many `send()` calls run
-  at once per process. Further sends wait for a free slot, without holding a
-  thread, before connecting. Each in-flight send blocks a GCD thread for its
-  connect and write, so a large fan-out to unreachable printers could
-  previously exhaust the thread pool and stall every other send and unrelated
-  global-queue work.
-
 ### Fixed
 
 - **`send()` now observes task cancellation once it has started.** Previously
@@ -60,11 +53,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Visual-suite scores: `features_textblock` 88.6% to 90.7% (the font leak);
 nothing else moves by more than 0.1 point except `serial_number`, which now
 draws its five serials.
+- **`calibrate()` (and so `setup()`) could discard queued labels.** Tilde
+  commands run the moment they arrive, ahead of queued formats. Measured on a
+  GX420t (V56.17.17Z): two labels sent immediately before `~JC` never printed.
+  `calibrate()` and `calibrateFull()` now wait for the printer to go idle first
+  (`idleTimeout`, default 60s). The same two-label sequence through the fixed
+  `calibrate()` held the `~JC` for 2.7s while both labels printed.
+- `calibrateFull()` was documented as a more thorough calibration. `~JG` is
+  Zebra's graphing calibration: the same measurement as `~JC` plus a printed
+  graph of the media sensor profile, so it is a diagnostic that costs extra
+  labels.
 
 ### Changed
 
 - CI: the WebAssembly job moved to the `swift:6.4.1` container and the 6.4.1
   Wasm SDK. The Linux job already follows the floating `swift:6.4` tag.
+- `PrinterError` has a new case, `printerBusy(host:port:)`. Exhaustive
+  `switch` statements over `PrinterError` without a `default` need a new arm.
 
 ## [1.1.0] - 2026-09-29
 
