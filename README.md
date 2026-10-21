@@ -166,6 +166,8 @@ for await discovered in browser.printers {
 }
 ```
 
+`send()` honors task cancellation at every stage: a cancelled send stops waiting on the connect or the write and throws `CancellationError`, instead of running out its timeout. Each in-flight send holds a thread for its blocking socket work, so at most `ZPLPrinter.maxConcurrentSends` (8) run at once per process; any beyond that wait for a free slot before connecting. Sending to many printers at once is therefore safe, just paced.
+
 ## Printer Configuration
 
 Configure a new or factory-reset printer entirely through code:

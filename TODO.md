@@ -96,21 +96,6 @@ anywhere else:
   empty there. Enabling barcode analysis would mean gating the text types
   (`TextExpectation`, `DetectedText`, `AnalysisResult.texts`, the text scanner)
   individually rather than the whole module.
-- [ ] **Bound the concurrency of `send()`.** `send()` is now the only thing in
-  `ZPLKitPrinter` still on GCD: it runs its blocking socket work on
-  `DispatchQueue.global()` (ZPLPrinter.swift:146). Mass fan-out (60+ concurrent
-  sends to unreachable printers) can saturate GCD's thread pool, and each one
-  blocks for the full connect timeout. Deferred because it needs a
-  bounded-concurrency design (a dedicated queue or a semaphore), not a spot fix.
-  Note the old framing of this item is out of date: `query()` no longer shares
-  that queue, so the failure mode is starvation of other `send()` calls and of
-  any unrelated global-queue work, not stalled `query()` callbacks.
-- [ ] **`send()` does not observe cancellation once it starts.** It calls
-  `Task.checkCancellation()` before dispatching, then blocks inside a
-  `withCheckedThrowingContinuation` with no cancellation handler, so cancelling
-  the task does not interrupt the connect or the write; the caller waits out the
-  timeout. Bounded (10s by default) rather than unbounded, hence Later. The fix
-  pairs naturally with the bounded-concurrency work above.
 - [ ] **Render `^SN` in the preview.** A `SerialNumber` element currently
   contributes *nothing* to a rendered preview: `ZPLParser` has no `^SN` case, so
   it falls through `default: break` and the field silently disappears. Verified

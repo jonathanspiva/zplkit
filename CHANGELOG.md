@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ZPLPrinter.maxConcurrentSends` (8): at most this many `send()` calls run
+  at once per process. Further sends wait for a free slot, without holding a
+  thread, before connecting. Each in-flight send blocks a GCD thread for its
+  connect and write, so a large fan-out to unreachable printers could
+  previously exhaust the thread pool and stall every other send and unrelated
+  global-queue work.
+
+### Fixed
+
+- **`send()` now observes task cancellation once it has started.** Previously
+  it checked cancellation only before dispatching, so a cancelled send to an
+  unreachable or stalled printer still blocked for the full timeout (10s by
+  default). Now a queued send never connects, a pending connect is abandoned
+  within about 50 ms, and a blocked write is cut off by shutting down the
+  socket; all three throw `CancellationError`. A send whose bytes were all
+  written before the cancel still reports success.
+- Tests: the loopback `FakePrinter` could close the same descriptor twice
+  (once in `shutdown()`, again when its connection handler finished), which
+  could close a socket belonging to another test running in parallel.
+
+### Changed
+
+- CI: the WebAssembly job moved to the `swift:6.4.1` container and the 6.4.1
+  Wasm SDK. The Linux job already follows the floating `swift:6.4` tag.
+
 ## [1.1.0] - 2026-09-29
 
 **Raises the platform floor to 27 and Swift 6.4.** No API changes. If you are
