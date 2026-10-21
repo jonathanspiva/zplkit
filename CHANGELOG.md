@@ -5,7 +5,18 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-10-21
+
+**Printer reliability and preview accuracy.** `calibrate()` no longer
+mis-registers labels when the printer is busy, `send()` can be cancelled and no
+longer exhausts the thread pool under a large fan-out, and the renderer now
+previews `^SN` serial numbers and scopes fonts per field the way a printer does.
+Every renderer rule was checked against Labelary, and the printer behavior was
+measured on a GX420t (see HARDWARE-VALIDATION.md).
+
+**One source-breaking addition:** `PrinterError` gains a `printerBusy` case. A
+`switch` over `PrinterError` with no `default` needs a new arm. Everything else
+is additive.
 
 ### Added
 
@@ -22,6 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`calibrate()` (and so `setup()`) could stall queued labels and print them
+  out of register.** Tilde commands run the moment they arrive, ahead of queued
+  formats. Measured on a GX420t (V56.17.17Z): with two labels queued, `~JC`
+  calibrated first and the two labels did not print at all until the next job
+  arrived minutes later, and then printed out of register (`~HS` reported no
+  formats queued while they were stuck). This matches the
+  misaligned labels previously seen after `setup()`. `calibrate()` and
+  `calibrateFull()` now wait for the printer to go idle first (`idleTimeout`,
+  default 60s). With the fix, `calibrate()` held the `~JC` for 2.7s and the
+  calibration ran only after every queued label had printed.
 - **`send()` now observes task cancellation once it has started.** Previously
   it checked cancellation only before dispatching, so a cancelled send to an
   unreachable or stalled printer still blocked for the full timeout (10s by
@@ -29,19 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   within about 50 ms, and a blocked write is cut off by shutting down the
   socket; all three throw `CancellationError`. A send whose bytes were all
   written before the cancel still reports success.
-- Tests: the loopback `FakePrinter` could close the same descriptor twice
-  (once in `shutdown()`, again when its connection handler finished), which
-  could close a socket belonging to another test running in parallel.
-- Tests: refreshed 36 visual-test reference images that had drifted from
-  current Labelary output. None of the drift was a renderer regression: ZPLKit
-  agrees better with the fresh references in 27 of the 36. Ten `graphic_*_fill`
-  references predated the switch from SF Symbols to FontAwesome icons, and
-  seven fetched in 2026-07 were rendered from a percent-encoded request body,
-  so every space in their label text came out as a literal `+`. The rest are
-  small Labelary-side changes (a different QR matrix for the same data, and
-  shape-edge rasterization). The four `^FR` references, which are ZPLKit
-  renders on purpose, were left alone. Visual accuracy rises from 90.9% to
-  91.1%.
 - **`^SN` serial numbers now appear in previews.** The parser had no `^SN`
   case, so a `SerialNumber` element (or any `^SN` field, including a serialized
   barcode) silently vanished from the rendered image. A preview now shows the
@@ -60,31 +68,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `^SN` before `^FS` now replaces the first, at the field's latest `^FO`, as on
   Labelary. This was visible once `^SN` rendered: a `^FX` comment mentioning
   `^SN` drew its own text at the top of the `serial_number` fixture.
-
-Visual-suite scores: `features_textblock` 88.6% to 90.7% (the font leak);
-nothing else moves by more than 0.1 point except `serial_number`, which now
-draws its five serials.
-- **`calibrate()` (and so `setup()`) could stall queued labels and print them
-  out of register.** Tilde commands run the moment they arrive, ahead of queued
-  formats. Measured on a GX420t (V56.17.17Z): with two labels queued, `~JC`
-  calibrated first and the two labels did not print at all until the next job
-  arrived minutes later, at which point they came out out of register (and
-  `~HS` reported no formats queued while they were stuck). This matches the
-  misaligned labels previously seen after `setup()`. `calibrate()` and
-  `calibrateFull()` now wait for the printer to go idle first (`idleTimeout`,
-  default 60s). With the fix, `calibrate()` held the `~JC` for 2.7s and the
-  calibration ran only after every queued label had printed.
 - `calibrateFull()` was documented as a more thorough calibration. `~JG` is
   Zebra's graphing calibration: the same measurement as `~JC` plus a printed
   graph of the media sensor profile, so it is a diagnostic that costs extra
   labels.
+- Tests: the loopback `FakePrinter` could close the same descriptor twice
+  (once in `shutdown()`, again when its connection handler finished), which
+  could close a socket belonging to another test running in parallel.
+- Tests: refreshed 36 visual-test reference images that had drifted from
+  current Labelary output. None of the drift was a renderer regression: ZPLKit
+  agrees better with the fresh references in 27 of the 36. Ten `graphic_*_fill`
+  references predated the switch from SF Symbols to FontAwesome icons, and
+  seven fetched in 2026-07 were rendered from a percent-encoded request body,
+  so every space in their label text came out as a literal `+`. The rest are
+  small Labelary-side changes (a different QR matrix for the same data, and
+  shape-edge rasterization). The four `^FR` references, which are ZPLKit
+  renders on purpose, were left alone. Visual accuracy rises from 90.9% to
+  91.1%.
+- Visual suite: `features_textblock` rises from 88.6% to 90.7% (the font
+  leak). `serial_number` and `retail_label` change because they now draw
+  their serial fields; nothing else moves by more than 0.1 point.
 
 ### Changed
 
-- CI: the WebAssembly job moved to the `swift:6.4.1` container and the 6.4.1
-  Wasm SDK. The Linux job already follows the floating `swift:6.4` tag.
 - `PrinterError` has a new case, `printerBusy(host:port:)`. Exhaustive
   `switch` statements over `PrinterError` without a `default` need a new arm.
+- CI: the WebAssembly job moved to the `swift:6.4.1` container and the 6.4.1
+  Wasm SDK. The Linux job already follows the floating `swift:6.4` tag.
 
 ## [1.1.0] - 2026-09-29
 
@@ -747,6 +757,7 @@ These affect anyone who built against pre-release code:
 - Added a rotation fixture; there was no coverage of field orientation at all,
   which is why the rotated-field anchoring bug went unseen.
 
+[1.2.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.2.0
 [1.1.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.1.0
 [1.0.6]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.6
 [1.0.5]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.5
