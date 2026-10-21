@@ -85,6 +85,14 @@ being left paused, not a code defect).
   Caveat: **USPS IMb** prints its 4-state bar structure but its codeword
   *encoding* is unverified: a scanner decode is still outstanding, and the
   renderer's IMb encoder is a known placeholder (see TODO "Someday").
+- **`send()` after the concurrency cap and cancellation work** (2026-10-21,
+  GX420t V56.17.17Z, direct-thermal, gap tracking). The change adds a slot
+  limiter and a cancellation path but leaves the POSIX write + `close()` of an
+  uncancelled send untouched; because `send()` is the path where a previous
+  rewrite silently dropped jobs (see README "Known Issues"), it was A/B checked
+  anyway. A text + Code 128 label sent through `send()` and an equivalent one
+  piped through `nc` both printed completely and in register, and the printer
+  reported Ready before and after.
 
 ### 3. Synthetic + malicious-input fixtures (run in CI)
 
