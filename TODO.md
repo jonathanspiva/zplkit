@@ -89,16 +89,6 @@ anywhere else:
   empty there. Enabling barcode analysis would mean gating the text types
   (`TextExpectation`, `DetectedText`, `AnalysisResult.texts`, the text scanner)
   individually rather than the whole module.
-- [ ] **Render `^SN` in the preview.** A `SerialNumber` element currently
-  contributes *nothing* to a rendered preview: `ZPLParser` has no `^SN` case, so
-  it falls through `default: break` and the field silently disappears. Verified
-  2026-09-04: a label with `Text("SN:")` + `SerialNumber("001")` parses to a
-  single element, the text. The printed label is correct (the printer does the
-  substitution), so this is preview-only, and it is now documented in the
-  README's renderer table. Rendering the start value would be a decent
-  approximation. `^FX` and `^PR` are also unhandled, but correctly so: a comment
-  and a speed setting have nothing to draw.
-
 - [ ] **ZPLKit MCP server** - MCP tool server wrapping ZPLKit for use with LLM agents
   - Discover printers, query status, configure, and print labels via natural language
   - Tools: `discover_printers`, `printer_status`, `configure_printer`, `print_label`, `preview_label`

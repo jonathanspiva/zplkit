@@ -150,6 +150,27 @@ enum CoreGraphicsRenderer {
         }
     }
 
+    /// Horizontal scale that gives a field its ZPL character width.
+    ///
+    /// Font 0 is scalable and drawn at `fontHeight`, so `^A0N,h,w` stretches it
+    /// by `w / h`. Font A is a bitmap font whose native cell is 9x5 dots, so
+    /// `^AAN,9,5` is its normal shape, not a squeeze: each character advances
+    /// `w * 6 / 5` dots (the 5-dot cell plus a 1-dot gap, magnified), measured
+    /// against Labelary. Applying `w / h` to Font A drew it at about half width.
+    static func widthScale(font: CTFont, fontIdentifier: String, fontHeight: Int, fontWidth: Int) -> CGFloat {
+        guard fontHeight > 0, fontWidth > 0 else { return 1 }
+        if fontIdentifier == "A" {
+            var character: UniChar = 0x30  // "0"; Font A substitutes are monospaced
+            var glyph = CGGlyph()
+            guard CTFontGetGlyphsForCharacters(font, &character, &glyph, 1) else { return 1 }
+            var advance = CGSize.zero
+            CTFontGetAdvancesForGlyphs(font, .horizontal, &glyph, &advance, 1)
+            guard advance.width > 0 else { return 1 }
+            return CGFloat(fontWidth) * 6 / 5 / advance.width
+        }
+        return fontWidth == fontHeight ? 1 : CGFloat(fontWidth) / CGFloat(fontHeight)
+    }
+
     private static func renderText(_ text: ParsedText, in context: CGContext, fontConfig: ZPLRenderer.FontConfiguration) {
         let fontSize = CGFloat(text.fontHeight)
 
@@ -173,9 +194,9 @@ enum CoreGraphicsRenderer {
 
         // ZPL scales glyph width independently of height (`^A0N,h,w`). The
         // bundled font is drawn at `fontHeight` and stretched horizontally.
-        let widthScale: CGFloat = (text.fontHeight > 0 && text.fontWidth > 0 && text.fontWidth != text.fontHeight)
-            ? CGFloat(text.fontWidth) / CGFloat(text.fontHeight)
-            : 1
+        let widthScale = Self.widthScale(
+            font: font, fontIdentifier: text.font,
+            fontHeight: text.fontHeight, fontWidth: text.fontWidth)
 
         context.saveGState()
 
@@ -241,9 +262,9 @@ enum CoreGraphicsRenderer {
 
         // ZPL scales glyph width independently of height; line breaking happens
         // in unscaled text units against a proportionally narrower block width.
-        let widthScale: CGFloat = (textBlock.fontHeight > 0 && textBlock.fontWidth > 0 && textBlock.fontWidth != textBlock.fontHeight)
-            ? CGFloat(textBlock.fontWidth) / CGFloat(textBlock.fontHeight)
-            : 1
+        let widthScale = Self.widthScale(
+            font: font, fontIdentifier: textBlock.font,
+            fontHeight: textBlock.fontHeight, fontWidth: textBlock.fontWidth)
         let blockWidth = max(CGFloat(textBlock.blockWidth) / widthScale, 1)
 
         let typesetter = CTTypesetterCreateWithAttributedString(attributedString)

@@ -1,6 +1,8 @@
 import Testing
 import Foundation
+import CoreText
 @testable import ZPLKitRenderer
+import ZPLKit
 
 /// Regression tests for parser and renderer defects found in the 2026-07-10
 /// code-review pass. Each test pins spec-correct behavior that was previously
@@ -356,5 +358,182 @@ struct InterpretationLineTests {
             Issue.record("expected a barcode"); return
         }
         #expect(CoreGraphicsRenderer.interpretationLine(for: barcode) == "ABC123")
+    }
+
+    // MARK: - ^SN serialization
+
+    @Test("^SN previews as its start value instead of vanishing")
+    func serialNumberRendersStartValue() throws {
+        let parsed = try ZPLParser.parse(
+            "^XA^FO10,10^A0N,30,30^FDSN:^FS^FO100,10^A0N,30,30^SN001,1,Y^FS^XZ")
+        #expect(parsed.elements.count == 2)
+        guard case .text(let serial) = parsed.elements.last else {
+            Issue.record("expected the ^SN field as a text element"); return
+        }
+        #expect(serial.text == "001")
+        #expect(serial.x == 100)
+        #expect(serial.fontHeight == 30)
+    }
+
+    @Test("^SN keeps leading spaces in the start value, like ^FD")
+    func serialNumberPreservesSpaces() throws {
+        let parsed = try ZPLParser.parse("^XA^FO10,10^SN  7,1,N^FS^XZ")
+        guard case .text(let serial) = parsed.elements.first else {
+            Issue.record("expected a text element"); return
+        }
+        #expect(serial.text == "  7")
+    }
+
+    @Test("^SN supplies the data for a pending barcode")
+    func serialNumberFeedsBarcode() throws {
+        let parsed = try ZPLParser.parse("^XA^FO10,10^BCN,50,Y,N,N^SN1000,1,Y^FS^XZ")
+        guard case .barcode(let barcode) = parsed.elements.first else {
+            Issue.record("expected a barcode element"); return
+        }
+        #expect(barcode.data == "1000")
+    }
+
+    @Test("^FH escapes apply to ^SN data")
+    func serialNumberHexEscapes() throws {
+        let parsed = try ZPLParser.parse("^XA^FO10,10^FH^SN_5E01,1,Y^FS^XZ")
+        guard case .text(let serial) = parsed.elements.first else {
+            Issue.record("expected a text element"); return
+        }
+        #expect(serial.text == "^01")
+    }
+
+    @Test("A SerialNumber element round-trips to its start value in the preview")
+    func serialNumberElementRoundTrip() throws {
+        let label = ZPLLabel(width: 4, height: 2, dpi: .dpi203) {
+            Text("SN:", at: .inches(0.25, 0.25))
+            SerialNumber("A-001", at: .inches(1, 0.25))
+        }
+        let parsed = try ZPLParser.parse(label.render())
+        let texts = parsed.elements.compactMap { element -> String? in
+            if case .text(let text) = element { return text.text }
+            return nil
+        }
+        #expect(texts == ["SN:", "A-001"])
+    }
+
+    // MARK: - One data element per field
+
+    @Test("A second ^FD before ^FS replaces the first, at the latest ^FO")
+    func repeatedFieldDataReplaces() throws {
+        // Labelary draws only "SECOND", at 20,100.
+        let parsed = try ZPLParser.parse("^XA^FO20,20^A0N,40,40^FDFIRST^FO20,100^FDSECOND^FS^XZ")
+        #expect(parsed.elements.count == 1)
+        guard case .text(let text) = parsed.elements.first else {
+            Issue.record("expected a text element"); return
+        }
+        #expect(text.text == "SECOND")
+        #expect(text.y == 100)
+    }
+
+    @Test("^FD after ^SN in the same field replaces the serial number")
+    func fieldDataReplacesSerialNumber() throws {
+        // Labelary draws only "AFTER".
+        let parsed = try ZPLParser.parse("^XA^FO20,20^A0N,40,40^SN001,1,Y^FO20,100^FDAFTER^FS^XZ")
+        let texts = parsed.elements.compactMap { element -> String? in
+            if case .text(let text) = element { return text.text }
+            return nil
+        }
+        #expect(texts == ["AFTER"])
+    }
+
+    @Test("A ^FX comment that mentions ^SN draws nothing")
+    func commentMentioningSerialNumber() throws {
+        let parsed = try ZPLParser.parse("""
+            ^XA
+            ^FX Uses the ^SN serialization command.
+            ^FO30,30^A0N,30,30^FDSerial Numbers^FS
+            ^XZ
+            """)
+        let texts = parsed.elements.compactMap { element -> String? in
+            if case .text(let text) = element { return text.text }
+            return nil
+        }
+        #expect(texts == ["Serial Numbers"])
+    }
+
+    @Test("Replacement data in a barcode field stays barcode data")
+    func repeatedFieldDataInBarcode() throws {
+        let parsed = try ZPLParser.parse("^XA^FO10,10^BCN,50,Y,N,N^FDOLD^FDNEW^FS^XZ")
+        #expect(parsed.elements.count == 1)
+        guard case .barcode(let barcode) = parsed.elements.first else {
+            Issue.record("expected a barcode element"); return
+        }
+        #expect(barcode.data == "NEW")
+    }
+
+    @Test("Separate fields keep their own elements")
+    func separateFieldsUnaffected() throws {
+        let parsed = try ZPLParser.parse(
+            "^XA^FO10,10^FDA^FS^FO10,50^BCN,50^FDB^FS^FO10,120^FDC^FS^XZ")
+        #expect(parsed.elements.count == 3)
+    }
+
+    // MARK: - Field-scoped fonts
+
+    private func texts(_ zpl: String) throws -> [ParsedText] {
+        try ZPLParser.parse(zpl).elements.compactMap { element in
+            if case .text(let text) = element { return text }
+            return nil
+        }
+    }
+
+    @Test("^A applies to one field; the next field without ^A uses the default Font A 9x5")
+    func fontDoesNotLeakAcrossFields() throws {
+        // Labelary draws the second field in the small bitmap Font A.
+        let fields = try texts("^XA^FO20,20^A0N,50,50^FDBIG^FS^FO20,100^FDNEXT^FS^XZ")
+        #expect(fields.count == 2)
+        #expect(fields[0].font == "0")
+        #expect(fields[0].fontHeight == 50)
+        #expect(fields[1].font == "A")
+        #expect(fields[1].fontHeight == 9)
+        #expect(fields[1].fontWidth == 5)
+    }
+
+    @Test("^CF sets the default for fields without ^A; ^A overrides it for its field only")
+    func changeFontSetsDefault() throws {
+        let fields = try texts("^XA^CF0,40^FO20,20^A0N,20,20^FDSMALL^FS^FO20,100^FDDEFAULT^FS^XZ")
+        #expect(fields.map(\.fontHeight) == [20, 40])
+        #expect(fields[1].font == "0")
+    }
+
+    @Test("A field's ^A rotation does not leak into the next field")
+    func rotationDoesNotLeakAcrossFields() throws {
+        let fields = try texts("^XA^FO20,20^A0R,30,30^FDUP^FS^FO100,20^FDFLAT^FS^XZ")
+        #expect(fields.map(\.rotation) == ["R", "N"])
+    }
+
+    @Test("^FW still sets the rotation for fields without ^A")
+    func fieldDefaultRotationPersists() throws {
+        let fields = try texts("^XA^FWR^FO20,20^A0N,30,30^FDFLAT^FS^FO100,20^FDTURNED^FS^XZ")
+        #expect(fields.map(\.rotation) == ["N", "R"])
+    }
+
+    // MARK: - Font A width
+
+    @Test("Font A advances 6 dots per character per 5 dots of width, like Labelary")
+    func fontAWidthScale() throws {
+        let menlo = CTFontCreateWithName("Menlo" as CFString, 9, nil)
+        var character: UniChar = 0x30
+        var glyph = CGGlyph()
+        #expect(CTFontGetGlyphsForCharacters(menlo, &character, &glyph, 1))
+        var advance = CGSize.zero
+        CTFontGetAdvancesForGlyphs(menlo, .horizontal, &glyph, &advance, 1)
+
+        let base = CoreGraphicsRenderer.widthScale(font: menlo, fontIdentifier: "A", fontHeight: 9, fontWidth: 5)
+        #expect(abs(advance.width * base - 6) < 0.001)
+        let doubled = CoreGraphicsRenderer.widthScale(font: menlo, fontIdentifier: "A", fontHeight: 18, fontWidth: 10)
+        #expect(abs(advance.width * doubled - 12) < 0.001)
+    }
+
+    @Test("Font 0 still stretches by width over height")
+    func fontZeroWidthScale() throws {
+        let font = CTFontCreateWithName("Menlo" as CFString, 40, nil)
+        #expect(CoreGraphicsRenderer.widthScale(font: font, fontIdentifier: "0", fontHeight: 40, fontWidth: 40) == 1)
+        #expect(CoreGraphicsRenderer.widthScale(font: font, fontIdentifier: "0", fontHeight: 40, fontWidth: 20) == 0.5)
     }
 }

@@ -239,12 +239,20 @@ is ignored rather than rejected, so a label using it still renders, just without
 that effect.
 
 **Supported:** `^PW` `^LL` `^LH` `^PO` `^PQ` `^MD` `^FO` `^FT` `^FS`
-`^FD` `^FH` `^FR` `^FB` `^FW` `^A` `^CF` `^BY` `^GB` `^GC` `^GD` `^GE` `^GF`,
+`^FD` `^SN` `^FH` `^FR` `^FB` `^FW` `^A` `^CF` `^BY` `^GB` `^GC` `^GD` `^GE` `^GF`,
 and the barcode commands `^BC` `^B3` `^BQ` `^BX` `^B7` `^B2` `^BE` `^B8` `^BU`
 `^B9` `^B0` `^BZ`.
 
 `^XA` and `^XZ` are label delimiters with nothing to draw, so the parser skips
 them like any other unrecognized command.
+
+A preview is the first label of a job, so an `^SN` serial field shows its start
+value (the printer increments it on each later copy). Field scoping follows the
+printer, as checked against Labelary: `^A` applies only to its own field, and a
+field without one uses the `^CF` default (Font A at 9x5 dots if there is no
+`^CF`). A field holds one piece of data, so a second `^FD` or `^SN` before `^FS`
+replaces the first. Note that a `^FX` comment ends at the next `^`, so a comment
+that mentions a command, like `^FX uses ^SN`, really does contain that command.
 
 **Not implemented** (parsed and skipped):
 
@@ -253,7 +261,6 @@ them like any other unrecognized command.
 | `^LR` | Reverses print for every field | Fields render normally. Labelary ignores this too, so there is no reference to validate against |
 | `^CI` | Selects the character encoding | Field data is always treated as UTF-8, which is what ZPLKit emits (with `^CI28`) |
 | `^CC` / `^CT` | Changes the `^` / `~` command prefix characters | A label that remaps its prefixes will not parse at all |
-| `^SN` | Prints an auto-incrementing serial number | **The field is missing from the preview entirely.** Serial substitution happens in the printer, and the preview has no equivalent, so a `SerialNumber` element contributes nothing to the rendered image. The printed label is unaffected |
 | `^PR` | Sets print and slew speed | Nothing to draw; speed has no visual equivalent |
 | `^FX` | Comment | Ignored, exactly as the printer ignores it |
 
