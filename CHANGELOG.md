@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `ZPLPrinter.maxConcurrentSends` (8): at most this many `send()` calls run
+  at once per process. Further sends wait for a free slot, without holding a
+  thread, before connecting. Each in-flight send blocks a GCD thread for its
+  connect and write, so a large fan-out to unreachable printers could
+  previously exhaust the thread pool and stall every other send and unrelated
+  global-queue work.
+- `ZPLPrinter.waitUntilIdle(timeout:)`: polls `~HS` until no formats are
+  queued, no partial format is in progress, and no batch is printing (two
+  consecutive idle readings). Throws the new `PrinterError.printerBusy` if the
+  printer is still busy at the timeout.
+
 ### Fixed
 
 - **`send()` now observes task cancellation once it has started.** Previously
