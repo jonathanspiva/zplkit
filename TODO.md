@@ -58,7 +58,7 @@ genuinely lies there; that one is not a parsing artifact.
   UDP-4201 discovery is hardware-validated, but the sweep isn't automated.
 
 ### Notes for the next release
-Not tasks, but the two facts that cost time last release and are not recorded
+Not tasks, but facts that cost time in past releases and are not recorded
 anywhere else:
 
 - **The Swift Package Index build matrix is per version.** A fix only shows up
@@ -68,12 +68,21 @@ anywhere else:
   indexed or not. Only the `/api/.../badge` endpoints answer `curl`, which is
   what the README badges use. Verified 2026-09-25 against v1.0.6: platforms
   reads `iOS | macOS | visionOS | tvOS | watchOS | Linux | Wasm | Android`,
-  Swift reads `6.4 | 6.3`. Expect Swift to drop to `6.4` once the 27-floor
-  release is indexed.
+  Swift read `6.4 | 6.3`; after 1.1.0 was indexed it reads `6.4` alone
+  (re-checked 2026-10-21).
 - **1.1.0 raised the floor to 27 as a minor release** (decided 2026-09-25),
   even though SwiftPM resolves versions without looking at platforms, so an
   OS 26 consumer on `from: "1.0.0"` picks it up and fails to build. The
   CHANGELOG and README point OS 26 users at 1.0.x.
+- **Parallel PRs all conflict in CHANGELOG `[Unreleased]`.** Each one adds its
+  entries at the same spot, so after one merges the rest need a rebase. In
+  1.2.0 a scripted conflict resolution silently dropped a whole `### Added`
+  list; diff each rebased CHANGELOG against master before pushing.
+- **After a force-push, confirm the PR's head SHA before trusting its checks.**
+  During a GitHub PR-sync incident (2026-10-21) the PR kept pointing at the
+  pre-rebase commit for several minutes, so `gh pr checks` reported the OLD
+  commit's green run. Compare `gh api repos/.../pulls/N --jq .head.sha` with
+  `git rev-parse HEAD`, and read check runs for that SHA.
 
 ## Later
 
