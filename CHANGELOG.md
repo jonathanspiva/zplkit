@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was forcing onto Node.js 24 with a warning on every job.
 - CI: the WebAssembly job moved to the `swift:6.4.2` container and the 6.4.2
   Wasm Swift SDK (checksum matches the one swift.org publishes).
+- CI: the Wasm SDK is downloaded with `curl`, checksum-verified, and installed
+  from the local file. `swift sdk install <url>` on 6.4.2 intermittently
+  aborted after a complete download (a URLSession teardown bug on Linux).
+- Tests: the `send()` fan-out test no longer races. It now fills every slot
+  before queueing the extra sends, and cancels the queued ones first; before,
+  cancelling an in-flight send could hand its slot to a queued send that had
+  not been cancelled yet, which then legitimately connected.
 - CI: Dependabot now opens a monthly grouped PR for GitHub Actions updates.
 
 ## [1.2.0] - 2026-10-21

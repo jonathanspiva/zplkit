@@ -346,11 +346,22 @@ jobs:
         # no `pipefail`, so `set -euo pipefail` aborts the step with exit 2
         # before running anything.
         shell: bash
+        # Downloaded with curl and installed from the local file, not by URL:
+        # on 6.4.2, `swift sdk install <url>` intermittently aborts AFTER a
+        # complete download ("_MultiHandle deallocated with non-zero retain
+        # count", a URLSession teardown bug in Foundation on Linux). The
+        # checksum is verified here instead, since a local install skips it.
         run: |
           set -euo pipefail
-          swift sdk install \
-            "https://download.swift.org/swift-6.4.2-release/wasm-sdk/swift-6.4.2-RELEASE/swift-6.4.2-RELEASE_wasm.artifactbundle.tar.gz" \
-            --checksum 83baca83553f8c443cda7b84800912e6e709c3acd2e7ebf277794ca5836c0da5
+          url="https://download.swift.org/swift-6.4.2-release/wasm-sdk/swift-6.4.2-RELEASE/swift-6.4.2-RELEASE_wasm.artifactbundle.tar.gz"
+          sum="83baca83553f8c443cda7b84800912e6e709c3acd2e7ebf277794ca5836c0da5"
+          bundle="$(mktemp -d)/wasm-sdk.artifactbundle.tar.gz"
+          if ! command -v curl >/dev/null; then
+            apt-get update -qq && apt-get install -y -qq curl
+          fi
+          curl -fsSL --retry 3 -o "$bundle" "$url"
+          echo "$sum  $bundle" | sha256sum -c -
+          swift sdk install "$bundle"
           swift sdk list
 
       - name: Build ZPLKit for WebAssembly
