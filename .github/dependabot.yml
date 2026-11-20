@@ -1,0 +1,14 @@
+# Keeps the SHA-pinned GitHub Actions in .github/workflows current. ZPLKit has
+# no package dependencies, so Swift is not tracked here. Container images and
+# the Wasm Swift SDK (tag, URL, and checksum move together) are bumped by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: CI

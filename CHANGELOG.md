@@ -5,6 +5,17 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- CI: `actions/checkout` and `actions/upload-artifact` moved from v4 to v7
+  (SHA-pinned). The v4 actions target Node.js 20, which GitHub deprecated and
+  was forcing onto Node.js 24 with a warning on every job.
+- CI: the WebAssembly job moved to the `swift:6.4.2` container and the 6.4.2
+  Wasm Swift SDK (checksum matches the one swift.org publishes).
+- CI: Dependabot now opens a monthly grouped PR for GitHub Actions updates.
+
 ## [1.2.0] - 2026-10-21
 
 **Printer reliability and preview accuracy.** `calibrate()` no longer
