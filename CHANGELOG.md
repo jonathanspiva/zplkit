@@ -5,27 +5,38 @@ All notable changes to ZPLKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.1] - 2026-11-20
+
+**Maintenance release: no API or behavior changes.** Checked against the
+current toolchain (Xcode 27.2 / Swift 6.4.2): zero warnings under
+`-warnings-as-errors`. `ZPLPrinterBrowser`'s thread safety is now
+compiler-checked, and CI is off the deprecated Node.js 20 actions and two
+intermittent failures.
 
 ### Changed
 
 - `ZPLPrinterBrowser` is now checked `Sendable` instead of
   `@unchecked Sendable`. Its state moved from an `NSLock` to a
   `Synchronization.Mutex`, so the compiler verifies the locking. Behavior is
-  unchanged; an unused stored `Thread` reference was removed.
-- CI: `actions/checkout` and `actions/upload-artifact` moved from v4 to v7
+  unchanged; an unused stored `Thread` reference was removed. A new test
+  drives `start()`, `stop()`, `printers` and `discoveredPrinters` from 64
+  concurrent tasks.
+
+### CI and tests
+
+- `actions/checkout` and `actions/upload-artifact` moved from v4 to v7
   (SHA-pinned). The v4 actions target Node.js 20, which GitHub deprecated and
   was forcing onto Node.js 24 with a warning on every job.
-- CI: the WebAssembly job moved to the `swift:6.4.2` container and the 6.4.2
-  Wasm Swift SDK (checksum matches the one swift.org publishes).
-- CI: the Wasm SDK is downloaded with `curl`, checksum-verified, and installed
-  from the local file. `swift sdk install <url>` on 6.4.2 intermittently
-  aborted after a complete download (a URLSession teardown bug on Linux).
-- Tests: the `send()` fan-out test no longer races. It now fills every slot
-  before queueing the extra sends, and cancels the queued ones first; before,
+- The WebAssembly job moved to the `swift:6.4.2` container and the 6.4.2 Wasm
+  Swift SDK. The SDK is now downloaded with `curl`, checksum-verified (the
+  value swift.org publishes), and installed from the local file:
+  `swift sdk install <url>` on 6.4.2 intermittently aborted after a complete
+  download (a URLSession teardown bug on Linux).
+- The `send()` fan-out test no longer races. It now fills every slot before
+  queueing the extra sends, and cancels the queued ones first; before,
   cancelling an in-flight send could hand its slot to a queued send that had
   not been cancelled yet, which then legitimately connected.
-- CI: Dependabot now opens a monthly grouped PR for GitHub Actions updates.
+- Dependabot now opens a monthly grouped PR for GitHub Actions updates.
 
 ## [1.2.0] - 2026-10-21
 
@@ -779,6 +790,7 @@ These affect anyone who built against pre-release code:
 - Added a rotation fixture; there was no coverage of field orientation at all,
   which is why the rotated-field anchoring bug went unseen.
 
+[1.2.1]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.2.1
 [1.2.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.2.0
 [1.1.0]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.1.0
 [1.0.6]: https://github.com/jonathanspiva/zplkit/releases/tag/v1.0.6
