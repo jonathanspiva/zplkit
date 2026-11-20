@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `ZPLPrinterBrowser` is now checked `Sendable` instead of
+  `@unchecked Sendable`. Its state moved from an `NSLock` to a
+  `Synchronization.Mutex`, so the compiler verifies the locking. Behavior is
+  unchanged; an unused stored `Thread` reference was removed.
 - CI: `actions/checkout` and `actions/upload-artifact` moved from v4 to v7
   (SHA-pinned). The v4 actions target Node.js 20, which GitHub deprecated and
   was forcing onto Node.js 24 with a warning on every job.
