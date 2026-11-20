@@ -132,22 +132,39 @@ struct SendCancellationTests {
 
         let limit = ZPLPrinter.maxConcurrentSends
         let printer = ZPLPrinter(host: "127.0.0.1", port: fake.port, timeout: Self.longTimeout)
-        let tasks = (0..<(limit + 4)).map { _ in
+
+        // Fill every slot first, then start the extras, so we KNOW which tasks
+        // are queued. Starting all of them at once and cancelling in array
+        // order was racy: which tasks won a slot is arbitrary, so cancelling an
+        // in-flight one could hand its slot to a queued task that had not been
+        // cancelled yet, which then (correctly) connected.
+        let inFlight = (0..<limit).map { _ in
             Task { try await printer.send(Self.blockingPayload) }
         }
-
         try await waitUntil { fake.connectionCount == limit }
+
+        let queued = (0..<4).map { _ in
+            Task { try await printer.send(Self.blockingPayload) }
+        }
         // The extra sends must stay queued, not connect.
         try await Task.sleep(nanoseconds: 300_000_000)
         #expect(fake.connectionCount == limit)
 
         let start = ContinuousClock.now
-        for task in tasks { task.cancel() }
-        for task in tasks {
+        // Cancel the queued sends while every slot is still held: they must
+        // throw without ever connecting.
+        for task in queued { task.cancel() }
+        for task in queued {
+            await #expect(throws: CancellationError.self) { try await task.value }
+        }
+        #expect(fake.connectionCount == limit)
+
+        for task in inFlight { task.cancel() }
+        for task in inFlight {
             await #expect(throws: CancellationError.self) { try await task.value }
         }
         #expect(ContinuousClock.now - start < .seconds(5))
-        // Cancelled queued sends never connected.
+        // Freed slots had no waiters left to hand to.
         #expect(fake.connectionCount == limit)
     }
 }
