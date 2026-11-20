@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import Synchronization
 
 /// Discovers Zebra printers on the local network using Zebra's proprietary
 /// UDP discovery protocol (the same mechanism Zebra's Link-OS `NetworkDiscoverer`
@@ -34,7 +35,7 @@ import Darwin
 /// - Note: On iOS (and macOS apps under the App Sandbox), UDP broadcast triggers
 ///   the local-network privacy permission. The app needs the entitlement and
 ///   the user's approval, or no replies are received.
-public final class ZPLPrinterBrowser: @unchecked Sendable {
+public final class ZPLPrinterBrowser: Sendable {
     /// Zebra's proprietary discovery UDP port.
     public static let discoveryPort: UInt16 = 4201
 
@@ -43,11 +44,15 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
     /// Reply packets begin with `:,.`.
     private static let replyMagic: [UInt8] = [0x3A, 0x2C, 0x2E]
 
-    private let lock = NSLock()
-    private var discovered: [String: DiscoveredPrinter] = [:]   // keyed by host IP
-    private var continuations: [UUID: AsyncStream<DiscoveredPrinter>.Continuation] = [:]
-    private var isRunning = false
-    private var thread: Thread?
+    /// All mutable state, behind one `Mutex` so the compiler checks the
+    /// class's `Sendable` conformance (it was `@unchecked` over an `NSLock`).
+    private struct State {
+        var discovered: [String: DiscoveredPrinter] = [:]   // keyed by host IP
+        var continuations: [UUID: AsyncStream<DiscoveredPrinter>.Continuation] = [:]
+        var isRunning = false
+    }
+
+    private let state = Mutex(State())
 
     /// Creates a new printer browser.
     public init() {}
@@ -56,8 +61,7 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
 
     /// The printers discovered so far.
     public var discoveredPrinters: [DiscoveredPrinter] {
-        lock.lock(); defer { lock.unlock() }
-        return Array(discovered.values)
+        state.withLock { Array($0.discovered.values) }
     }
 
     /// An async sequence of discovered printers. Each printer is emitted as it's
@@ -67,22 +71,19 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
         return AsyncStream { continuation in
             let id = UUID()
 
-            lock.lock()
             // stop() may have run between start() above and this registration;
             // registering on a stopped browser would strand the iterator on a
             // stream that never yields and never finishes.
-            let active = isRunning
-            if active {
-                continuations[id] = continuation
-                for printer in discovered.values { continuation.yield(printer) }
+            let active = state.withLock { state in
+                guard state.isRunning else { return false }
+                state.continuations[id] = continuation
+                for printer in state.discovered.values { continuation.yield(printer) }
+                return true
             }
-            lock.unlock()
 
             if active {
                 continuation.onTermination = { [weak self] _ in
-                    self?.lock.lock()
-                    self?.continuations.removeValue(forKey: id)
-                    self?.lock.unlock()
+                    self?.state.withLock { _ = $0.continuations.removeValue(forKey: id) }
                 }
             } else {
                 continuation.finish()
@@ -92,10 +93,11 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
 
     /// Starts broadcasting for printers. Called automatically by `printers`.
     public func start() {
-        lock.lock()
-        guard !isRunning else { lock.unlock(); return }
-        isRunning = true
-        lock.unlock()
+        let alreadyRunning = state.withLock { state in
+            defer { state.isRunning = true }
+            return state.isRunning
+        }
+        guard !alreadyRunning else { return }
 
         // The thread must NOT hold a strong `self` for the life of the loop.
         // `Thread { self?.discoveryLoop() }` does exactly that: optional-chaining
@@ -107,19 +109,19 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
         let t = Thread { [weak self] in ZPLPrinterBrowser.discoveryLoop(owner: { self }) }
         t.name = "ZPLPrinterBrowser.udp4201"
         t.stackSize = 512 * 1024
-        lock.lock(); thread = t; lock.unlock()
         t.start()
     }
 
     /// Stops broadcasting and releases resources. Safe to call multiple times.
     public func stop() {
-        lock.lock()
-        guard isRunning else { lock.unlock(); return }
-        isRunning = false
-        let toFinish = Array(continuations.values)
-        continuations.removeAll()
-        discovered.removeAll()
-        lock.unlock()
+        let toFinish: [AsyncStream<DiscoveredPrinter>.Continuation] = state.withLock { state in
+            guard state.isRunning else { return [] }
+            state.isRunning = false
+            let toFinish = Array(state.continuations.values)
+            state.continuations.removeAll()
+            state.discovered.removeAll()
+            return toFinish
+        }
 
         // Deliberately does NOT close the socket. Closing another thread's file
         // descriptor races that thread's `recvfrom`/`sendto`: if anything else
@@ -129,8 +131,8 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
         // false` and closes its own descriptor within a second instead.
         //
         // finish() synchronously invokes each stream's onTermination handler,
-        // which re-acquires `lock`; call it *outside* the lock to avoid a
-        // re-entrant deadlock.
+        // which re-acquires `state`; call it *outside* the lock (Mutex is not
+        // re-entrant either) to avoid a deadlock.
         for continuation in toFinish { continuation.finish() }
     }
 
@@ -192,8 +194,7 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
             // waiting deinit by up to that long for no reason.
             let keepGoing: Bool = {
                 guard let browser = owner() else { return false }
-                browser.lock.lock(); let running = browser.isRunning; browser.lock.unlock()
-                guard running else { return false }
+                guard browser.state.withLock({ $0.isRunning }) else { return false }
                 if Date().timeIntervalSince(lastBroadcast) > 3 {
                     ZPLPrinterBrowser.broadcastProbe(fd)
                     lastBroadcast = Date()
@@ -234,11 +235,12 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
     /// Clears `isRunning` after the discovery thread fails to start, so the
     /// browser doesn't advertise a session that isn't there.
     private func markStopped() {
-        lock.lock()
-        isRunning = false
-        let toFinish = Array(continuations.values)
-        continuations.removeAll()
-        lock.unlock()
+        let toFinish = state.withLock { state in
+            state.isRunning = false
+            let toFinish = Array(state.continuations.values)
+            state.continuations.removeAll()
+            return toFinish
+        }
         for continuation in toFinish { continuation.finish() }
     }
 
@@ -257,11 +259,11 @@ public final class ZPLPrinterBrowser: @unchecked Sendable {
     }
 
     private func addPrinter(_ printer: DiscoveredPrinter) {
-        lock.lock()
-        let isNew = discovered[printer.host] == nil
-        discovered[printer.host] = printer
-        let toYield = isNew ? Array(continuations.values) : []
-        lock.unlock()
+        let toYield = state.withLock { state in
+            let isNew = state.discovered[printer.host] == nil
+            state.discovered[printer.host] = printer
+            return isNew ? Array(state.continuations.values) : []
+        }
         for continuation in toYield { continuation.yield(printer) }
     }
 

@@ -262,6 +262,43 @@ struct ZPLKitPrinterTests {
         await iterator.value
     }
 
+    @Test("ZPLPrinterBrowser tolerates concurrent start, stop, streams, and reads",
+          .tags(.live),
+          .enabled(if: networkTestsEnabled, "Set ZPLTOOL_LIVE_TESTS=1 to enable network tests"),
+          .timeLimit(.minutes(1)))
+    func browserConcurrentAccess() async {
+        let browser = ZPLPrinterBrowser()
+
+        // Every entry point that touches the browser's Mutex-guarded state,
+        // hammered from many tasks at once. A data race or a re-entrant lock
+        // (stream termination re-enters the lock) would crash or hang here.
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<64 {
+                group.addTask {
+                    switch i % 4 {
+                    case 0: browser.start()
+                    case 1: browser.stop()
+                    case 2: _ = browser.discoveredPrinters
+                    default:
+                        let stream = browser.printers
+                        let iterator = Task { for await _ in stream {} }
+                        browser.stop()
+                        await iterator.value
+                    }
+                }
+            }
+        }
+
+        // Whatever order the tasks ran in, a final stop() finishes every stream
+        // and leaves the browser empty and restartable.
+        browser.stop()
+        #expect(browser.discoveredPrinters.isEmpty)
+        let stream = browser.printers
+        let iterator = Task { for await _ in stream {} }
+        browser.stop()
+        await iterator.value
+    }
+
     // MARK: - Query (Bidirectional) Tests
 
     @Test("ZPLPrinter query times out on non-routable address",
